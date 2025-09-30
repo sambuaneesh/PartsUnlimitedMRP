@@ -1,0 +1,4290 @@
+{
+  "metadata" : {
+    "totalClasses" : 99,
+    "relationshipCounts" : {
+      "EXTENDS" : 11,
+      "INJECTS" : 3,
+      "IMPLEMENTS" : 20,
+      "USES" : 216,
+      "CALLS" : 158,
+      "CREATES" : 91
+    },
+    "relationshipTotalOccurrences" : {
+      "EXTENDS" : 11,
+      "INJECTS" : 3,
+      "IMPLEMENTS" : 20,
+      "USES" : 896,
+      "CALLS" : 622,
+      "CREATES" : 138
+    }
+  },
+  "classes" : {
+    "integration.Constants" : {
+      "methods" : [ {
+        "signature" : "private integration.Constants Constants()"
+      } ],
+      "fields" : [ {
+        "declaration" : "public static final int SCHEDULED_INTERVAL"
+      } ],
+      "relationships" : { }
+    },
+    "integration.Main" : {
+      "methods" : [ {
+        "signature" : "public static void main(null)"
+      } ],
+      "relationships" : { }
+    },
+    "integration.infrastructure.ConfigurationHelpers" : {
+      "methods" : [ {
+        "signature" : "public static java.lang.String getString(java.lang.String)"
+      }, {
+        "signature" : "public static int getInt(java.lang.String)"
+      }, {
+        "signature" : "private static java.util.Properties getPropValues(java.lang.String)"
+      }, {
+        "signature" : "private static java.util.Properties getProperties()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private static Properties s_props"
+      } ],
+      "relationships" : {
+        "CALLED_BY" : {
+          "integration.infrastructure.ConfigurationManager" : 5
+        }
+      }
+    },
+    "integration.infrastructure.ConfigurationManager" : {
+      "methods" : [ {
+        "signature" : "public static java.lang.String getAzureStorageConnectionString()"
+      }, {
+        "signature" : "public static java.lang.String getMrpEndpoint()"
+      }, {
+        "signature" : "public static java.lang.String getAzureOrderQueue()"
+      }, {
+        "signature" : "public static java.lang.String getAzureInventoryQueue()"
+      }, {
+        "signature" : "public static int getAzureQueueTimeout()"
+      }, {
+        "signature" : "public integration.infrastructure.ConfigurationManager ConfigurationManager()"
+      } ],
+      "relationships" : {
+        "CALLED_BY" : {
+          "integration.services.QueueService" : 1,
+          "integration.services.QueueFactory" : 1,
+          "integration.scheduled.CreateOrderProcessTask" : 2,
+          "integration.scheduled.UpdateProductProcessTask" : 2
+        },
+        "CALLS" : {
+          "integration.infrastructure.ConfigurationHelpers" : 5
+        }
+      }
+    },
+    "integration.models.QueueResponse" : {
+      "methods" : [ {
+        "signature" : "public com.microsoft.azure.storage.queue.CloudQueueMessage getQueueMessage()"
+      }, {
+        "signature" : "public null getResponseBody()"
+      }, {
+        "signature" : "public integration.models.QueueResponse QueueResponse(com.microsoft.azure.storage.queue.CloudQueueMessage, null)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private final CloudQueueMessage queueMessage"
+      }, {
+        "declaration" : "private final T responseBody"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "integration.services.QueueService" : 1
+        }
+      }
+    },
+    "integration.models.mrp.CatalogItem" : {
+      "annotations" : [ "@JsonIgnoreProperties(ignoreUnknown = true)" ],
+      "methods" : [ {
+        "signature" : "public java.lang.String getSkuNumber()"
+      }, {
+        "signature" : "public java.lang.String getDescription()"
+      }, {
+        "signature" : "public java.lang.String getUnit()"
+      }, {
+        "signature" : "public java.lang.String getPrice()"
+      }, {
+        "signature" : "public int getInventory()"
+      }, {
+        "signature" : "public int getLeadTime()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String skuNumber"
+      }, {
+        "declaration" : "private String description"
+      }, {
+        "declaration" : "private String unit"
+      }, {
+        "declaration" : "private String price"
+      }, {
+        "declaration" : "private int inventory"
+      }, {
+        "declaration" : "private int leadTime"
+      } ],
+      "relationships" : { }
+    },
+    "integration.models.mrp.DeliveryAddress" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String getStreet()"
+      }, {
+        "signature" : "public void setStreet(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getCity()"
+      }, {
+        "signature" : "public void setCity(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getState()"
+      }, {
+        "signature" : "public void setState(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getPostalCode()"
+      }, {
+        "signature" : "public void setPostalCode(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getSpecialInstructions()"
+      }, {
+        "signature" : "public void setSpecialInstructions(java.lang.String)"
+      }, {
+        "signature" : "public integration.models.mrp.DeliveryAddress DeliveryAddress()"
+      }, {
+        "signature" : "public integration.models.mrp.DeliveryAddress DeliveryAddress(java.lang.String, java.lang.String, java.lang.String, java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String street"
+      }, {
+        "declaration" : "private String city"
+      }, {
+        "declaration" : "private String state"
+      }, {
+        "declaration" : "private String postalCode"
+      }, {
+        "declaration" : "private String specialInstructions"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 1
+        },
+        "USED_BY" : {
+          "integration.models.mrp.ShipmentRecord" : 1,
+          "smpl.ordering.repositories.mongodb.models.ShipmentDetails" : 1,
+          "smpl.ordering.models.ShipmentRecord" : 3
+        }
+      }
+    },
+    "integration.models.mrp.Order" : {
+      "annotations" : [ "@JsonIgnoreProperties(ignoreUnknown = true)" ],
+      "methods" : [ {
+        "signature" : "public java.lang.String getOrderId()"
+      }, {
+        "signature" : "public void setOrderId(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getQuoteId()"
+      }, {
+        "signature" : "public void setQuoteId(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getOrderDate()"
+      }, {
+        "signature" : "public void setOrderDate(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getStatus()"
+      }, {
+        "signature" : "public void setStatus(java.lang.String)"
+      }, {
+        "signature" : "public integration.models.mrp.Order Order()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String orderId"
+      }, {
+        "declaration" : "private String quoteId"
+      }, {
+        "declaration" : "private String orderDate"
+      }, {
+        "declaration" : "private String status"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.controllers.OrderControllerTest" : 24,
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 6,
+          "smpl.ordering.models.Delivery" : 3,
+          "smpl.ordering.controllers.OrderController" : 4,
+          "integration.services.MrpConnectService" : 3,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 23,
+          "smpl.ordering.repositories.mock.MockShipmentRepository" : 1,
+          "smpl.ordering.repositories.OrderRepository" : 4,
+          "smpl.ordering.controllers.ShipmentControllerTest" : 10,
+          "smpl.ordering.repositories.mock.MockOrderRepository" : 7,
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 3,
+          "smpl.ordering.controllers.ShipmentController" : 1,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 8,
+          "smpl.ordering.repositories.mongodb.models.OrderDetails" : 10,
+          "smpl.ordering.models.Order" : 7
+        }
+      }
+    },
+    "integration.models.mrp.PhoneInfo" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String getPhoneNumber()"
+      }, {
+        "signature" : "public void setPhoneNumber(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getKind()"
+      }, {
+        "signature" : "public void setKind(java.lang.String)"
+      }, {
+        "signature" : "public integration.models.mrp.PhoneInfo PhoneInfo()"
+      }, {
+        "signature" : "public integration.models.mrp.PhoneInfo PhoneInfo(java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String phoneNumber"
+      }, {
+        "declaration" : "private String kind"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 2
+        },
+        "USED_BY" : {
+          "integration.models.mrp.ShipmentRecord" : 1,
+          "smpl.ordering.repositories.mongodb.models.ShipmentDetails" : 2,
+          "smpl.ordering.models.ShipmentRecord" : 6
+        }
+      }
+    },
+    "integration.models.mrp.Quote" : {
+      "annotations" : [ "@JsonIgnoreProperties(ignoreUnknown = true)" ],
+      "methods" : [ {
+        "signature" : "public java.lang.String getQuoteId()"
+      }, {
+        "signature" : "public void setQuoteId(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getCustomerName()"
+      }, {
+        "signature" : "public void setCustomerName(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getDealerName()"
+      }, {
+        "signature" : "public void setDealerName(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getCity()"
+      }, {
+        "signature" : "public void setCity(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getPostalCode()"
+      }, {
+        "signature" : "public void setPostalCode(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getState()"
+      }, {
+        "signature" : "public void setState(java.lang.String)"
+      }, {
+        "signature" : "public null getQuoteItems()"
+      }, {
+        "signature" : "public void setQuoteItems(null)"
+      }, {
+        "signature" : "public double getTotalCost()"
+      }, {
+        "signature" : "public void setTotalCost(double)"
+      }, {
+        "signature" : "public double getDiscount()"
+      }, {
+        "signature" : "public void setDiscount(double)"
+      }, {
+        "signature" : "public java.lang.String getValidUntil()"
+      }, {
+        "signature" : "public void setValidUntil(java.lang.String)"
+      }, {
+        "signature" : "public integration.models.mrp.Quote Quote()"
+      }, {
+        "signature" : "public integration.models.mrp.Quote Quote(integration.models.website.OrderMessage)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String quoteId"
+      }, {
+        "declaration" : "private String customerName"
+      }, {
+        "declaration" : "private String dealerName"
+      }, {
+        "declaration" : "private String validUntil"
+      }, {
+        "declaration" : "private String city"
+      }, {
+        "declaration" : "private String postalCode"
+      }, {
+        "declaration" : "private String state"
+      }, {
+        "declaration" : "private double totalCost"
+      }, {
+        "declaration" : "private double discount"
+      }, {
+        "declaration" : "private List<QuoteItemInfo> quoteItems"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 1,
+          "smpl.ordering.models.Delivery" : 3,
+          "smpl.ordering.repositories.mock.MockQuoteRepository" : 7,
+          "smpl.ordering.controllers.OrderController" : 1,
+          "integration.services.MrpConnectService" : 4,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 5,
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 7,
+          "smpl.ordering.controllers.QuoteController" : 3,
+          "smpl.ordering.controllers.QuoteControllerTest" : 6,
+          "smpl.ordering.repositories.QuoteRepository" : 4,
+          "smpl.ordering.repositories.mock.MockOrderRepository" : 1,
+          "smpl.ordering.models.Quote" : 9,
+          "smpl.ordering.controllers.ShipmentController" : 3,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 1,
+          "smpl.ordering.repositories.mongodb.models.QuoteDetails" : 20,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 11
+        },
+        "CALLS" : {
+          "integration.models.website.OrderMessage" : 7
+        },
+        "USES" : {
+          "integration.models.website.OrderMessage" : 1,
+          "integration.models.website.OrderItem" : 1,
+          "smpl.ordering.models.QuoteItemInfo" : 5
+        },
+        "CREATES" : {
+          "smpl.ordering.models.QuoteItemInfo" : 1
+        }
+      }
+    },
+    "integration.models.mrp.QuoteItemInfo" : {
+      "annotations" : [ "@JsonIgnoreProperties(ignoreUnknown = true)" ],
+      "methods" : [ {
+        "signature" : "public java.lang.String getSkuNumber()"
+      }, {
+        "signature" : "public void setSkuNumber(java.lang.String)"
+      }, {
+        "signature" : "public double getAmount()"
+      }, {
+        "signature" : "public void setAmount(double)"
+      }, {
+        "signature" : "public integration.models.mrp.QuoteItemInfo QuoteItemInfo()"
+      }, {
+        "signature" : "public integration.models.mrp.QuoteItemInfo QuoteItemInfo(integration.models.website.OrderItem)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String skuNumber"
+      }, {
+        "declaration" : "private double amount"
+      } ],
+      "relationships" : {
+        "CALLS" : {
+          "integration.models.website.OrderItem" : 2
+        },
+        "USES" : {
+          "integration.models.website.OrderItem" : 1
+        }
+      }
+    },
+    "integration.models.mrp.ShipmentEventInfo" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String getDate()"
+      }, {
+        "signature" : "public void setDate(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getComments()"
+      }, {
+        "signature" : "public void setComments(java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String date"
+      }, {
+        "declaration" : "private String comments"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 1,
+          "smpl.ordering.controllers.ShipmentControllerTest" : 1
+        },
+        "USED_BY" : {
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 3,
+          "integration.models.mrp.ShipmentRecord" : 1,
+          "smpl.ordering.controllers.ShipmentController" : 2,
+          "smpl.ordering.repositories.mongodb.models.ShipmentDetails" : 2,
+          "smpl.ordering.repositories.ShipmentRepository" : 1,
+          "smpl.ordering.repositories.mock.MockShipmentRepository" : 2,
+          "smpl.ordering.models.ShipmentRecord" : 2
+        }
+      }
+    },
+    "integration.models.mrp.ShipmentRecord" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String getOrderId()"
+      }, {
+        "signature" : "public void setOrderId(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getDeliveryDate()"
+      }, {
+        "signature" : "public void setDeliveryDate(java.lang.String)"
+      }, {
+        "signature" : "public null getEvents()"
+      }, {
+        "signature" : "public void setEvents(null)"
+      }, {
+        "signature" : "public integration.models.mrp.DeliveryAddress getDeliveryAddress()"
+      }, {
+        "signature" : "public void setDeliveryAddress(integration.models.mrp.DeliveryAddress)"
+      }, {
+        "signature" : "public java.lang.String getContactName()"
+      }, {
+        "signature" : "public void setContactName(java.lang.String)"
+      }, {
+        "signature" : "public integration.models.mrp.PhoneInfo getPrimaryContactPhone()"
+      }, {
+        "signature" : "public void setPrimaryContactPhone(integration.models.mrp.PhoneInfo)"
+      }, {
+        "signature" : "public integration.models.mrp.PhoneInfo getAlternateContactPhone()"
+      }, {
+        "signature" : "public void setAlternateContactPhone(integration.models.mrp.PhoneInfo)"
+      }, {
+        "signature" : "public integration.models.mrp.ShipmentRecord ShipmentRecord()"
+      }, {
+        "signature" : "public integration.models.mrp.ShipmentRecord ShipmentRecord(integration.models.website.OrderMessage, java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String orderId"
+      }, {
+        "declaration" : "private String deliveryDate"
+      }, {
+        "declaration" : "private List<ShipmentEventInfo> events"
+      }, {
+        "declaration" : "private DeliveryAddress deliveryAddress"
+      }, {
+        "declaration" : "private String contactName"
+      }, {
+        "declaration" : "private PhoneInfo primaryContactPhone"
+      }, {
+        "declaration" : "private PhoneInfo alternateContactPhone"
+      } ],
+      "relationships" : {
+        "CALLS" : {
+          "integration.models.website.OrderMessage" : 6
+        },
+        "USES" : {
+          "integration.models.mrp.ShipmentEventInfo" : 1,
+          "integration.models.website.OrderMessage" : 1,
+          "integration.models.mrp.DeliveryAddress" : 4,
+          "integration.models.mrp.PhoneInfo" : 7
+        },
+        "CREATES" : {
+          "integration.models.mrp.DeliveryAddress" : 1,
+          "integration.models.mrp.PhoneInfo" : 1
+        }
+      }
+    },
+    "integration.models.website.OrderItem" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String getSkuNumber()"
+      }, {
+        "signature" : "public void setSkuNumber(java.lang.String)"
+      }, {
+        "signature" : "public double getPrice()"
+      }, {
+        "signature" : "public void setPrice(double)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String skuNumber"
+      }, {
+        "declaration" : "private double price"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "integration.models.website.OrderMessage" : 1,
+          "integration.models.mrp.QuoteItemInfo" : 2,
+          "integration.models.mrp.Quote" : 1
+        }
+      }
+    },
+    "integration.models.website.OrderMessage" : {
+      "annotations" : [ "@JsonIgnoreProperties(ignoreUnknown = true)" ],
+      "methods" : [ {
+        "signature" : "public java.lang.String getCustomerName()"
+      }, {
+        "signature" : "public void setCustomerName(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getDealerName()"
+      }, {
+        "signature" : "public void setDealerName(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getOrderDate()"
+      }, {
+        "signature" : "public void setOrderDate(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getAddress()"
+      }, {
+        "signature" : "public void setAddress(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getCountry()"
+      }, {
+        "signature" : "public void setCountry(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getPhone()"
+      }, {
+        "signature" : "public void setPhone(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getCity()"
+      }, {
+        "signature" : "public void setCity(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getPostalCode()"
+      }, {
+        "signature" : "public void setPostalCode(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getState()"
+      }, {
+        "signature" : "public void setState(java.lang.String)"
+      }, {
+        "signature" : "public double getTotalCost()"
+      }, {
+        "signature" : "public void setTotalCost(double)"
+      }, {
+        "signature" : "public null getItems()"
+      }, {
+        "signature" : "public void setItems(null)"
+      }, {
+        "signature" : "public double getDiscount()"
+      }, {
+        "signature" : "public void setDiscount(double)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String customerName"
+      }, {
+        "declaration" : "private String dealerName"
+      }, {
+        "declaration" : "private String orderDate"
+      }, {
+        "declaration" : "private String address"
+      }, {
+        "declaration" : "private String country"
+      }, {
+        "declaration" : "private String phone"
+      }, {
+        "declaration" : "private String city"
+      }, {
+        "declaration" : "private String postalCode"
+      }, {
+        "declaration" : "private String state"
+      }, {
+        "declaration" : "private double totalCost"
+      }, {
+        "declaration" : "private double discount"
+      }, {
+        "declaration" : "private List<OrderItem> items"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "integration.models.mrp.ShipmentRecord" : 6,
+          "integration.services.MrpConnectService" : 6,
+          "integration.models.mrp.Quote" : 7
+        },
+        "USES" : {
+          "integration.models.website.OrderItem" : 1
+        }
+      }
+    },
+    "integration.models.website.ProductItem" : {
+      "methods" : [ {
+        "signature" : "public int getInventory()"
+      }, {
+        "signature" : "public void setInventory(int)"
+      }, {
+        "signature" : "public java.lang.String getSkuNumber()"
+      }, {
+        "signature" : "public void setSkuNumber(java.lang.String)"
+      }, {
+        "signature" : "public int getLeadTime()"
+      }, {
+        "signature" : "public void setLeadTime(int)"
+      }, {
+        "signature" : "public integration.models.website.ProductItem ProductItem()"
+      }, {
+        "signature" : "public integration.models.website.ProductItem ProductItem(smpl.ordering.models.CatalogItem)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String skuNumber"
+      }, {
+        "declaration" : "private int inventory"
+      }, {
+        "declaration" : "private int leadTime"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "integration.models.website.ProductMessage" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.models.CatalogItem" : 3
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 1
+        }
+      }
+    },
+    "integration.models.website.ProductMessage" : {
+      "methods" : [ {
+        "signature" : "public null getProductList()"
+      }, {
+        "signature" : "public void setProductList(null)"
+      }, {
+        "signature" : "public integration.models.website.ProductMessage ProductMessage()"
+      }, {
+        "signature" : "public integration.models.website.ProductMessage ProductMessage(null)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private List<ProductItem> productList"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "integration.scheduled.UpdateProductProcessTask" : 1
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 1,
+          "integration.models.website.ProductItem" : 5
+        },
+        "CREATES" : {
+          "integration.models.website.ProductItem" : 1
+        }
+      }
+    },
+    "integration.scheduled.CreateOrderProcessTask" : {
+      "annotations" : [ "@EnableScheduling" ],
+      "methods" : [ {
+        "signature" : "public void scheduledTask()",
+        "annotations" : [ "@Scheduled(fixedDelay = Constants.SCHEDULED_INTERVAL)" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "private static final Logger log"
+      } ],
+      "relationships" : {
+        "USES" : {
+          "integration.services.QueueService" : 2,
+          "integration.services.MrpConnectService" : 2
+        },
+        "CALLS" : {
+          "integration.infrastructure.ConfigurationManager" : 2,
+          "integration.services.QueueService" : 2,
+          "integration.services.MrpConnectService" : 1
+        },
+        "CREATES" : {
+          "integration.services.QueueService" : 1,
+          "integration.services.MrpConnectService" : 1
+        }
+      }
+    },
+    "integration.scheduled.UpdateProductProcessTask" : {
+      "annotations" : [ "@EnableScheduling" ],
+      "methods" : [ {
+        "signature" : "public void scheduledTask()",
+        "annotations" : [ "@Scheduled(fixedDelay = Constants.SCHEDULED_INTERVAL)" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "private static final Logger log"
+      } ],
+      "relationships" : {
+        "CALLS" : {
+          "integration.infrastructure.ConfigurationManager" : 2,
+          "integration.services.QueueService" : 1,
+          "integration.services.MrpConnectService" : 1
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 1,
+          "integration.services.QueueService" : 2,
+          "integration.services.MrpConnectService" : 2,
+          "integration.models.website.ProductMessage" : 4
+        },
+        "CREATES" : {
+          "integration.services.QueueService" : 1,
+          "integration.services.MrpConnectService" : 1,
+          "integration.models.website.ProductMessage" : 1
+        }
+      }
+    },
+    "integration.services.MrpConnectService" : {
+      "methods" : [ {
+        "signature" : "public void createNewOrder(integration.models.website.OrderMessage)"
+      }, {
+        "signature" : "private void createShipment(integration.models.website.OrderMessage, java.lang.String)"
+      }, {
+        "signature" : "private integration.models.mrp.Order createOrder(java.lang.String)"
+      }, {
+        "signature" : "private integration.models.mrp.Quote createQuote(integration.models.website.OrderMessage)"
+      }, {
+        "signature" : "public null getCatalogItems()"
+      }, {
+        "signature" : "public integration.services.MrpConnectService MrpConnectService(java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private static final Logger log"
+      }, {
+        "declaration" : "private String hostName"
+      }, {
+        "declaration" : "private RestTemplate restTemplate"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "integration.scheduled.CreateOrderProcessTask" : 1,
+          "integration.scheduled.UpdateProductProcessTask" : 1
+        },
+        "CALLS" : {
+          "integration.models.mrp.Order" : 3,
+          "integration.models.mrp.Quote" : 4
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 1,
+          "integration.models.mrp.Order" : 4,
+          "integration.models.website.OrderMessage" : 6,
+          "smpl.ordering.models.ShipmentRecord" : 4,
+          "integration.models.mrp.Quote" : 7
+        },
+        "CREATES" : {
+          "smpl.ordering.models.ShipmentRecord" : 1,
+          "integration.models.mrp.Quote" : 1
+        }
+      }
+    },
+    "integration.services.QueueFactory" : {
+      "methods" : [ {
+        "signature" : "public static com.microsoft.azure.storage.queue.CloudQueue getQueue(java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private static Map<String,CloudQueue> s_queueDictionary"
+      } ],
+      "relationships" : {
+        "CALLED_BY" : {
+          "integration.services.QueueService" : 3
+        },
+        "CALLS" : {
+          "integration.infrastructure.ConfigurationManager" : 1
+        }
+      }
+    },
+    "integration.services.QueueService" : {
+      "methods" : [ {
+        "signature" : "public integration.models.QueueResponse getQueueMessage()"
+      }, {
+        "signature" : "public void deleteQueueMessage(com.microsoft.azure.storage.queue.CloudQueueMessage)"
+      }, {
+        "signature" : "public void addQueueMessage(null)"
+      }, {
+        "signature" : "public integration.services.QueueService QueueService(java.lang.String, null)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private static final Logger log"
+      }, {
+        "declaration" : "private final String queueName"
+      }, {
+        "declaration" : "private Class<T> valueType"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "integration.scheduled.CreateOrderProcessTask" : 2,
+          "integration.scheduled.UpdateProductProcessTask" : 1
+        },
+        "CALLS" : {
+          "integration.infrastructure.ConfigurationManager" : 1,
+          "integration.services.QueueFactory" : 3
+        },
+        "USES" : {
+          "integration.models.QueueResponse" : 4
+        },
+        "CREATES" : {
+          "integration.models.QueueResponse" : 1
+        }
+      }
+    },
+    "smpl.ordering.AppInsightsFilter" : {
+      "annotations" : [ "@Component" ],
+      "methods" : [ {
+        "signature" : "public void init(null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void doFilter(null, null, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void destroy()",
+        "annotations" : [ "@Override" ]
+      } ],
+      "relationships" : {
+        "CALLS" : {
+          "smpl.ordering.Utility" : 4
+        }
+      }
+    },
+    "smpl.ordering.BadRequestException" : {
+      "methods" : [ {
+        "signature" : "public smpl.ordering.BadRequestException BadRequestException(java.lang.String)"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.mock.MockOrderRepository" : 2,
+          "smpl.ordering.repositories.mock.MockQuoteRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 1,
+          "smpl.ordering.repositories.mock.MockShipmentRepository" : 2,
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 1
+        },
+        "EXTENDED_BY" : {
+          "smpl.ordering.ConflictingRequestException" : 1
+        }
+      }
+    },
+    "smpl.ordering.ConfigurationRule" : {
+      "methods" : [ {
+        "signature" : "public org.junit.runners.model.Statement apply(org.junit.runners.model.Statement, org.junit.runner.Description)",
+        "annotations" : [ "@Override" ]
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.mongodb.test.MongoShipmentRepositoryTest" : 1,
+          "smpl.ordering.UtilityTest" : 1,
+          "smpl.ordering.repositories.mongodb.test.MongoDealersRepositoryTest" : 1,
+          "smpl.ordering.repositories.mongodb.test.MongoOrderRepositoryTest" : 1,
+          "smpl.ordering.repositories.mongodb.test.MongoCatalogItemsRepositoryTest" : 1,
+          "smpl.ordering.repositories.mongodb.test.MongoQuoteRepositoryTest" : 1
+        }
+      }
+    },
+    "smpl.ordering.ConflictingRequestException" : {
+      "methods" : [ {
+        "signature" : "public smpl.ordering.ConflictingRequestException ConflictingRequestException(java.lang.String)"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.mock.MockOrderRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 1
+        },
+        "EXTENDS" : {
+          "smpl.ordering.BadRequestException" : 1
+        }
+      }
+    },
+    "smpl.ordering.MongoDBProperties" : {
+      "annotations" : [ "@ConfigurationProperties(prefix = \"mongodb\")" ],
+      "methods" : [ {
+        "signature" : "public java.lang.String getHost()"
+      }, {
+        "signature" : "public void setHost(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getDatabase()"
+      }, {
+        "signature" : "public void setDatabase(java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String host"
+      }, {
+        "declaration" : "private String database"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.OrderingConfiguration" : 1
+        }
+      }
+    },
+    "smpl.ordering.OrderingConfiguration" : {
+      "annotations" : [ "@SuppressWarnings(\"ALL\")", "@Configuration", "@ComponentScan", "@EnableAutoConfiguration", "@ConditionalOnClass({ MongoDBProperties.class, OrderingServiceProperties.class })", "@EnableConfigurationProperties({ MongoDBProperties.class, OrderingServiceProperties.class })" ],
+      "methods" : [ {
+        "signature" : "public static void main(null)"
+      }, {
+        "signature" : "public org.springframework.data.mongodb.core.MongoTemplate mongoTemplate()",
+        "annotations" : [ "@Bean" ]
+      }, {
+        "signature" : "public smpl.ordering.repositories.RepositoryFactory repositoryFactory()",
+        "annotations" : [ "@Bean" ]
+      }, {
+        "signature" : "public smpl.ordering.OrderingServiceProperties orderingServiceProperties()",
+        "annotations" : [ "@Bean" ]
+      }, {
+        "signature" : "public com.microsoft.applicationinsights.TelemetryClient getTelemetryClient()",
+        "annotations" : [ "@Bean" ]
+      }, {
+        "signature" : "public void setApplicationContext(org.springframework.context.ApplicationContext)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public static org.springframework.context.ApplicationContext getApplicationContext()"
+      }, {
+        "signature" : "public smpl.ordering.OrderingConfiguration OrderingConfiguration()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private OrderingServiceProperties orderingServiceProperties",
+        "annotations" : [ "@Autowired" ]
+      }, {
+        "declaration" : "private MongoDBProperties mongoDBProperties",
+        "annotations" : [ "@SuppressWarnings(\"SpringJavaAutowiringInspection\")", "@Autowired" ]
+      }, {
+        "declaration" : "private static ApplicationContext applicationContext"
+      }, {
+        "declaration" : "private static ThreadLocal<TelemetryClient> t_ambientTelemetryClient"
+      } ],
+      "relationships" : {
+        "CALLED_BY" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1,
+          "smpl.ordering.Utility" : 1
+        },
+        "INJECTS" : {
+          "smpl.ordering.OrderingServiceProperties" : 1,
+          "smpl.ordering.MongoDBProperties" : 1
+        },
+        "USES" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1,
+          "smpl.ordering.OrderingServiceProperties" : 2,
+          "smpl.ordering.MongoDBProperties" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 2,
+          "smpl.ordering.Utility" : 2
+        }
+      }
+    },
+    "smpl.ordering.OrderingInitializer" : {
+      "methods" : [ {
+        "signature" : "protected org.springframework.boot.builder.SpringApplicationBuilder configure(org.springframework.boot.builder.SpringApplicationBuilder)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void onStartup(javax.servlet.ServletContext)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public static java.lang.String getApplicationPath()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private static String s_applicationPath"
+      } ],
+      "relationships" : {
+        "CALLED_BY" : {
+          "smpl.ordering.controllers.ShipmentController" : 1,
+          "smpl.ordering.controllers.OrderController" : 1,
+          "smpl.ordering.controllers.CatalogController" : 1,
+          "smpl.ordering.controllers.QuoteController" : 1,
+          "smpl.ordering.controllers.DealerController" : 1
+        }
+      }
+    },
+    "smpl.ordering.OrderingServiceProperties" : {
+      "annotations" : [ "@ConfigurationProperties(prefix = \"ordering\")" ],
+      "methods" : [ {
+        "signature" : "public java.lang.String getStorage()"
+      }, {
+        "signature" : "public void setStorage(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getValidationMessage()"
+      }, {
+        "signature" : "public void setValidationMessage(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getPingMessage()"
+      }, {
+        "signature" : "public void setPingMessage(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getInstrumentationKey()"
+      }, {
+        "signature" : "public void setInstrumentationKey(java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String storage"
+      }, {
+        "declaration" : "private String pingMessage"
+      }, {
+        "declaration" : "private String validationMessage"
+      }, {
+        "declaration" : "private String instrumentationKey"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.OrderingConfiguration" : 1,
+          "smpl.ordering.controllers.PingController" : 1
+        }
+      }
+    },
+    "smpl.ordering.PostgresqlProperties" : {
+      "annotations" : [ "@ConfigurationProperties(prefix = \"postgresql\")" ],
+      "methods" : [ {
+        "signature" : "public java.lang.String getUsername()"
+      }, {
+        "signature" : "public void setUsername(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getPassword()"
+      }, {
+        "signature" : "public void setPassword(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getDriverClass()"
+      }, {
+        "signature" : "public void setDriverClass(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getUrl()"
+      }, {
+        "signature" : "public void setUrl(java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String username"
+      }, {
+        "declaration" : "private String password"
+      }, {
+        "declaration" : "private String driverClass"
+      }, {
+        "declaration" : "private String url"
+      } ],
+      "relationships" : { }
+    },
+    "smpl.ordering.PropertyHelper" : {
+      "methods" : [ {
+        "signature" : "public static java.util.Properties getPropValues(java.lang.String)"
+      }, {
+        "signature" : "public static java.util.Properties getProperties()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private static Properties s_props"
+      } ],
+      "relationships" : {
+        "CALLED_BY" : {
+          "smpl.ordering.TestOrderingConfiguration" : 2,
+          "smpl.ordering.controllers.PingController" : 1
+        }
+      }
+    },
+    "smpl.ordering.SimpleCORSFilter" : {
+      "annotations" : [ "@Component" ],
+      "methods" : [ {
+        "signature" : "public void doFilter(javax.servlet.ServletRequest, javax.servlet.ServletResponse, javax.servlet.FilterChain)"
+      }, {
+        "signature" : "public void init(javax.servlet.FilterConfig)"
+      }, {
+        "signature" : "public void destroy()"
+      } ],
+      "relationships" : { }
+    },
+    "smpl.ordering.TestOrderingConfiguration" : {
+      "annotations" : [ "@Configuration", "@ComponentScan", "@EnableAutoConfiguration" ],
+      "methods" : [ {
+        "signature" : "public org.springframework.data.mongodb.core.MongoTemplate mongoTemplate()",
+        "annotations" : [ "@Bean" ]
+      }, {
+        "signature" : "public com.microsoft.applicationinsights.TelemetryClient getTelemetryClient()",
+        "annotations" : [ "@Bean" ]
+      }, {
+        "signature" : "public smpl.ordering.repositories.RepositoryFactory repositoryFactory()",
+        "annotations" : [ "@Bean" ]
+      }, {
+        "signature" : "public void setApplicationContext(org.springframework.context.ApplicationContext)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public static org.springframework.context.ApplicationContext getApplicationContext()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private static ApplicationContext applicationContext"
+      }, {
+        "declaration" : "private static MongoClient s_mongoClient"
+      } ],
+      "relationships" : {
+        "USES" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 2,
+          "smpl.ordering.PropertyHelper" : 2,
+          "smpl.ordering.Utility" : 1
+        }
+      }
+    },
+    "smpl.ordering.TestPath" : {
+      "methods" : [ {
+        "signature" : "public abstract void reset()"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.controllers.OrderControllerTest" : 4,
+          "smpl.ordering.controllers.QuoteControllerTest" : 3,
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 5,
+          "smpl.ordering.controllers.DealerControllerTest" : 1,
+          "smpl.ordering.controllers.ShipmentControllerTest" : 5,
+          "smpl.ordering.controllers.CatalogControllerTest" : 1,
+          "smpl.ordering.repositories.CatalogItemsRepositoryTest" : 1,
+          "smpl.ordering.repositories.DealersRepositoryTest" : 1,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 4,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 3
+        },
+        "IMPLEMENTED_BY" : {
+          "smpl.ordering.repositories.mongodb.MongoDealersRepository" : 1,
+          "smpl.ordering.repositories.mock.MockDealersRepository" : 1,
+          "smpl.ordering.repositories.mock.MockQuoteRepository" : 1,
+          "smpl.ordering.repositories.mock.MockOrderRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoCatalogItemsRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 1,
+          "smpl.ordering.repositories.mock.MockCatalogItemsRepository" : 1,
+          "smpl.ordering.repositories.mock.MockShipmentRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 1
+        }
+      }
+    },
+    "smpl.ordering.Utility" : {
+      "methods" : [ {
+        "signature" : "public static int validateStringField(java.lang.String, java.lang.String, int, java.lang.StringBuilder)"
+      }, {
+        "signature" : "public static boolean isNullOrEmpty(java.lang.String)"
+      }, {
+        "signature" : "public static com.microsoft.applicationinsights.TelemetryClient getTelemetryClient()"
+      } ],
+      "relationships" : {
+        "CALLED_BY" : {
+          "smpl.ordering.models.CatalogItem" : 2,
+          "smpl.ordering.UtilityTest" : 5,
+          "smpl.ordering.controllers.OrderController" : 7,
+          "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry" : 1,
+          "smpl.ordering.controllers.QuoteController" : 5,
+          "smpl.ordering.controllers.DealerController" : 5,
+          "smpl.ordering.AppInsightsFilter" : 4,
+          "smpl.ordering.models.DealerInfo" : 1,
+          "smpl.ordering.TestOrderingConfiguration" : 1,
+          "smpl.ordering.models.Quote" : 2,
+          "smpl.ordering.controllers.ShipmentController" : 6,
+          "smpl.ordering.OrderingConfiguration" : 2,
+          "smpl.ordering.controllers.CatalogController" : 5,
+          "smpl.ordering.models.Order" : 2,
+          "smpl.ordering.controllers.PingController" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.OrderingConfiguration" : 1
+        }
+      }
+    },
+    "smpl.ordering.UtilityTest" : {
+      "methods" : [ {
+        "signature" : "public void testIsNullOrEmpty()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testGetTelemetryClient()",
+        "annotations" : [ "@Test" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "public ConfigurationRule rule",
+        "annotations" : [ "@Rule" ]
+      } ],
+      "relationships" : {
+        "CALLS" : {
+          "smpl.ordering.Utility" : 5
+        },
+        "USES" : {
+          "smpl.ordering.ConfigurationRule" : 2
+        },
+        "CREATES" : {
+          "smpl.ordering.ConfigurationRule" : 1
+        }
+      }
+    },
+    "smpl.ordering.controllers.CatalogController" : {
+      "annotations" : [ "@Controller", "@RequestMapping(\"/catalog\")" ],
+      "methods" : [ {
+        "signature" : "public org.springframework.http.ResponseEntity getCatalogItems()",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.GET)" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity getCatalogItem(java.lang.String)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.GET, value = \"/{sku}\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity addCatalogItem(smpl.ordering.models.CatalogItem)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.POST)" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity upsertCatalogItem(java.lang.String, smpl.ordering.models.CatalogItem)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.PUT, value = \"/{sku}\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity removeCatalogItem(java.lang.String)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.DELETE, value = \"/{sku}\")" ]
+      }, {
+        "signature" : "private smpl.ordering.repositories.CatalogItemsRepository getRepository()"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.controllers.CatalogControllerTest" : 1
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 8,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.models.CatalogItem" : 5,
+          "smpl.ordering.OrderingInitializer" : 1,
+          "smpl.ordering.repositories.RepositoryFactory" : 1,
+          "smpl.ordering.Utility" : 5
+        }
+      }
+    },
+    "smpl.ordering.controllers.CatalogControllerTest" : {
+      "annotations" : [ "@SuppressWarnings(\"unchecked\")" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before" ]
+      }, {
+        "signature" : "public void testAddCatalogItem()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testUpsertCatalogItem()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testGetCatalogItems()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testGetCatalogItem()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testRemoveCatalogItem()",
+        "annotations" : [ "@Test" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "private CatalogController controller"
+      } ],
+      "relationships" : {
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 17,
+          "smpl.ordering.TestPath" : 1,
+          "smpl.ordering.controllers.CatalogController" : 2,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.models.CatalogItem" : 3,
+          "smpl.ordering.repositories.RepositoryFactory" : 2
+        },
+        "CREATES" : {
+          "smpl.ordering.models.CatalogItem" : 13,
+          "smpl.ordering.controllers.CatalogController" : 1
+        }
+      }
+    },
+    "smpl.ordering.controllers.DealerController" : {
+      "annotations" : [ "@Controller", "@RequestMapping(\"/dealers\")" ],
+      "methods" : [ {
+        "signature" : "public org.springframework.http.ResponseEntity getDealers()",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.GET)" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity getDealer(java.lang.String)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.GET, value = \"/{name}\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity addDealer(smpl.ordering.models.DealerInfo)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.POST)" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity updateDealer(java.lang.String, smpl.ordering.models.DealerInfo)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.PUT, value = \"/{name}\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity removeDealer(java.lang.String)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.DELETE, value = \"/{name}\")" ]
+      }, {
+        "signature" : "private static smpl.ordering.repositories.DealersRepository getRepository()"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.controllers.DealerControllerTest" : 1
+        },
+        "USES" : {
+          "smpl.ordering.models.DealerInfo" : 9,
+          "smpl.ordering.repositories.DealersRepository" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.models.DealerInfo" : 4,
+          "smpl.ordering.OrderingInitializer" : 1,
+          "smpl.ordering.repositories.RepositoryFactory" : 1,
+          "smpl.ordering.Utility" : 5
+        }
+      }
+    },
+    "smpl.ordering.controllers.DealerControllerTest" : {
+      "annotations" : [ "@SuppressWarnings(\"unchecked\")" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before" ]
+      }, {
+        "signature" : "public void testAddDealer()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testUpdateDealer()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testGetDealers()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "private void createDealers()"
+      }, {
+        "signature" : "public void testGetDealer()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testRemoveDealer()",
+        "annotations" : [ "@Test" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "private DealerController controller"
+      } ],
+      "relationships" : {
+        "USES" : {
+          "smpl.ordering.models.DealerInfo" : 13,
+          "smpl.ordering.TestPath" : 1,
+          "smpl.ordering.repositories.DealersRepository" : 1,
+          "smpl.ordering.controllers.DealerController" : 2
+        },
+        "CALLS" : {
+          "smpl.ordering.models.DealerInfo" : 5,
+          "smpl.ordering.repositories.DealersRepositoryTest" : 11,
+          "smpl.ordering.repositories.RepositoryFactory" : 2
+        },
+        "CREATES" : {
+          "smpl.ordering.controllers.DealerController" : 1
+        }
+      }
+    },
+    "smpl.ordering.controllers.OrderController" : {
+      "annotations" : [ "@Controller", "@RequestMapping(\"/orders\")" ],
+      "methods" : [ {
+        "signature" : "public org.springframework.http.ResponseEntity getOrderById(java.lang.String)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.GET, value = \"/{orderId}\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity getOrdersByDealerName(java.lang.String, smpl.ordering.models.OrderStatus)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.GET)" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity createOrder(java.lang.String)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.POST)" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity addEvent(java.lang.String, smpl.ordering.models.OrderEventInfo)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.POST, value = \"/{orderId}/events\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity updateOrder(java.lang.String, integration.models.mrp.Order)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.PUT, value = \"/{orderId}\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity updateStatus(java.lang.String, smpl.ordering.models.OrderUpdateInfo)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.PUT, value = \"/{orderId}/status\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity deleteOrder(java.lang.String)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.DELETE, value = \"/{orderId}\")" ]
+      }, {
+        "signature" : "private smpl.ordering.repositories.QuoteRepository getQuotes()"
+      }, {
+        "signature" : "private smpl.ordering.repositories.OrderRepository getOrders()"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.controllers.OrderControllerTest" : 1,
+          "smpl.ordering.controllers.ShipmentControllerTest" : 1
+        },
+        "USES" : {
+          "integration.models.mrp.Order" : 8,
+          "smpl.ordering.repositories.QuoteRepository" : 1,
+          "smpl.ordering.models.OrderEventInfo" : 3,
+          "smpl.ordering.models.OrderUpdateInfo" : 3,
+          "integration.models.mrp.Quote" : 1,
+          "smpl.ordering.repositories.OrderRepository" : 1,
+          "smpl.ordering.models.OrderStatus" : 3
+        },
+        "CALLS" : {
+          "integration.models.mrp.Order" : 4,
+          "smpl.ordering.OrderingInitializer" : 1,
+          "smpl.ordering.models.OrderEventInfo" : 1,
+          "smpl.ordering.repositories.RepositoryFactory" : 2,
+          "smpl.ordering.models.OrderUpdateInfo" : 1,
+          "smpl.ordering.Utility" : 7
+        }
+      }
+    },
+    "smpl.ordering.controllers.OrderControllerTest" : {
+      "annotations" : [ "@SuppressWarnings(\"unchecked\")" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before" ]
+      }, {
+        "signature" : "public void testCreateOrder()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testGetOrderById()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testGetQuotesByDealerName()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testAddEvent()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testUpdate()",
+        "annotations" : [ "@Test" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "private QuoteController quotes"
+      }, {
+        "declaration" : "private OrderController controller"
+      } ],
+      "relationships" : {
+        "USES" : {
+          "integration.models.mrp.Order" : 29,
+          "smpl.ordering.TestPath" : 4,
+          "smpl.ordering.models.OrderEventInfo" : 3,
+          "smpl.ordering.controllers.OrderController" : 2,
+          "smpl.ordering.controllers.QuoteController" : 2,
+          "smpl.ordering.models.OrderUpdateInfo" : 4
+        },
+        "CALLS" : {
+          "integration.models.mrp.Order" : 24,
+          "smpl.ordering.repositories.RepositoryFactory" : 5,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 5
+        },
+        "CREATES" : {
+          "smpl.ordering.models.OrderEventInfo" : 3,
+          "smpl.ordering.controllers.OrderController" : 1,
+          "smpl.ordering.controllers.QuoteController" : 1,
+          "smpl.ordering.models.OrderUpdateInfo" : 4
+        }
+      }
+    },
+    "smpl.ordering.controllers.PingController" : {
+      "annotations" : [ "@Controller", "@RequestMapping(\"/ping\")" ],
+      "methods" : [ {
+        "signature" : "public org.springframework.http.ResponseEntity ping()",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.HEAD)" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity getStatus()",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.GET)" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "private OrderingServiceProperties orderingServiceProperties",
+        "annotations" : [ "@Autowired" ]
+      }, {
+        "declaration" : "private Properties props"
+      } ],
+      "relationships" : {
+        "INJECTS" : {
+          "smpl.ordering.OrderingServiceProperties" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.Utility" : 1,
+          "smpl.ordering.PropertyHelper" : 1
+        },
+        "USES" : {
+          "smpl.ordering.OrderingServiceProperties" : 1
+        }
+      }
+    },
+    "smpl.ordering.controllers.QuoteController" : {
+      "annotations" : [ "@Controller", "@RequestMapping(\"/quotes\")" ],
+      "methods" : [ {
+        "signature" : "public org.springframework.http.ResponseEntity getQuoteById(java.lang.String)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.GET, value = \"/{quoteId}\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity getQuotesByCustomerName(java.lang.String)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.GET)" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity updateQuote(java.lang.String, integration.models.mrp.Quote)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.PUT, value = \"/{quoteId}\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity createQuote(integration.models.mrp.Quote)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.POST)" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity deleteQuote(java.lang.String)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.DELETE, value = \"/{quoteId}\")" ]
+      }, {
+        "signature" : "private smpl.ordering.repositories.QuoteRepository getRepository()"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.controllers.OrderControllerTest" : 1,
+          "smpl.ordering.controllers.QuoteControllerTest" : 1,
+          "smpl.ordering.controllers.ShipmentControllerTest" : 1
+        },
+        "USES" : {
+          "smpl.ordering.repositories.QuoteRepository" : 1,
+          "integration.models.mrp.Quote" : 7
+        },
+        "CALLS" : {
+          "smpl.ordering.OrderingInitializer" : 1,
+          "smpl.ordering.repositories.RepositoryFactory" : 1,
+          "smpl.ordering.Utility" : 5,
+          "integration.models.mrp.Quote" : 3
+        }
+      }
+    },
+    "smpl.ordering.controllers.QuoteControllerTest" : {
+      "annotations" : [ "@SuppressWarnings(\"unchecked\")" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before" ]
+      }, {
+        "signature" : "public void testCreateQuote()",
+        "annotations" : [ "@SuppressWarnings(\"ResultOfMethodCallIgnored\")", "@Test" ]
+      }, {
+        "signature" : "public void testUpdateQuote()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testGetQuoteById()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "private void createNewQuote()"
+      }, {
+        "signature" : "public void testGetQuotesByCustomerName()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testDeleteQuote()",
+        "annotations" : [ "@Test" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "private QuoteController controller"
+      } ],
+      "relationships" : {
+        "USES" : {
+          "smpl.ordering.TestPath" : 3,
+          "smpl.ordering.controllers.QuoteController" : 2,
+          "integration.models.mrp.Quote" : 18
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 4,
+          "integration.models.mrp.Quote" : 6,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 8
+        },
+        "CREATES" : {
+          "smpl.ordering.controllers.QuoteController" : 1
+        }
+      }
+    },
+    "smpl.ordering.controllers.ShipmentController" : {
+      "annotations" : [ "@Controller", "@RequestMapping(\"/shipments\")" ],
+      "methods" : [ {
+        "signature" : "public org.springframework.http.ResponseEntity getShipments(smpl.ordering.models.OrderStatus)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.GET)" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity getDeliveries()",
+        "annotations" : [ "@RequestMapping(value = \"/deliveries\", method = RequestMethod.GET)" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity getShipment(java.lang.String)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.GET, value = \"/{id}\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity createShipmentRecord(smpl.ordering.models.ShipmentRecord)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.POST)" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity updateShipment(java.lang.String, smpl.ordering.models.ShipmentRecord)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.PUT, value = \"/{id}\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity addEvent(java.lang.String, integration.models.mrp.ShipmentEventInfo)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.POST, value = \"/{id}/events\")" ]
+      }, {
+        "signature" : "public org.springframework.http.ResponseEntity deleteShipment(java.lang.String)",
+        "annotations" : [ "@RequestMapping(method = RequestMethod.DELETE, value = \"/{orderId}\")" ]
+      }, {
+        "signature" : "private smpl.ordering.repositories.ShipmentRepository getShipmentRepository()"
+      }, {
+        "signature" : "private smpl.ordering.repositories.OrderRepository getOrderRepository()"
+      }, {
+        "signature" : "private smpl.ordering.repositories.QuoteRepository getQuoteRepository()"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.controllers.ShipmentControllerTest" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.models.Delivery" : 3,
+          "smpl.ordering.repositories.mock.MockQuoteRepository" : 1,
+          "integration.models.mrp.Order" : 1,
+          "smpl.ordering.OrderingInitializer" : 1,
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 1,
+          "smpl.ordering.models.ShipmentRecord" : 6,
+          "smpl.ordering.repositories.OrderRepository" : 1,
+          "smpl.ordering.repositories.mock.MockOrderRepository" : 1,
+          "smpl.ordering.repositories.QuoteRepository" : 1,
+          "integration.models.mrp.ShipmentEventInfo" : 2,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 1,
+          "smpl.ordering.repositories.RepositoryFactory" : 3,
+          "smpl.ordering.Utility" : 6
+        },
+        "USES" : {
+          "smpl.ordering.models.Delivery" : 5,
+          "smpl.ordering.repositories.QuoteRepository" : 2,
+          "integration.models.mrp.Order" : 3,
+          "integration.models.mrp.ShipmentEventInfo" : 2,
+          "smpl.ordering.repositories.ShipmentRepository" : 1,
+          "smpl.ordering.models.ShipmentRecord" : 14,
+          "smpl.ordering.repositories.OrderRepository" : 2,
+          "integration.models.mrp.Quote" : 3,
+          "smpl.ordering.models.OrderStatus" : 2
+        },
+        "CREATES" : {
+          "smpl.ordering.models.Delivery" : 1
+        }
+      }
+    },
+    "smpl.ordering.controllers.ShipmentControllerTest" : {
+      "annotations" : [ "@SuppressWarnings(\"unchecked\")" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before" ]
+      }, {
+        "signature" : "public void testCreateShipment()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testGetAllShipments()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testGetShipmentsByStatus()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testUpdateShipment()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testAddEventToShipment()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "private integration.models.mrp.Order createQuoteAndOrder(java.lang.String)",
+        "annotations" : [ "@SuppressWarnings(\"SameParameterValue\")" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "private QuoteController quotes"
+      }, {
+        "declaration" : "private OrderController orders"
+      }, {
+        "declaration" : "private ShipmentController controller"
+      } ],
+      "relationships" : {
+        "USES" : {
+          "integration.models.mrp.Order" : 5,
+          "integration.models.mrp.ShipmentEventInfo" : 1,
+          "smpl.ordering.TestPath" : 5,
+          "smpl.ordering.controllers.ShipmentController" : 2,
+          "smpl.ordering.controllers.OrderController" : 2,
+          "smpl.ordering.controllers.QuoteController" : 2,
+          "smpl.ordering.models.ShipmentRecord" : 21,
+          "smpl.ordering.models.OrderUpdateInfo" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 5,
+          "integration.models.mrp.Order" : 10,
+          "smpl.ordering.repositories.RepositoryFactory" : 6,
+          "smpl.ordering.models.ShipmentRecord" : 15,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 1
+        },
+        "CREATES" : {
+          "integration.models.mrp.ShipmentEventInfo" : 1,
+          "smpl.ordering.controllers.ShipmentController" : 1,
+          "smpl.ordering.controllers.OrderController" : 1,
+          "smpl.ordering.controllers.QuoteController" : 1,
+          "smpl.ordering.models.OrderUpdateInfo" : 1
+        }
+      }
+    },
+    "smpl.ordering.models.CatalogItem" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String getDescription()"
+      }, {
+        "signature" : "public void setDescription(java.lang.String)"
+      }, {
+        "signature" : "public double getPrice()"
+      }, {
+        "signature" : "public void setPrice(double)"
+      }, {
+        "signature" : "public java.lang.String getSkuNumber()"
+      }, {
+        "signature" : "public void setSkuNumber(java.lang.String)"
+      }, {
+        "signature" : "public int getInventory()"
+      }, {
+        "signature" : "public void setInventory(int)"
+      }, {
+        "signature" : "public int getLeadTime()"
+      }, {
+        "signature" : "public void setLeadTime(int)"
+      }, {
+        "signature" : "public java.lang.String validate()"
+      }, {
+        "signature" : "public smpl.ordering.models.CatalogItem CatalogItem()"
+      }, {
+        "signature" : "public smpl.ordering.models.CatalogItem CatalogItem(java.lang.String, java.lang.String, double, int, int)"
+      }, {
+        "signature" : "public smpl.ordering.models.CatalogItem CatalogItem(smpl.ordering.models.CatalogItem)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String skuNumber"
+      }, {
+        "declaration" : "private String description"
+      }, {
+        "declaration" : "private double price"
+      }, {
+        "declaration" : "private int inventory"
+      }, {
+        "declaration" : "private int leadTime"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 3,
+          "smpl.ordering.controllers.CatalogControllerTest" : 3,
+          "smpl.ordering.repositories.CatalogItemsRepositoryTest" : 6,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 3,
+          "smpl.ordering.repositories.mock.MockCatalogItemsRepository" : 1,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 3
+        },
+        "USED_BY" : {
+          "integration.models.website.ProductItem" : 3,
+          "smpl.ordering.repositories.mongodb.MongoCatalogItemsRepository" : 3,
+          "smpl.ordering.repositories.mongodb.models.CatalogItem" : 10,
+          "integration.services.MrpConnectService" : 1,
+          "smpl.ordering.controllers.CatalogController" : 5,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 2,
+          "integration.scheduled.UpdateProductProcessTask" : 1,
+          "integration.models.website.ProductMessage" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.Utility" : 2
+        }
+      }
+    },
+    "smpl.ordering.models.DealerInfo" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String validate()"
+      }, {
+        "signature" : "public java.lang.String getName()"
+      }, {
+        "signature" : "public void setName(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getContact()"
+      }, {
+        "signature" : "public void setContact(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getAddress()"
+      }, {
+        "signature" : "public void setAddress(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getEmail()"
+      }, {
+        "signature" : "public void setEmail(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getPhone()"
+      }, {
+        "signature" : "public void setPhone(java.lang.String)"
+      }, {
+        "signature" : "public smpl.ordering.models.DealerInfo DealerInfo()"
+      }, {
+        "signature" : "public smpl.ordering.models.DealerInfo DealerInfo(java.lang.String)"
+      }, {
+        "signature" : "public smpl.ordering.models.DealerInfo DealerInfo(smpl.ordering.models.DealerInfo)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String name"
+      }, {
+        "declaration" : "private String contact"
+      }, {
+        "declaration" : "private String address"
+      }, {
+        "declaration" : "private String email"
+      }, {
+        "declaration" : "private String phone"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.mongodb.MongoDealersRepository" : 1,
+          "smpl.ordering.repositories.mock.MockDealersRepository" : 2,
+          "smpl.ordering.controllers.DealerControllerTest" : 5,
+          "smpl.ordering.repositories.mock.MockQuoteRepository" : 2,
+          "smpl.ordering.repositories.DealersRepositoryTest" : 10,
+          "smpl.ordering.repositories.DealersRepository" : 2,
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 2,
+          "smpl.ordering.controllers.DealerController" : 4,
+          "smpl.ordering.repositories.mongodb.models.Dealer" : 10
+        },
+        "CALLS" : {
+          "smpl.ordering.Utility" : 1
+        }
+      }
+    },
+    "smpl.ordering.models.Delivery" : {
+      "methods" : [ {
+        "signature" : "public integration.models.mrp.Quote getQuote()"
+      }, {
+        "signature" : "public void setQuote(integration.models.mrp.Quote)"
+      }, {
+        "signature" : "public integration.models.mrp.Order getOrder()"
+      }, {
+        "signature" : "public void setOrder(integration.models.mrp.Order)"
+      }, {
+        "signature" : "public smpl.ordering.models.ShipmentRecord getShipmentRecord()"
+      }, {
+        "signature" : "public void setShipmentRecord(smpl.ordering.models.ShipmentRecord)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private Quote quote"
+      }, {
+        "declaration" : "private Order order"
+      }, {
+        "declaration" : "private ShipmentRecord shipmentRecord"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.controllers.ShipmentController" : 3
+        },
+        "USES" : {
+          "integration.models.mrp.Order" : 3,
+          "smpl.ordering.models.ShipmentRecord" : 3,
+          "integration.models.mrp.Quote" : 3
+        }
+      }
+    },
+    "smpl.ordering.models.DeliveryAddress" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String getStreet()"
+      }, {
+        "signature" : "public void setStreet(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getCity()"
+      }, {
+        "signature" : "public void setCity(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getState()"
+      }, {
+        "signature" : "public void setState(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getPostalCode()"
+      }, {
+        "signature" : "public void setPostalCode(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getSpecialInstructions()"
+      }, {
+        "signature" : "public void setSpecialInstructions(java.lang.String)"
+      }, {
+        "signature" : "public boolean validate()"
+      }, {
+        "signature" : "private static boolean isNotEmpty(java.lang.String)"
+      }, {
+        "signature" : "public smpl.ordering.models.DeliveryAddress DeliveryAddress(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String)",
+        "annotations" : [ "@SuppressWarnings(\"SameParameterValue\")" ]
+      }, {
+        "signature" : "public smpl.ordering.models.DeliveryAddress DeliveryAddress()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String street"
+      }, {
+        "declaration" : "private String city"
+      }, {
+        "declaration" : "private String state"
+      }, {
+        "declaration" : "private String postalCode"
+      }, {
+        "declaration" : "private String specialInstructions"
+      } ],
+      "relationships" : { }
+    },
+    "smpl.ordering.models.Order" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String validate()"
+      }, {
+        "signature" : "public boolean equals(java.lang.Object)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public int hashCode()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public java.lang.String getQuoteId()"
+      }, {
+        "signature" : "public void setQuoteId(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getOrderId()"
+      }, {
+        "signature" : "public void setOrderId(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getOrderDate()"
+      }, {
+        "signature" : "public void setOrderDate(java.lang.String)"
+      }, {
+        "signature" : "public smpl.ordering.models.OrderStatus getStatus()"
+      }, {
+        "signature" : "public void setStatus(smpl.ordering.models.OrderStatus)"
+      }, {
+        "signature" : "public null getEvents()"
+      }, {
+        "signature" : "public void setEvents(null)"
+      }, {
+        "signature" : "public void addEvent(smpl.ordering.models.OrderEventInfo)"
+      }, {
+        "signature" : "public smpl.ordering.models.Order Order()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String orderId"
+      }, {
+        "declaration" : "private String quoteId"
+      }, {
+        "declaration" : "private String orderDate"
+      }, {
+        "declaration" : "private OrderStatus status"
+      }, {
+        "declaration" : "private List<OrderEventInfo> events"
+      } ],
+      "relationships" : {
+        "CALLS" : {
+          "smpl.ordering.Utility" : 2
+        },
+        "USES" : {
+          "integration.models.mrp.Order" : 7,
+          "smpl.ordering.models.OrderEventInfo" : 4,
+          "smpl.ordering.models.OrderStatus" : 3
+        }
+      }
+    },
+    "smpl.ordering.models.OrderEventInfo" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String getComments()"
+      }, {
+        "signature" : "public void setComments(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getDate()"
+      }, {
+        "signature" : "public void setDate(java.lang.String)"
+      }, {
+        "signature" : "public smpl.ordering.models.OrderEventInfo OrderEventInfo()"
+      }, {
+        "signature" : "public smpl.ordering.models.OrderEventInfo OrderEventInfo(java.lang.String)"
+      }, {
+        "signature" : "public smpl.ordering.models.OrderEventInfo OrderEventInfo(java.lang.String, java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String date"
+      }, {
+        "declaration" : "private String comments"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.controllers.OrderControllerTest" : 3
+        },
+        "USED_BY" : {
+          "smpl.ordering.controllers.OrderController" : 1,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 8,
+          "smpl.ordering.models.OrderUpdateInfo" : 1,
+          "smpl.ordering.repositories.mongodb.models.OrderDetails" : 3,
+          "smpl.ordering.models.Order" : 4
+        }
+      }
+    },
+    "smpl.ordering.models.OrderStatus" : {
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.mock.MockOrderRepository" : 2,
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 2,
+          "smpl.ordering.controllers.ShipmentController" : 2,
+          "smpl.ordering.controllers.OrderController" : 3,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 4,
+          "smpl.ordering.repositories.ShipmentRepository" : 1,
+          "smpl.ordering.repositories.mock.MockShipmentRepository" : 1,
+          "smpl.ordering.models.OrderUpdateInfo" : 4,
+          "smpl.ordering.repositories.mongodb.models.OrderDetails" : 1,
+          "smpl.ordering.models.Order" : 3,
+          "smpl.ordering.repositories.OrderRepository" : 2
+        }
+      }
+    },
+    "smpl.ordering.models.OrderUpdateInfo" : {
+      "annotations" : [ "@SuppressWarnings(\"SameParameterValue\")" ],
+      "methods" : [ {
+        "signature" : "public smpl.ordering.models.OrderStatus getStatus()"
+      }, {
+        "signature" : "public void setStatus(smpl.ordering.models.OrderStatus)"
+      }, {
+        "signature" : "public smpl.ordering.models.OrderEventInfo getEventInfo()"
+      }, {
+        "signature" : "public void setEventInfo(smpl.ordering.models.OrderEventInfo)"
+      }, {
+        "signature" : "public smpl.ordering.models.OrderUpdateInfo OrderUpdateInfo()"
+      }, {
+        "signature" : "public smpl.ordering.models.OrderUpdateInfo OrderUpdateInfo(smpl.ordering.models.OrderStatus, java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private OrderStatus status"
+      }, {
+        "declaration" : "private OrderEventInfo eventInfo"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.controllers.OrderControllerTest" : 4,
+          "smpl.ordering.controllers.ShipmentControllerTest" : 1
+        },
+        "USED_BY" : {
+          "smpl.ordering.repositories.mock.MockOrderRepository" : 2,
+          "smpl.ordering.controllers.OrderController" : 1,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 2,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 2,
+          "smpl.ordering.repositories.OrderRepository" : 1
+        },
+        "USES" : {
+          "smpl.ordering.models.OrderEventInfo" : 4,
+          "smpl.ordering.models.OrderStatus" : 4
+        },
+        "CREATES" : {
+          "smpl.ordering.models.OrderEventInfo" : 1
+        }
+      }
+    },
+    "smpl.ordering.models.PhoneInfo" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String getPhoneNumber()"
+      }, {
+        "signature" : "public void setPhoneNumber(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getKind()"
+      }, {
+        "signature" : "public void setKind(java.lang.String)"
+      }, {
+        "signature" : "public smpl.ordering.models.PhoneInfo PhoneInfo()"
+      }, {
+        "signature" : "public smpl.ordering.models.PhoneInfo PhoneInfo(java.lang.String, java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String phoneNumber"
+      }, {
+        "declaration" : "private String kind"
+      } ],
+      "relationships" : { }
+    },
+    "smpl.ordering.models.Quote" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String validate()"
+      }, {
+        "signature" : "public java.lang.String getQuoteId()"
+      }, {
+        "signature" : "public void setQuoteId(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getDealerName()"
+      }, {
+        "signature" : "public void setDealerName(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getCustomerName()"
+      }, {
+        "signature" : "public void setCustomerName(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getValidUntil()"
+      }, {
+        "signature" : "public void setValidUntil(java.lang.String)"
+      }, {
+        "signature" : "public null getQuoteItems()"
+      }, {
+        "signature" : "public void setQuoteItems(null)"
+      }, {
+        "signature" : "public void addQuoteItem(java.lang.String, double)"
+      }, {
+        "signature" : "public double getTotalCost()"
+      }, {
+        "signature" : "public void setTotalCost(double)"
+      }, {
+        "signature" : "public double getDiscount()"
+      }, {
+        "signature" : "public void setDiscount(double)"
+      }, {
+        "signature" : "public java.lang.String getCity()"
+      }, {
+        "signature" : "public void setCity(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getPostalCode()"
+      }, {
+        "signature" : "public void setPostalCode(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getState()"
+      }, {
+        "signature" : "public void setState(java.lang.String)"
+      }, {
+        "signature" : "public boolean equals(java.lang.Object)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public int hashCode()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.models.Quote Quote()"
+      }, {
+        "signature" : "public smpl.ordering.models.Quote Quote(integration.models.mrp.Quote)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String quoteId"
+      }, {
+        "declaration" : "private String validUntil"
+      }, {
+        "declaration" : "private String customerName"
+      }, {
+        "declaration" : "private String dealerName"
+      }, {
+        "declaration" : "private List<QuoteItemInfo> quoteItems"
+      }, {
+        "declaration" : "private double totalCost"
+      }, {
+        "declaration" : "private double discount"
+      }, {
+        "declaration" : "private String city"
+      }, {
+        "declaration" : "private String postalCode"
+      }, {
+        "declaration" : "private String state"
+      } ],
+      "relationships" : {
+        "CALLS" : {
+          "integration.models.mrp.Quote" : 9,
+          "smpl.ordering.Utility" : 2
+        },
+        "USES" : {
+          "smpl.ordering.models.QuoteItemInfo" : 2,
+          "integration.models.mrp.Quote" : 22
+        },
+        "CREATES" : {
+          "smpl.ordering.models.QuoteItemInfo" : 1
+        }
+      }
+    },
+    "smpl.ordering.models.QuoteItemInfo" : {
+      "methods" : [ {
+        "signature" : "public int compareTo(smpl.ordering.models.QuoteItemInfo)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean equals(java.lang.Object)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public int hashCode()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public java.lang.String getSkuNumber()"
+      }, {
+        "signature" : "public void setSkuNumber(java.lang.String)"
+      }, {
+        "signature" : "public double getAmount()"
+      }, {
+        "signature" : "public void setAmount(double)"
+      }, {
+        "signature" : "public smpl.ordering.models.QuoteItemInfo QuoteItemInfo()"
+      }, {
+        "signature" : "public smpl.ordering.models.QuoteItemInfo QuoteItemInfo(java.lang.String, double)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String skuNumber"
+      }, {
+        "declaration" : "private double amount"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.models.Quote" : 1,
+          "smpl.ordering.repositories.mongodb.models.QuoteDetails" : 3,
+          "integration.models.mrp.Quote" : 1,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 8
+        }
+      }
+    },
+    "smpl.ordering.models.ShipmentEventInfo" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String getDate()"
+      }, {
+        "signature" : "public void setDate(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getComments()"
+      }, {
+        "signature" : "public void setComments(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String validate()"
+      }, {
+        "signature" : "public smpl.ordering.models.ShipmentEventInfo ShipmentEventInfo()"
+      }, {
+        "signature" : "public smpl.ordering.models.ShipmentEventInfo ShipmentEventInfo(java.lang.String, java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String date"
+      }, {
+        "declaration" : "private String comments"
+      } ],
+      "relationships" : { }
+    },
+    "smpl.ordering.models.ShipmentRecord" : {
+      "methods" : [ {
+        "signature" : "public java.lang.String getOrderId()"
+      }, {
+        "signature" : "public void setOrderId(java.lang.String)"
+      }, {
+        "signature" : "public java.lang.String getDeliveryDate()"
+      }, {
+        "signature" : "public void setDeliveryDate(java.lang.String)"
+      }, {
+        "signature" : "public null getEvents()"
+      }, {
+        "signature" : "public void addEvent(integration.models.mrp.ShipmentEventInfo)"
+      }, {
+        "signature" : "public void addEvent(java.lang.String, java.lang.String)",
+        "annotations" : [ "@SuppressWarnings(\"SameParameterValue\")" ]
+      }, {
+        "signature" : "public integration.models.mrp.DeliveryAddress getDeliveryAddress()"
+      }, {
+        "signature" : "public void setDeliveryAddress(integration.models.mrp.DeliveryAddress)"
+      }, {
+        "signature" : "public java.lang.String getContactName()"
+      }, {
+        "signature" : "public void setContactName(java.lang.String)"
+      }, {
+        "signature" : "public integration.models.mrp.PhoneInfo getPrimaryContactPhone()"
+      }, {
+        "signature" : "public void setPrimaryContactPhone(integration.models.mrp.PhoneInfo)"
+      }, {
+        "signature" : "public integration.models.mrp.PhoneInfo getAlternateContactPhone()"
+      }, {
+        "signature" : "public void setAlternateContactPhone(integration.models.mrp.PhoneInfo)"
+      }, {
+        "signature" : "public java.lang.String validate()"
+      }, {
+        "signature" : "public smpl.ordering.models.ShipmentRecord ShipmentRecord()"
+      }, {
+        "signature" : "public smpl.ordering.models.ShipmentRecord ShipmentRecord(smpl.ordering.models.ShipmentRecord)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String orderId"
+      }, {
+        "declaration" : "private String deliveryDate"
+      }, {
+        "declaration" : "private final List<ShipmentEventInfo> events"
+      }, {
+        "declaration" : "private DeliveryAddress deliveryAddress"
+      }, {
+        "declaration" : "private String contactName"
+      }, {
+        "declaration" : "private PhoneInfo primaryContactPhone"
+      }, {
+        "declaration" : "private PhoneInfo alternateContactPhone"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 18,
+          "smpl.ordering.controllers.ShipmentControllerTest" : 15,
+          "smpl.ordering.models.Delivery" : 3,
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 6,
+          "smpl.ordering.controllers.ShipmentController" : 6,
+          "smpl.ordering.repositories.mongodb.models.ShipmentDetails" : 14,
+          "integration.services.MrpConnectService" : 1,
+          "smpl.ordering.repositories.ShipmentRepository" : 4,
+          "smpl.ordering.repositories.mock.MockShipmentRepository" : 7
+        },
+        "USES" : {
+          "integration.models.mrp.ShipmentEventInfo" : 7,
+          "integration.models.mrp.DeliveryAddress" : 3,
+          "integration.models.mrp.PhoneInfo" : 6
+        },
+        "CREATES" : {
+          "integration.models.mrp.ShipmentEventInfo" : 2
+        }
+      }
+    },
+    "smpl.ordering.repositories.CatalogItemsRepository" : {
+      "annotations" : [ "@SuppressWarnings({ \"SameParameterValue\", \"UnusedParameters\" })" ],
+      "methods" : [ {
+        "signature" : "public abstract null getCatalogItems()"
+      }, {
+        "signature" : "public abstract smpl.ordering.models.CatalogItem getCatalogItem(java.lang.String)"
+      }, {
+        "signature" : "public abstract boolean upsertCatalogItem(java.lang.String, smpl.ordering.models.CatalogItem, java.lang.String)"
+      }, {
+        "signature" : "public abstract boolean removeCatalogItem(java.lang.String, java.lang.String)"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 3,
+          "smpl.ordering.repositories.mock.MockQuoteRepository" : 1,
+          "smpl.ordering.controllers.CatalogControllerTest" : 1,
+          "smpl.ordering.repositories.CatalogItemsRepositoryTest" : 1,
+          "smpl.ordering.repositories.RepositoryFactory" : 2,
+          "smpl.ordering.controllers.CatalogController" : 1,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 3,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 3
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 2
+        },
+        "IMPLEMENTED_BY" : {
+          "smpl.ordering.repositories.mongodb.MongoCatalogItemsRepository" : 1,
+          "smpl.ordering.repositories.mock.MockCatalogItemsRepository" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.CatalogItemsRepositoryTest" : {
+      "methods" : [ {
+        "signature" : "protected void setUp()"
+      }, {
+        "signature" : "protected void testGetCatalogItems()"
+      }, {
+        "signature" : "protected void testGetCatalogItem()"
+      }, {
+        "signature" : "protected void testUpsertCatalogItem()"
+      }, {
+        "signature" : "protected void testRemoveCatalogItem()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private static CatalogItemsRepository catalog"
+      } ],
+      "relationships" : {
+        "EXTENDED_BY" : {
+          "smpl.ordering.repositories.mock.test.MockCatalogItemsRepositoryTest" : 1,
+          "smpl.ordering.repositories.mongodb.test.MongoCatalogItemsRepositoryTest" : 1
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 8,
+          "smpl.ordering.TestPath" : 1,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "CREATES" : {
+          "smpl.ordering.models.CatalogItem" : 6
+        }
+      }
+    },
+    "smpl.ordering.repositories.DealersRepository" : {
+      "annotations" : [ "@SuppressWarnings({ \"SameParameterValue\", \"UnusedParameters\" })" ],
+      "methods" : [ {
+        "signature" : "public abstract null getDealers()"
+      }, {
+        "signature" : "public abstract smpl.ordering.models.DealerInfo getDealer(java.lang.String)"
+      }, {
+        "signature" : "public abstract boolean upsertDealer(smpl.ordering.models.DealerInfo, java.lang.String)"
+      }, {
+        "signature" : "public abstract boolean removeDealer(java.lang.String, java.lang.String)"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 4,
+          "smpl.ordering.controllers.DealerControllerTest" : 1,
+          "smpl.ordering.repositories.mock.MockQuoteRepository" : 2,
+          "smpl.ordering.repositories.DealersRepositoryTest" : 1,
+          "smpl.ordering.repositories.RepositoryFactory" : 2,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 4,
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 2,
+          "smpl.ordering.controllers.DealerController" : 1,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 4
+        },
+        "USES" : {
+          "smpl.ordering.models.DealerInfo" : 2
+        },
+        "IMPLEMENTED_BY" : {
+          "smpl.ordering.repositories.mongodb.MongoDealersRepository" : 1,
+          "smpl.ordering.repositories.mock.MockDealersRepository" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.DealersRepositoryTest" : {
+      "methods" : [ {
+        "signature" : "public void setUp()"
+      }, {
+        "signature" : "public void testGetDealers()"
+      }, {
+        "signature" : "public void testGetDealer()"
+      }, {
+        "signature" : "public void testUpsertDealer()"
+      }, {
+        "signature" : "public void testRemoveDealer()"
+      }, {
+        "signature" : "public static smpl.ordering.models.DealerInfo createDealer(java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private DealersRepository repository"
+      } ],
+      "relationships" : {
+        "CALLED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 4,
+          "smpl.ordering.controllers.DealerControllerTest" : 11,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 4
+        },
+        "EXTENDED_BY" : {
+          "smpl.ordering.repositories.mock.test.MockDealersRepositoryTest" : 1,
+          "smpl.ordering.repositories.mongodb.test.MongoDealersRepositoryTest" : 1
+        },
+        "USES" : {
+          "smpl.ordering.models.DealerInfo" : 13,
+          "smpl.ordering.TestPath" : 1,
+          "smpl.ordering.repositories.DealersRepository" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.models.DealerInfo" : 10,
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "CREATES" : {
+          "smpl.ordering.models.DealerInfo" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.OrderRepository" : {
+      "annotations" : [ "@SuppressWarnings({ \"SameParameterValue\", \"UnusedParameters\" })" ],
+      "methods" : [ {
+        "signature" : "public abstract boolean hasOrder(java.lang.String)"
+      }, {
+        "signature" : "public abstract integration.models.mrp.Order getOrder(java.lang.String)"
+      }, {
+        "signature" : "public abstract integration.models.mrp.Order getOrderByQuoteId(java.lang.String)"
+      }, {
+        "signature" : "public abstract null getOrdersByStatus(smpl.ordering.models.OrderStatus)"
+      }, {
+        "signature" : "public abstract null getOrdersByDealerName(java.lang.String, smpl.ordering.models.OrderStatus)"
+      }, {
+        "signature" : "public abstract integration.models.mrp.Order createOrder(java.lang.String)"
+      }, {
+        "signature" : "public abstract boolean updateOrder(java.lang.String, integration.models.mrp.Order, java.lang.String)",
+        "annotations" : [ "@SuppressWarnings(\"UnusedParameters\")" ]
+      }, {
+        "signature" : "public abstract boolean updateOrder(java.lang.String, smpl.ordering.models.OrderUpdateInfo, java.lang.String)",
+        "annotations" : [ "@SuppressWarnings(\"UnusedParameters\")" ]
+      }, {
+        "signature" : "public abstract boolean removeOrder(java.lang.String, java.lang.String)"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 1,
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 2,
+          "smpl.ordering.controllers.ShipmentController" : 1,
+          "smpl.ordering.controllers.OrderController" : 1,
+          "smpl.ordering.repositories.RepositoryFactory" : 2,
+          "smpl.ordering.repositories.mock.test.MockOrderRepositoryTest" : 1,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 1,
+          "smpl.ordering.repositories.mock.MockShipmentRepository" : 2
+        },
+        "USES" : {
+          "integration.models.mrp.Order" : 4,
+          "smpl.ordering.models.OrderUpdateInfo" : 1,
+          "smpl.ordering.models.OrderStatus" : 2
+        },
+        "IMPLEMENTED_BY" : {
+          "smpl.ordering.repositories.mock.MockOrderRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.OrderRepositoryTest" : {
+      "annotations" : [ "@SuppressWarnings(\"EmptyCatchBlock\")" ],
+      "methods" : [ {
+        "signature" : "public void setUp()"
+      }, {
+        "signature" : "public void testHasOrder()"
+      }, {
+        "signature" : "public void testGetOrder()"
+      }, {
+        "signature" : "public void testGetOrdersByQuoteId()"
+      }, {
+        "signature" : "public void testGetOrdersByStatus()"
+      }, {
+        "signature" : "public void testGetOrdersByDealerName()"
+      }, {
+        "signature" : "public void testCreateOrder()"
+      }, {
+        "signature" : "public void testUpdateOrder()"
+      }, {
+        "signature" : "public void testUpdateOrder1()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private OrderRepository repository"
+      } ],
+      "relationships" : {
+        "EXTENDED_BY" : {
+          "smpl.ordering.repositories.mongodb.test.MongoOrderRepositoryTest" : 1,
+          "smpl.ordering.repositories.mock.test.MockOrderRepositoryTest" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.mock.MockDealersRepository" : 4,
+          "smpl.ordering.repositories.mock.MockQuoteRepository" : 4,
+          "integration.models.mrp.Order" : 23,
+          "smpl.ordering.models.OrderEventInfo" : 8,
+          "smpl.ordering.repositories.mongodb.MongoCatalogItemsRepository" : 3,
+          "smpl.ordering.repositories.DealersRepository" : 4,
+          "smpl.ordering.repositories.mock.MockCatalogItemsRepository" : 3,
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 4,
+          "smpl.ordering.models.OrderUpdateInfo" : 2,
+          "integration.models.mrp.Quote" : 5,
+          "smpl.ordering.repositories.mongodb.MongoDealersRepository" : 4,
+          "smpl.ordering.repositories.QuoteRepository" : 4,
+          "smpl.ordering.repositories.DealersRepositoryTest" : 4,
+          "smpl.ordering.repositories.RepositoryFactory" : 7,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 3,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 4
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 3,
+          "smpl.ordering.repositories.QuoteRepository" : 4,
+          "integration.models.mrp.Order" : 28,
+          "smpl.ordering.TestPath" : 4,
+          "smpl.ordering.models.OrderEventInfo" : 8,
+          "smpl.ordering.repositories.DealersRepository" : 1,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 1,
+          "smpl.ordering.models.OrderUpdateInfo" : 4,
+          "integration.models.mrp.Quote" : 4,
+          "smpl.ordering.repositories.OrderRepository" : 1
+        },
+        "CREATES" : {
+          "smpl.ordering.models.CatalogItem" : 3,
+          "smpl.ordering.models.OrderEventInfo" : 2,
+          "smpl.ordering.models.OrderUpdateInfo" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.QuoteRepository" : {
+      "annotations" : [ "@SuppressWarnings({ \"SameParameterValue\", \"UnusedParameters\" })" ],
+      "methods" : [ {
+        "signature" : "public abstract integration.models.mrp.Quote getQuote(java.lang.String)"
+      }, {
+        "signature" : "public abstract null getQuotesByCustomerName(java.lang.String)"
+      }, {
+        "signature" : "public abstract null getQuoteIdsByDealerName(java.lang.String)"
+      }, {
+        "signature" : "public abstract integration.models.mrp.Quote createQuote(integration.models.mrp.Quote)"
+      }, {
+        "signature" : "public abstract boolean updateQuote(java.lang.String, integration.models.mrp.Quote, java.lang.String)"
+      }, {
+        "signature" : "public abstract boolean removeQuote(java.lang.String, java.lang.String)"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 1,
+          "smpl.ordering.repositories.mock.MockOrderRepository" : 2,
+          "smpl.ordering.controllers.ShipmentController" : 1,
+          "smpl.ordering.controllers.OrderController" : 1,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 2,
+          "smpl.ordering.repositories.RepositoryFactory" : 2,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 4,
+          "smpl.ordering.controllers.QuoteController" : 1,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 1
+        },
+        "USES" : {
+          "integration.models.mrp.Quote" : 4
+        },
+        "IMPLEMENTED_BY" : {
+          "smpl.ordering.repositories.mock.MockQuoteRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.QuoteRepositoryTest" : {
+      "annotations" : [ "@SuppressWarnings(\"EmptyCatchBlock\")" ],
+      "methods" : [ {
+        "signature" : "public void setUp()"
+      }, {
+        "signature" : "public void testGetQuote()"
+      }, {
+        "signature" : "public void testGetQuotesByCustomerName()"
+      }, {
+        "signature" : "public void testCreateQuote()"
+      }, {
+        "signature" : "public void testUpdateQuote()"
+      }, {
+        "signature" : "public void testRemoveQuote()"
+      }, {
+        "signature" : "public static integration.models.mrp.Quote createQuote(java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private QuoteRepository repository"
+      } ],
+      "relationships" : {
+        "CALLED_BY" : {
+          "smpl.ordering.controllers.OrderControllerTest" : 5,
+          "smpl.ordering.controllers.QuoteControllerTest" : 8,
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 1,
+          "smpl.ordering.controllers.ShipmentControllerTest" : 1,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 4
+        },
+        "EXTENDED_BY" : {
+          "smpl.ordering.repositories.mongodb.test.MongoQuoteRepositoryTest" : 1,
+          "smpl.ordering.repositories.mock.test.MockQuoteRepositoryTest" : 1
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 3,
+          "smpl.ordering.repositories.QuoteRepository" : 1,
+          "smpl.ordering.TestPath" : 3,
+          "smpl.ordering.models.QuoteItemInfo" : 2,
+          "smpl.ordering.repositories.DealersRepository" : 1,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 1,
+          "integration.models.mrp.Quote" : 30
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.mongodb.MongoDealersRepository" : 4,
+          "smpl.ordering.repositories.mock.test.MockDealersRepositoryTest" : 4,
+          "smpl.ordering.repositories.mock.MockDealersRepository" : 4,
+          "smpl.ordering.repositories.mongodb.MongoCatalogItemsRepository" : 3,
+          "smpl.ordering.repositories.RepositoryFactory" : 3,
+          "smpl.ordering.models.QuoteItemInfo" : 8,
+          "smpl.ordering.repositories.DealersRepository" : 4,
+          "smpl.ordering.repositories.mock.MockCatalogItemsRepository" : 3,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 3,
+          "integration.models.mrp.Quote" : 11
+        },
+        "CREATES" : {
+          "smpl.ordering.models.CatalogItem" : 3,
+          "integration.models.mrp.Quote" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.RepositoryFactory" : {
+      "annotations" : [ "@SuppressWarnings(\"EmptyCatchBlock\")" ],
+      "innerClasses" : {
+        "Repositories" : { }
+      },
+      "methods" : [ {
+        "signature" : "public static smpl.ordering.repositories.CatalogItemsRepository getCatalogItemsRepository()"
+      }, {
+        "signature" : "public static smpl.ordering.repositories.DealersRepository getDealersRepository()"
+      }, {
+        "signature" : "public static smpl.ordering.repositories.OrderRepository getOrderRepository()"
+      }, {
+        "signature" : "public static smpl.ordering.repositories.QuoteRepository getQuoteRepository()"
+      }, {
+        "signature" : "public static smpl.ordering.repositories.ShipmentRepository getShipmentRepository()"
+      }, {
+        "signature" : "private void init(java.lang.String)"
+      }, {
+        "signature" : "public static smpl.ordering.repositories.RepositoryFactory getFactory()"
+      }, {
+        "signature" : "public static void reset(java.lang.String)"
+      }, {
+        "signature" : "private smpl.ordering.repositories.RepositoryFactory RepositoryFactory(java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private MongoTemplate mongoTemplate",
+        "annotations" : [ "@Autowired" ]
+      }, {
+        "declaration" : "CatalogItemsRepository catalogItems"
+      }, {
+        "declaration" : "DealersRepository dealers"
+      }, {
+        "declaration" : "QuoteRepository quotes"
+      }, {
+        "declaration" : "OrderRepository orders"
+      }, {
+        "declaration" : "ShipmentRepository shipments"
+      }, {
+        "declaration" : "private Repositories mockRepos"
+      }, {
+        "declaration" : "private Repositories mongodbRepos"
+      }, {
+        "declaration" : "private String storageKind"
+      }, {
+        "declaration" : "private static RepositoryFactory s_factory"
+      }, {
+        "declaration" : "public static final String MEMORY"
+      }, {
+        "declaration" : "public static final String MONGODB"
+      } ],
+      "relationships" : {
+        "CALLED_BY" : {
+          "smpl.ordering.controllers.OrderControllerTest" : 5,
+          "smpl.ordering.repositories.mock.test.MockDealersRepositoryTest" : 1,
+          "smpl.ordering.repositories.mongodb.test.MongoShipmentRepositoryTest" : 1,
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 5,
+          "smpl.ordering.repositories.mongodb.test.MongoOrderRepositoryTest" : 1,
+          "smpl.ordering.repositories.mock.test.MockOrderRepositoryTest" : 1,
+          "smpl.ordering.controllers.QuoteController" : 1,
+          "smpl.ordering.controllers.DealerController" : 1,
+          "smpl.ordering.repositories.mock.test.MockCatalogItemsRepositoryTest" : 1,
+          "smpl.ordering.controllers.ShipmentController" : 3,
+          "smpl.ordering.repositories.mongodb.test.MongoQuoteRepositoryTest" : 1,
+          "smpl.ordering.controllers.CatalogController" : 1,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 3,
+          "smpl.ordering.repositories.mongodb.test.MongoDealersRepositoryTest" : 1,
+          "smpl.ordering.controllers.DealerControllerTest" : 2,
+          "smpl.ordering.controllers.OrderController" : 2,
+          "smpl.ordering.repositories.CatalogItemsRepositoryTest" : 1,
+          "smpl.ordering.repositories.mongodb.test.MongoCatalogItemsRepositoryTest" : 1,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 7,
+          "smpl.ordering.controllers.QuoteControllerTest" : 4,
+          "smpl.ordering.controllers.ShipmentControllerTest" : 6,
+          "smpl.ordering.controllers.CatalogControllerTest" : 2,
+          "smpl.ordering.repositories.mock.test.MockShipmentRepositoryTest" : 1,
+          "smpl.ordering.repositories.DealersRepositoryTest" : 1,
+          "smpl.ordering.repositories.mock.test.MockQuoteRepositoryTest" : 1
+        },
+        "USED_BY" : {
+          "smpl.ordering.TestOrderingConfiguration" : 2,
+          "smpl.ordering.OrderingConfiguration" : 2
+        },
+        "CALLS" : {
+          "smpl.ordering.OrderingConfiguration" : 1
+        },
+        "USES" : {
+          "smpl.ordering.repositories.mock.MockDealersRepository" : 1,
+          "smpl.ordering.repositories.mock.MockQuoteRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoCatalogItemsRepository" : 1,
+          "smpl.ordering.repositories.DealersRepository" : 2,
+          "smpl.ordering.repositories.mock.MockCatalogItemsRepository" : 1,
+          "smpl.ordering.repositories.mock.MockShipmentRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 1,
+          "smpl.ordering.repositories.OrderRepository" : 2,
+          "smpl.ordering.repositories.mongodb.MongoDealersRepository" : 1,
+          "smpl.ordering.repositories.QuoteRepository" : 2,
+          "smpl.ordering.repositories.mock.MockOrderRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 1,
+          "smpl.ordering.repositories.ShipmentRepository" : 2,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 2
+        },
+        "CREATES" : {
+          "smpl.ordering.repositories.mongodb.MongoDealersRepository" : 1,
+          "smpl.ordering.repositories.mock.MockDealersRepository" : 1,
+          "smpl.ordering.repositories.mock.MockQuoteRepository" : 1,
+          "smpl.ordering.repositories.mock.MockOrderRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoCatalogItemsRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 1,
+          "smpl.ordering.repositories.mock.MockCatalogItemsRepository" : 1,
+          "smpl.ordering.repositories.mock.MockShipmentRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.ShipmentRepository" : {
+      "methods" : [ {
+        "signature" : "public abstract null getShipments(smpl.ordering.models.OrderStatus)"
+      }, {
+        "signature" : "public abstract smpl.ordering.models.ShipmentRecord getShipmentById(java.lang.String)"
+      }, {
+        "signature" : "public abstract smpl.ordering.models.ShipmentRecord createShipment(smpl.ordering.models.ShipmentRecord)"
+      }, {
+        "signature" : "public abstract boolean addEvent(java.lang.String, integration.models.mrp.ShipmentEventInfo)"
+      }, {
+        "signature" : "public abstract boolean updateShipment(smpl.ordering.models.ShipmentRecord)"
+      }, {
+        "signature" : "public abstract boolean removeShipment(java.lang.String, java.lang.String)"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 1,
+          "smpl.ordering.controllers.ShipmentController" : 1,
+          "smpl.ordering.repositories.RepositoryFactory" : 2
+        },
+        "USES" : {
+          "integration.models.mrp.ShipmentEventInfo" : 1,
+          "smpl.ordering.models.ShipmentRecord" : 4,
+          "smpl.ordering.models.OrderStatus" : 1
+        },
+        "IMPLEMENTED_BY" : {
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 1,
+          "smpl.ordering.repositories.mock.MockShipmentRepository" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.ShipmentRepositoryTest" : {
+      "annotations" : [ "@SuppressWarnings(\"EmptyCatchBlock\")" ],
+      "methods" : [ {
+        "signature" : "public void setUp()"
+      }, {
+        "signature" : "public void testGetShipments()"
+      }, {
+        "signature" : "public void testGetShipmentById()"
+      }, {
+        "signature" : "public void testCreateShipment()"
+      }, {
+        "signature" : "public void testUpdateShipment()"
+      }, {
+        "signature" : "private void getShipment(java.lang.String)"
+      }, {
+        "signature" : "public void testAddEvent()"
+      }, {
+        "signature" : "public static smpl.ordering.models.ShipmentRecord createShipmentRecord(java.lang.String)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private OrderRepository orders"
+      }, {
+        "declaration" : "private ShipmentRepository shipments"
+      } ],
+      "relationships" : {
+        "CALLED_BY" : {
+          "smpl.ordering.controllers.ShipmentControllerTest" : 5
+        },
+        "EXTENDED_BY" : {
+          "smpl.ordering.repositories.mongodb.test.MongoShipmentRepositoryTest" : 1,
+          "smpl.ordering.repositories.mock.test.MockShipmentRepositoryTest" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.mock.MockDealersRepository" : 4,
+          "smpl.ordering.repositories.mock.MockQuoteRepository" : 1,
+          "integration.models.mrp.Order" : 6,
+          "smpl.ordering.repositories.mongodb.MongoCatalogItemsRepository" : 3,
+          "smpl.ordering.repositories.DealersRepository" : 4,
+          "smpl.ordering.repositories.mock.MockCatalogItemsRepository" : 3,
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 1,
+          "smpl.ordering.models.ShipmentRecord" : 18,
+          "integration.models.mrp.Quote" : 1,
+          "smpl.ordering.repositories.mongodb.MongoDealersRepository" : 4,
+          "smpl.ordering.repositories.QuoteRepository" : 1,
+          "smpl.ordering.repositories.DealersRepositoryTest" : 4,
+          "smpl.ordering.repositories.RepositoryFactory" : 5,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 3,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 1
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 3,
+          "integration.models.mrp.Order" : 5,
+          "smpl.ordering.TestPath" : 5,
+          "smpl.ordering.repositories.DealersRepository" : 1,
+          "smpl.ordering.models.ShipmentRecord" : 23,
+          "integration.models.mrp.Quote" : 1,
+          "smpl.ordering.repositories.OrderRepository" : 1,
+          "smpl.ordering.repositories.QuoteRepository" : 1,
+          "integration.models.mrp.ShipmentEventInfo" : 1,
+          "integration.models.mrp.DeliveryAddress" : 1,
+          "integration.models.mrp.PhoneInfo" : 2,
+          "smpl.ordering.repositories.ShipmentRepository" : 1,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 1
+        },
+        "CREATES" : {
+          "smpl.ordering.models.CatalogItem" : 3,
+          "integration.models.mrp.ShipmentEventInfo" : 1,
+          "integration.models.mrp.DeliveryAddress" : 1,
+          "integration.models.mrp.PhoneInfo" : 2,
+          "smpl.ordering.models.ShipmentRecord" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mock.MockCatalogItemsRepository" : {
+      "methods" : [ {
+        "signature" : "public null getCatalogItems()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.models.CatalogItem getCatalogItem(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "private boolean compareSkuNumbers(java.lang.String, smpl.ordering.models.CatalogItem)"
+      }, {
+        "signature" : "public boolean upsertCatalogItem(java.lang.String, smpl.ordering.models.CatalogItem, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean removeCatalogItem(java.lang.String, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void reset()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.repositories.mock.MockCatalogItemsRepository MockCatalogItemsRepository()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private final List<CatalogItem> catalog"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "CALLED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 3,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 3,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 3
+        },
+        "IMPLEMENTS" : {
+          "smpl.ordering.TestPath" : 1,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.models.CatalogItem" : 1
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 20
+        },
+        "CREATES" : {
+          "smpl.ordering.models.CatalogItem" : 5
+        }
+      }
+    },
+    "smpl.ordering.repositories.mock.MockDealersRepository" : {
+      "methods" : [ {
+        "signature" : "public null getDealers()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.models.DealerInfo getDealer(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "private boolean compareDealerNames(java.lang.String, smpl.ordering.models.DealerInfo)"
+      }, {
+        "signature" : "public boolean upsertDealer(smpl.ordering.models.DealerInfo, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean removeDealer(java.lang.String, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void reset()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.repositories.mock.MockDealersRepository MockDealersRepository()"
+      } ],
+      "fields" : [ {
+        "declaration" : "private final List<DealerInfo> dealers"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "CALLED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 4,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 4,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 4
+        },
+        "IMPLEMENTS" : {
+          "smpl.ordering.TestPath" : 1,
+          "smpl.ordering.repositories.DealersRepository" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.models.DealerInfo" : 2
+        },
+        "USES" : {
+          "smpl.ordering.models.DealerInfo" : 17
+        },
+        "CREATES" : {
+          "smpl.ordering.models.DealerInfo" : 2
+        }
+      }
+    },
+    "smpl.ordering.repositories.mock.MockOrderRepository" : {
+      "methods" : [ {
+        "signature" : "public boolean hasOrder(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public integration.models.mrp.Order getOrder(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null getOrdersByStatus(smpl.ordering.models.OrderStatus)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null getOrdersByDealerName(java.lang.String, smpl.ordering.models.OrderStatus)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public integration.models.mrp.Order getOrderByQuoteId(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public integration.models.mrp.Order createOrder(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean updateOrder(java.lang.String, integration.models.mrp.Order, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean updateOrder(java.lang.String, smpl.ordering.models.OrderUpdateInfo, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean removeOrder(java.lang.String, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void reset()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.repositories.mock.MockOrderRepository MockOrderRepository(smpl.ordering.repositories.QuoteRepository)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private final List<Order> orders"
+      }, {
+        "declaration" : "private static AtomicLong s_counter"
+      }, {
+        "declaration" : "private final QuoteRepository quotes"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "CALLED_BY" : {
+          "smpl.ordering.controllers.ShipmentController" : 1
+        },
+        "IMPLEMENTS" : {
+          "smpl.ordering.TestPath" : 1,
+          "smpl.ordering.repositories.OrderRepository" : 1
+        },
+        "CALLS" : {
+          "integration.models.mrp.Order" : 7,
+          "smpl.ordering.models.OrderUpdateInfo" : 2,
+          "integration.models.mrp.Quote" : 1
+        },
+        "USES" : {
+          "smpl.ordering.ConflictingRequestException" : 1,
+          "smpl.ordering.repositories.QuoteRepository" : 2,
+          "integration.models.mrp.Order" : 23,
+          "smpl.ordering.BadRequestException" : 2,
+          "smpl.ordering.models.OrderUpdateInfo" : 1,
+          "integration.models.mrp.Quote" : 2,
+          "smpl.ordering.models.OrderStatus" : 2
+        },
+        "CREATES" : {
+          "smpl.ordering.ConflictingRequestException" : 1,
+          "integration.models.mrp.Order" : 1,
+          "smpl.ordering.BadRequestException" : 2
+        }
+      }
+    },
+    "smpl.ordering.repositories.mock.MockQuoteRepository" : {
+      "annotations" : [ "@SuppressWarnings(\"UnusedParameters\")" ],
+      "methods" : [ {
+        "signature" : "public integration.models.mrp.Quote getQuote(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null getQuotesByCustomerName(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null getQuoteIdsByDealerName(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public integration.models.mrp.Quote createQuote(integration.models.mrp.Quote)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean updateQuote(java.lang.String, integration.models.mrp.Quote, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean removeQuote(java.lang.String, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void reset()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.repositories.mock.MockQuoteRepository MockQuoteRepository(smpl.ordering.repositories.CatalogItemsRepository, smpl.ordering.repositories.DealersRepository)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private final List<Quote> quotes"
+      }, {
+        "declaration" : "private final DealersRepository dealers"
+      }, {
+        "declaration" : "private static final Random s_counter"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "CALLED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 1,
+          "smpl.ordering.controllers.ShipmentController" : 1,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 4
+        },
+        "IMPLEMENTS" : {
+          "smpl.ordering.repositories.QuoteRepository" : 1,
+          "smpl.ordering.TestPath" : 1
+        },
+        "CALLS" : {
+          "integration.models.mrp.Quote" : 7
+        },
+        "USES" : {
+          "smpl.ordering.models.DealerInfo" : 4,
+          "smpl.ordering.BadRequestException" : 1,
+          "smpl.ordering.repositories.DealersRepository" : 2,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 1,
+          "integration.models.mrp.Quote" : 19
+        },
+        "CREATES" : {
+          "smpl.ordering.models.DealerInfo" : 2,
+          "smpl.ordering.BadRequestException" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mock.MockShipmentRepository" : {
+      "methods" : [ {
+        "signature" : "public null getShipments(smpl.ordering.models.OrderStatus)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.models.ShipmentRecord getShipmentById(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.models.ShipmentRecord createShipment(smpl.ordering.models.ShipmentRecord)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean addEvent(java.lang.String, integration.models.mrp.ShipmentEventInfo)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean updateShipment(smpl.ordering.models.ShipmentRecord)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean removeShipment(java.lang.String, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void reset()"
+      }, {
+        "signature" : "public smpl.ordering.repositories.mock.MockShipmentRepository MockShipmentRepository(smpl.ordering.repositories.OrderRepository)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private final List<ShipmentRecord> records"
+      }, {
+        "declaration" : "private final OrderRepository orders"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "IMPLEMENTS" : {
+          "smpl.ordering.TestPath" : 1,
+          "smpl.ordering.repositories.ShipmentRepository" : 1
+        },
+        "CALLS" : {
+          "integration.models.mrp.Order" : 1,
+          "integration.models.mrp.ShipmentEventInfo" : 2,
+          "smpl.ordering.models.ShipmentRecord" : 7
+        },
+        "USES" : {
+          "integration.models.mrp.Order" : 2,
+          "integration.models.mrp.ShipmentEventInfo" : 2,
+          "smpl.ordering.BadRequestException" : 2,
+          "smpl.ordering.models.ShipmentRecord" : 21,
+          "smpl.ordering.repositories.OrderRepository" : 2,
+          "smpl.ordering.models.OrderStatus" : 1
+        },
+        "CREATES" : {
+          "integration.models.mrp.ShipmentEventInfo" : 1,
+          "smpl.ordering.BadRequestException" : 2,
+          "smpl.ordering.models.ShipmentRecord" : 5
+        }
+      }
+    },
+    "smpl.ordering.repositories.mock.test.MockCatalogItemsRepositoryTest" : {
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before", "@Override" ]
+      }, {
+        "signature" : "public void testGetCatalogItems()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetCatalogItem()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testUpsertCatalogItem()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testRemoveCatalogItem()",
+        "annotations" : [ "@Test", "@Override" ]
+      } ],
+      "relationships" : {
+        "EXTENDS" : {
+          "smpl.ordering.repositories.CatalogItemsRepositoryTest" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mock.test.MockDealersRepositoryTest" : {
+      "annotations" : [ "@SuppressWarnings(\"EmptyMethod\")" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before", "@Override" ]
+      }, {
+        "signature" : "public void testGetDealers()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetDealer()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testUpsertDealer()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testRemoveDealer()",
+        "annotations" : [ "@Test", "@Override" ]
+      } ],
+      "relationships" : {
+        "EXTENDS" : {
+          "smpl.ordering.repositories.DealersRepositoryTest" : 1
+        },
+        "CALLED_BY" : {
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 4
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mock.test.MockOrderRepositoryTest" : {
+      "annotations" : [ "@SuppressWarnings(\"EmptyMethod\")" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before", "@Override" ]
+      }, {
+        "signature" : "public void testHasOrder()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetOrder()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetOrdersByQuoteId()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetOrdersByStatus()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetOrdersByDealerName()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testCreateOrder()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testUpdateOrder()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testUpdateOrder1()",
+        "annotations" : [ "@Test", "@Override" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "private OrderRepository repository"
+      } ],
+      "relationships" : {
+        "EXTENDS" : {
+          "smpl.ordering.repositories.OrderRepositoryTest" : 1
+        },
+        "USES" : {
+          "smpl.ordering.repositories.OrderRepository" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mock.test.MockQuoteRepositoryTest" : {
+      "annotations" : [ "@SuppressWarnings(\"EmptyMethod\")" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before" ]
+      }, {
+        "signature" : "public void testGetQuote()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testGetQuotesByCustomerName()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testCreateQuote()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testUpdateQuote()",
+        "annotations" : [ "@Test" ]
+      }, {
+        "signature" : "public void testRemoveQuote()",
+        "annotations" : [ "@Test" ]
+      } ],
+      "relationships" : {
+        "EXTENDS" : {
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mock.test.MockShipmentRepositoryTest" : {
+      "annotations" : [ "@SuppressWarnings(\"EmptyMethod\")" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before", "@Override" ]
+      }, {
+        "signature" : "public void testGetShipmentById()",
+        "annotations" : [ "@Override", "@Test" ]
+      }, {
+        "signature" : "public void testGetShipments()",
+        "annotations" : [ "@Override", "@Test" ]
+      }, {
+        "signature" : "public void testCreateShipment()",
+        "annotations" : [ "@Override", "@Test" ]
+      }, {
+        "signature" : "public void testUpdateShipment()",
+        "annotations" : [ "@Override", "@Test" ]
+      }, {
+        "signature" : "public void testAddEvent()",
+        "annotations" : [ "@Override", "@Test" ]
+      } ],
+      "relationships" : {
+        "EXTENDS" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.MongoCatalogItemsRepository" : {
+      "methods" : [ {
+        "signature" : "public List<smpl.ordering.models.CatalogItem> getCatalogItems()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.models.CatalogItem getCatalogItem(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "private smpl.ordering.models.CatalogItem findExistingCatalogItem(java.lang.String)"
+      }, {
+        "signature" : "public boolean upsertCatalogItem(java.lang.String, smpl.ordering.models.CatalogItem, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean removeCatalogItem(java.lang.String, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void reset()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.MongoCatalogItemsRepository MongoCatalogItemsRepository(org.springframework.data.mongodb.core.MongoTemplate)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private final MongoOperations operations"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "CALLED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 3,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 3,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 3
+        },
+        "IMPLEMENTS" : {
+          "smpl.ordering.TestPath" : 1,
+          "smpl.ordering.repositories.CatalogItemsRepository" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.models.CatalogItem" : 3
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 13,
+          "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry" : 1
+        },
+        "CREATES" : {
+          "smpl.ordering.models.CatalogItem" : 1,
+          "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.MongoDealersRepository" : {
+      "methods" : [ {
+        "signature" : "public null getDealers()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.models.DealerInfo getDealer(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean upsertDealer(smpl.ordering.models.DealerInfo, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean removeDealer(java.lang.String, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void reset()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.MongoDealersRepository MongoDealersRepository(org.springframework.data.mongodb.core.MongoTemplate)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private final MongoOperations operations"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "CALLED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 4,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 4,
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 4
+        },
+        "IMPLEMENTS" : {
+          "smpl.ordering.TestPath" : 1,
+          "smpl.ordering.repositories.DealersRepository" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.models.DealerInfo" : 1,
+          "smpl.ordering.repositories.mongodb.models.Dealer" : 3
+        },
+        "USES" : {
+          "smpl.ordering.models.DealerInfo" : 3,
+          "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry" : 1,
+          "smpl.ordering.repositories.mongodb.models.Dealer" : 9
+        },
+        "CREATES" : {
+          "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry" : 1,
+          "smpl.ordering.repositories.mongodb.models.Dealer" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry" : {
+      "annotations" : [ "@SuppressWarnings({ \"ALL\", \"deprecation\" })" ],
+      "methods" : [ {
+        "signature" : "public java.lang.String getCollectionName(null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.CommandResult executeCommand(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.CommandResult executeCommand(com.mongodb.DBObject)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.CommandResult executeCommand(com.mongodb.DBObject, int)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void executeQuery(org.springframework.data.mongodb.core.query.Query, java.lang.String, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null execute(null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null execute(null, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null execute(java.lang.String, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null executeInSession(null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.DBCollection createCollection(null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.DBCollection createCollection(null, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.DBCollection createCollection(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.DBCollection createCollection(java.lang.String, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null getCollectionNames()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.DBCollection getCollection(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean collectionExists(null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean collectionExists(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void dropCollection(null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "private void sendTelemetry(java.util.Date, java.util.Date, java.lang.String, boolean)"
+      }, {
+        "signature" : "public void dropCollection(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null indexOps(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null indexOps(null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findAll(null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findAll(null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null group(java.lang.String, org.springframework.data.mongodb.core.mapreduce.GroupBy, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null group(org.springframework.data.mongodb.core.query.Criteria, java.lang.String, org.springframework.data.mongodb.core.mapreduce.GroupBy, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null aggregate(null, java.lang.String, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null aggregate(null, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null aggregate(org.springframework.data.mongodb.core.aggregation.Aggregation, null, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null aggregate(org.springframework.data.mongodb.core.aggregation.Aggregation, java.lang.String, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null mapReduce(java.lang.String, java.lang.String, java.lang.String, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null mapReduce(java.lang.String, java.lang.String, java.lang.String, org.springframework.data.mongodb.core.mapreduce.MapReduceOptions, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null mapReduce(org.springframework.data.mongodb.core.query.Query, java.lang.String, java.lang.String, java.lang.String, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null mapReduce(org.springframework.data.mongodb.core.query.Query, java.lang.String, java.lang.String, java.lang.String, org.springframework.data.mongodb.core.mapreduce.MapReduceOptions, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null geoNear(org.springframework.data.mongodb.core.query.NearQuery, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null geoNear(org.springframework.data.mongodb.core.query.NearQuery, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findOne(org.springframework.data.mongodb.core.query.Query, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findOne(org.springframework.data.mongodb.core.query.Query, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean exists(org.springframework.data.mongodb.core.query.Query, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean exists(org.springframework.data.mongodb.core.query.Query, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean exists(org.springframework.data.mongodb.core.query.Query, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null find(org.springframework.data.mongodb.core.query.Query, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null find(org.springframework.data.mongodb.core.query.Query, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findById(java.lang.Object, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findById(java.lang.Object, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findAndModify(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findAndModify(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findAndModify(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, null, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findAndModify(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, null, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findAndRemove(org.springframework.data.mongodb.core.query.Query, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findAndRemove(org.springframework.data.mongodb.core.query.Query, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public long count(org.springframework.data.mongodb.core.query.Query, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public long count(org.springframework.data.mongodb.core.query.Query, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void insert(java.lang.Object)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void insert(java.lang.Object, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void insert(null, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void insert(null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void insertAll(null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void save(java.lang.Object)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void save(java.lang.Object, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult upsert(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult upsert(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult upsert(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult updateFirst(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult updateFirst(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult updateFirst(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult updateMulti(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult updateMulti(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult updateMulti(org.springframework.data.mongodb.core.query.Query, org.springframework.data.mongodb.core.query.Update, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult remove(java.lang.Object)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult remove(java.lang.Object, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult remove(org.springframework.data.mongodb.core.query.Query, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult remove(org.springframework.data.mongodb.core.query.Query, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public com.mongodb.WriteResult remove(org.springframework.data.mongodb.core.query.Query, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findAllAndRemove(org.springframework.data.mongodb.core.query.Query, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findAllAndRemove(org.springframework.data.mongodb.core.query.Query, null)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null findAllAndRemove(org.springframework.data.mongodb.core.query.Query, null, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public org.springframework.data.mongodb.core.convert.MongoConverter getConverter()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry MongoOperationsWithRetry(org.springframework.data.mongodb.core.MongoOperations)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private MongoOperations underlying"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.mongodb.MongoDealersRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoCatalogItemsRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 1,
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.Utility" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.MongoOrderRepository" : {
+      "methods" : [ {
+        "signature" : "public boolean hasOrder(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public integration.models.mrp.Order getOrder(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "private smpl.ordering.repositories.mongodb.models.OrderDetails findExistingOrder(java.lang.String)"
+      }, {
+        "signature" : "public null getOrdersByStatus(smpl.ordering.models.OrderStatus)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null getOrdersByDealerName(java.lang.String, smpl.ordering.models.OrderStatus)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public integration.models.mrp.Order getOrderByQuoteId(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public integration.models.mrp.Order createOrder(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean updateOrder(java.lang.String, integration.models.mrp.Order, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "private boolean saveOrder(java.lang.String, integration.models.mrp.Order, smpl.ordering.repositories.mongodb.models.OrderDetails)"
+      }, {
+        "signature" : "public boolean updateOrder(java.lang.String, smpl.ordering.models.OrderUpdateInfo, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean removeOrder(java.lang.String, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void reset()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.MongoOrderRepository MongoOrderRepository(org.springframework.data.mongodb.core.MongoTemplate, smpl.ordering.repositories.QuoteRepository)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private static AtomicLong s_counter"
+      }, {
+        "declaration" : "private final QuoteRepository quotes"
+      }, {
+        "declaration" : "private final MongoOperations operations"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "CALLED_BY" : {
+          "smpl.ordering.controllers.ShipmentController" : 1
+        },
+        "IMPLEMENTS" : {
+          "smpl.ordering.TestPath" : 1,
+          "smpl.ordering.repositories.OrderRepository" : 1
+        },
+        "CALLS" : {
+          "integration.models.mrp.Order" : 8,
+          "smpl.ordering.repositories.mongodb.models.OrderDetails" : 5,
+          "smpl.ordering.models.OrderUpdateInfo" : 2
+        },
+        "USES" : {
+          "smpl.ordering.ConflictingRequestException" : 1,
+          "integration.models.mrp.Order" : 14,
+          "smpl.ordering.repositories.QuoteRepository" : 2,
+          "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry" : 1,
+          "smpl.ordering.BadRequestException" : 1,
+          "smpl.ordering.repositories.mongodb.models.OrderDetails" : 18,
+          "smpl.ordering.models.OrderUpdateInfo" : 1,
+          "integration.models.mrp.Quote" : 1,
+          "smpl.ordering.models.OrderStatus" : 4
+        },
+        "CREATES" : {
+          "smpl.ordering.ConflictingRequestException" : 1,
+          "integration.models.mrp.Order" : 1,
+          "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry" : 1,
+          "smpl.ordering.BadRequestException" : 1,
+          "smpl.ordering.repositories.mongodb.models.OrderDetails" : 2
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : {
+      "methods" : [ {
+        "signature" : "public integration.models.mrp.Quote getQuote(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "private smpl.ordering.repositories.mongodb.models.QuoteDetails findExistingQuote(java.lang.String)"
+      }, {
+        "signature" : "public null getQuotesByCustomerName(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public null getQuoteIdsByDealerName(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public integration.models.mrp.Quote createQuote(integration.models.mrp.Quote)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean updateQuote(java.lang.String, integration.models.mrp.Quote, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean removeQuote(java.lang.String, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void reset()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.MongoQuoteRepository MongoQuoteRepository(org.springframework.data.mongodb.core.MongoTemplate, smpl.ordering.repositories.DealersRepository)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private final DealersRepository dealers"
+      }, {
+        "declaration" : "private static final Random s_counter"
+      }, {
+        "declaration" : "private final MongoOperations operations"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "CALLED_BY" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 1,
+          "smpl.ordering.controllers.ShipmentController" : 1,
+          "smpl.ordering.repositories.OrderRepositoryTest" : 4
+        },
+        "IMPLEMENTS" : {
+          "smpl.ordering.repositories.QuoteRepository" : 1,
+          "smpl.ordering.TestPath" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.mongodb.models.QuoteDetails" : 3,
+          "integration.models.mrp.Quote" : 7
+        },
+        "USES" : {
+          "smpl.ordering.models.DealerInfo" : 4,
+          "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry" : 1,
+          "smpl.ordering.repositories.mongodb.models.QuoteDetails" : 13,
+          "smpl.ordering.BadRequestException" : 1,
+          "smpl.ordering.repositories.DealersRepository" : 2,
+          "integration.models.mrp.Quote" : 8
+        },
+        "CREATES" : {
+          "smpl.ordering.models.DealerInfo" : 2,
+          "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry" : 1,
+          "smpl.ordering.BadRequestException" : 1,
+          "smpl.ordering.repositories.mongodb.models.QuoteDetails" : 2,
+          "integration.models.mrp.Quote" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : {
+      "methods" : [ {
+        "signature" : "public null getShipments(smpl.ordering.models.OrderStatus)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.models.ShipmentRecord getShipmentById(java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.models.ShipmentRecord createShipment(smpl.ordering.models.ShipmentRecord)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "private smpl.ordering.repositories.mongodb.models.ShipmentDetails findExistingShipmentDetails(java.lang.String)"
+      }, {
+        "signature" : "public boolean addEvent(java.lang.String, integration.models.mrp.ShipmentEventInfo)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "private boolean saveUpdates(smpl.ordering.repositories.mongodb.models.ShipmentDetails, smpl.ordering.models.ShipmentRecord)"
+      }, {
+        "signature" : "public boolean updateShipment(smpl.ordering.models.ShipmentRecord)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public boolean removeShipment(java.lang.String, java.lang.String)",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public void reset()",
+        "annotations" : [ "@Override" ]
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.MongoShipmentRepository MongoShipmentRepository(org.springframework.data.mongodb.core.MongoTemplate, smpl.ordering.repositories.OrderRepository)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private final OrderRepository orders"
+      }, {
+        "declaration" : "private final MongoOperations operations"
+      } ],
+      "relationships" : {
+        "CREATED_BY" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "IMPLEMENTS" : {
+          "smpl.ordering.TestPath" : 1,
+          "smpl.ordering.repositories.ShipmentRepository" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.mongodb.models.ShipmentDetails" : 4,
+          "smpl.ordering.models.ShipmentRecord" : 6
+        },
+        "USES" : {
+          "smpl.ordering.ConflictingRequestException" : 1,
+          "integration.models.mrp.Order" : 3,
+          "integration.models.mrp.ShipmentEventInfo" : 3,
+          "smpl.ordering.repositories.mongodb.models.ShipmentDetails" : 16,
+          "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry" : 1,
+          "smpl.ordering.BadRequestException" : 1,
+          "smpl.ordering.models.ShipmentRecord" : 10,
+          "smpl.ordering.repositories.OrderRepository" : 2,
+          "smpl.ordering.models.OrderStatus" : 2
+        },
+        "CREATES" : {
+          "smpl.ordering.ConflictingRequestException" : 1,
+          "smpl.ordering.repositories.mongodb.models.ShipmentDetails" : 2,
+          "smpl.ordering.repositories.mongodb.MongoOperationsWithRetry" : 1,
+          "smpl.ordering.BadRequestException" : 1,
+          "smpl.ordering.models.ShipmentRecord" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.models.CatalogItem" : {
+      "annotations" : [ "@Document(collection = \"catalog\")" ],
+      "methods" : [ {
+        "signature" : "public smpl.ordering.models.CatalogItem toCatalogItem()"
+      }, {
+        "signature" : "public java.lang.String getId()"
+      }, {
+        "signature" : "public void setId(java.lang.String)"
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.models.CatalogItem CatalogItem()"
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.models.CatalogItem CatalogItem(smpl.ordering.models.CatalogItem)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String id",
+        "annotations" : [ "@Id" ]
+      }, {
+        "declaration" : "private String skuNumber",
+        "annotations" : [ "@Indexed" ]
+      }, {
+        "declaration" : "private String description"
+      }, {
+        "declaration" : "private double price"
+      }, {
+        "declaration" : "private int inventory"
+      }, {
+        "declaration" : "private int leadTime"
+      } ],
+      "relationships" : {
+        "CALLS" : {
+          "smpl.ordering.models.CatalogItem" : 10
+        },
+        "USES" : {
+          "smpl.ordering.models.CatalogItem" : 5
+        },
+        "CREATES" : {
+          "smpl.ordering.models.CatalogItem" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.models.Dealer" : {
+      "annotations" : [ "@Document(collection = \"dealers\")" ],
+      "methods" : [ {
+        "signature" : "public smpl.ordering.models.DealerInfo toDealerInfo()"
+      }, {
+        "signature" : "public java.lang.String getId()"
+      }, {
+        "signature" : "public void setId(java.lang.String)"
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.models.Dealer Dealer()"
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.models.Dealer Dealer(smpl.ordering.models.DealerInfo)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String id",
+        "annotations" : [ "@Id" ]
+      }, {
+        "declaration" : "private String name",
+        "annotations" : [ "@Indexed" ]
+      }, {
+        "declaration" : "private String contact"
+      }, {
+        "declaration" : "private String address"
+      }, {
+        "declaration" : "private String email"
+      }, {
+        "declaration" : "private String phone"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.mongodb.MongoDealersRepository" : 3
+        },
+        "CALLS" : {
+          "smpl.ordering.models.DealerInfo" : 10
+        },
+        "USES" : {
+          "smpl.ordering.models.DealerInfo" : 5
+        },
+        "CREATES" : {
+          "smpl.ordering.models.DealerInfo" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.models.OrderDetails" : {
+      "annotations" : [ "@Document(collection = \"orders\")" ],
+      "methods" : [ {
+        "signature" : "public java.lang.String getId()"
+      }, {
+        "signature" : "public void setId(java.lang.String)"
+      }, {
+        "signature" : "public integration.models.mrp.Order toOrder()"
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.models.OrderDetails OrderDetails()"
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.models.OrderDetails OrderDetails(integration.models.mrp.Order)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String id",
+        "annotations" : [ "@Id" ]
+      }, {
+        "declaration" : "private String orderId",
+        "annotations" : [ "@Indexed" ]
+      }, {
+        "declaration" : "private String quoteId",
+        "annotations" : [ "@Indexed" ]
+      }, {
+        "declaration" : "private String orderDate"
+      }, {
+        "declaration" : "private OrderStatus status",
+        "annotations" : [ "@Indexed" ]
+      }, {
+        "declaration" : "private OrderEventInfo[] events"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.mongodb.MongoOrderRepository" : 5
+        },
+        "CALLS" : {
+          "integration.models.mrp.Order" : 10
+        },
+        "USES" : {
+          "integration.models.mrp.Order" : 5,
+          "smpl.ordering.models.OrderEventInfo" : 3,
+          "smpl.ordering.models.OrderStatus" : 1
+        },
+        "CREATES" : {
+          "integration.models.mrp.Order" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.models.QuoteDetails" : {
+      "annotations" : [ "@Document(collection = \"quotes\")" ],
+      "methods" : [ {
+        "signature" : "public java.lang.String getQuoteId()"
+      }, {
+        "signature" : "public java.lang.String getDealerName()"
+      }, {
+        "signature" : "public integration.models.mrp.Quote toQuote()"
+      }, {
+        "signature" : "public java.lang.String getCustomerName()"
+      }, {
+        "signature" : "public java.lang.String getId()"
+      }, {
+        "signature" : "public void setId(java.lang.String)"
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.models.QuoteDetails QuoteDetails()"
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.models.QuoteDetails QuoteDetails(integration.models.mrp.Quote)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String id",
+        "annotations" : [ "@Id" ]
+      }, {
+        "declaration" : "private String quoteId",
+        "annotations" : [ "@Indexed" ]
+      }, {
+        "declaration" : "private String validUntil"
+      }, {
+        "declaration" : "private String customerName"
+      }, {
+        "declaration" : "private String dealerName",
+        "annotations" : [ "@Indexed" ]
+      }, {
+        "declaration" : "private QuoteItemInfo[] quoteItems"
+      }, {
+        "declaration" : "private double totalCost"
+      }, {
+        "declaration" : "private double discount"
+      }, {
+        "declaration" : "private String city"
+      }, {
+        "declaration" : "private String postalCode"
+      }, {
+        "declaration" : "private String state"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.mongodb.MongoQuoteRepository" : 3
+        },
+        "CALLS" : {
+          "integration.models.mrp.Quote" : 20
+        },
+        "USES" : {
+          "smpl.ordering.models.QuoteItemInfo" : 3,
+          "integration.models.mrp.Quote" : 5
+        },
+        "CREATES" : {
+          "integration.models.mrp.Quote" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.models.ShipmentDetails" : {
+      "annotations" : [ "@Document(collection = \"shipments\")" ],
+      "methods" : [ {
+        "signature" : "public java.lang.String getId()"
+      }, {
+        "signature" : "public void setId(java.lang.String)"
+      }, {
+        "signature" : "public smpl.ordering.models.ShipmentRecord toShipmentRecord()"
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.models.ShipmentDetails ShipmentDetails()"
+      }, {
+        "signature" : "public smpl.ordering.repositories.mongodb.models.ShipmentDetails ShipmentDetails(smpl.ordering.models.ShipmentRecord)"
+      } ],
+      "fields" : [ {
+        "declaration" : "private String id",
+        "annotations" : [ "@Id" ]
+      }, {
+        "declaration" : "private String orderId",
+        "annotations" : [ "@Indexed" ]
+      }, {
+        "declaration" : "private ShipmentEventInfo[] events"
+      }, {
+        "declaration" : "private DeliveryAddress deliveryAddress"
+      }, {
+        "declaration" : "private String contactName"
+      }, {
+        "declaration" : "private PhoneInfo primaryContactPhone"
+      }, {
+        "declaration" : "private PhoneInfo alternateContactPhone"
+      } ],
+      "relationships" : {
+        "USED_BY" : {
+          "smpl.ordering.repositories.mongodb.MongoShipmentRepository" : 4
+        },
+        "CALLS" : {
+          "smpl.ordering.models.ShipmentRecord" : 14
+        },
+        "USES" : {
+          "integration.models.mrp.ShipmentEventInfo" : 2,
+          "integration.models.mrp.DeliveryAddress" : 1,
+          "integration.models.mrp.PhoneInfo" : 2,
+          "smpl.ordering.models.ShipmentRecord" : 5
+        },
+        "CREATES" : {
+          "smpl.ordering.models.ShipmentRecord" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.test.IntegrationTests" : {
+      "relationships" : { }
+    },
+    "smpl.ordering.repositories.mongodb.test.MongoCatalogItemsRepositoryTest" : {
+      "annotations" : [ "@Category(IntegrationTests.class)" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before", "@Override" ]
+      }, {
+        "signature" : "public void testGetCatalogItems()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetCatalogItem()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testUpsertCatalogItem()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testRemoveCatalogItem()",
+        "annotations" : [ "@Test", "@Override" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "public ConfigurationRule rule",
+        "annotations" : [ "@Rule" ]
+      } ],
+      "relationships" : {
+        "EXTENDS" : {
+          "smpl.ordering.repositories.CatalogItemsRepositoryTest" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "USES" : {
+          "smpl.ordering.ConfigurationRule" : 2
+        },
+        "CREATES" : {
+          "smpl.ordering.ConfigurationRule" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.test.MongoDealersRepositoryTest" : {
+      "annotations" : [ "@SuppressWarnings(\"EmptyMethod\")", "@Category(IntegrationTests.class)" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before", "@Override" ]
+      }, {
+        "signature" : "public void testGetDealers()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetDealer()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testUpsertDealer()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testRemoveDealer()",
+        "annotations" : [ "@Test", "@Override" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "public ConfigurationRule rule",
+        "annotations" : [ "@Rule" ]
+      } ],
+      "relationships" : {
+        "EXTENDS" : {
+          "smpl.ordering.repositories.DealersRepositoryTest" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "USES" : {
+          "smpl.ordering.ConfigurationRule" : 2
+        },
+        "CREATES" : {
+          "smpl.ordering.ConfigurationRule" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.test.MongoOrderRepositoryTest" : {
+      "annotations" : [ "@SuppressWarnings(\"EmptyMethod\")", "@Category(IntegrationTests.class)" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before", "@Override" ]
+      }, {
+        "signature" : "public void testHasOrder()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetOrder()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetOrdersByQuoteId()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetOrdersByStatus()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetOrdersByDealerName()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testCreateOrder()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testUpdateOrder()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testUpdateOrder1()",
+        "annotations" : [ "@Test", "@Override" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "public ConfigurationRule rule",
+        "annotations" : [ "@Rule" ]
+      } ],
+      "relationships" : {
+        "EXTENDS" : {
+          "smpl.ordering.repositories.OrderRepositoryTest" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "USES" : {
+          "smpl.ordering.ConfigurationRule" : 2
+        },
+        "CREATES" : {
+          "smpl.ordering.ConfigurationRule" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.test.MongoQuoteRepositoryTest" : {
+      "annotations" : [ "@SuppressWarnings(\"EmptyMethod\")", "@Category(IntegrationTests.class)" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before", "@Override" ]
+      }, {
+        "signature" : "public void testGetQuote()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testGetQuotesByCustomerName()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testCreateQuote()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testUpdateQuote()",
+        "annotations" : [ "@Test", "@Override" ]
+      }, {
+        "signature" : "public void testRemoveQuote()",
+        "annotations" : [ "@Test", "@Override" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "public ConfigurationRule rule",
+        "annotations" : [ "@Rule" ]
+      } ],
+      "relationships" : {
+        "EXTENDS" : {
+          "smpl.ordering.repositories.QuoteRepositoryTest" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "USES" : {
+          "smpl.ordering.ConfigurationRule" : 2
+        },
+        "CREATES" : {
+          "smpl.ordering.ConfigurationRule" : 1
+        }
+      }
+    },
+    "smpl.ordering.repositories.mongodb.test.MongoShipmentRepositoryTest" : {
+      "annotations" : [ "@SuppressWarnings(\"EmptyMethod\")", "@Category(IntegrationTests.class)" ],
+      "methods" : [ {
+        "signature" : "public void setUp()",
+        "annotations" : [ "@Before", "@Override" ]
+      }, {
+        "signature" : "public void testGetShipmentById()",
+        "annotations" : [ "@Override", "@Test" ]
+      }, {
+        "signature" : "public void testGetShipments()",
+        "annotations" : [ "@Override", "@Test" ]
+      }, {
+        "signature" : "public void testCreateShipment()",
+        "annotations" : [ "@Override", "@Test" ]
+      }, {
+        "signature" : "public void testUpdateShipment()",
+        "annotations" : [ "@Override", "@Test" ]
+      }, {
+        "signature" : "public void testAddEvent()",
+        "annotations" : [ "@Override", "@Test" ]
+      } ],
+      "fields" : [ {
+        "declaration" : "public ConfigurationRule rule",
+        "annotations" : [ "@Rule" ]
+      } ],
+      "relationships" : {
+        "EXTENDS" : {
+          "smpl.ordering.repositories.ShipmentRepositoryTest" : 1
+        },
+        "CALLS" : {
+          "smpl.ordering.repositories.RepositoryFactory" : 1
+        },
+        "USES" : {
+          "smpl.ordering.ConfigurationRule" : 2
+        },
+        "CREATES" : {
+          "smpl.ordering.ConfigurationRule" : 1
+        }
+      }
+    }
+  }
+}
