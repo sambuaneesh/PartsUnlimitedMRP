@@ -1,0 +1,184 @@
+This document provides a comprehensive architectural summary of Part 5 of the codebase, focusing on the `OrderService` backend tests and the `Clients` web frontend. The information is structured for microservice decomposition analysis.
+
+### Overall Architecture
+
+This chunk contains two primary components:
+1.  **`OrderService` (Backend):** The complete test suite for the `OrderService`. The tests reveal the service's full API, data models, business logic, and persistence strategies.
+2.  **`Clients` (Frontend):** A static Single Page Application (SPA) web client used to interact with the `OrderService`. Its data access layer provides a clear map of the backend API endpoints it consumes.
+
+---
+
+## 1. OrderService (Backend)
+
+This section details the architecture of the `OrderService` as inferred from its comprehensive test suite.
+
+### 1.1. Components and Responsibilities
+
+The service is composed of several logical components, primarily organized by business domain entities:
+
+*   **CatalogController**: Manages the product catalog. Responsible for CRUD operations on `CatalogItem` entities.
+*   **DealerController**: Manages dealer information. Responsible for CRUD operations on `DealerInfo` entities.
+*   **QuoteController**: Manages sales quotes. Responsible for creating, retrieving, updating, and deleting `Quote` entities.
+*   **OrderController**: Manages customer orders. Responsible for creating orders from quotes, tracking order status, and managing order history through events.
+*   **ShipmentController**: Manages shipment and delivery logistics. Responsible for creating shipment records from orders and tracking shipment events.
+*   **Repository Layer**: A data access layer abstracted by a `RepositoryFactory`. It provides interfaces for persisting and retrieving domain entities. Implementations exist for in-memory (`memory`) and MongoDB (`mongodb`).
+
+### 1.2. API Endpoints and Interfaces
+
+The controller tests reveal a RESTful API for managing the service's resources.
+
+| Controller | Method | Path | Description |
+| :--- | :--- | :--- | :--- |
+| **CatalogController** | `POST` | `/catalog` | Adds a new `CatalogItem`. |
+| | `GET` | `/catalog` | Retrieves a list of all `CatalogItem`s. |
+| | `GET` | `/catalog/{sku}` | Retrieves a single `CatalogItem` by its SKU number. |
+| | `PUT` | `/catalog/{sku}` | Updates an existing `CatalogItem` or creates it if it doesn't exist (Upsert). |
+| | `DELETE`| `/catalog/{sku}` | Removes a `CatalogItem`. |
+| **DealerController** | `POST` | `/dealers` | Adds a new `DealerInfo`. |
+| | `GET` | `/dealers` | Retrieves a list of all `DealerInfo`s. |
+| | `GET` | `/dealers/{name}` | Retrieves a single `DealerInfo` by name. |
+| | `PUT` | `/dealers/{name}` | Updates an existing `DealerInfo`. |
+| | `DELETE`| `/dealers/{name}` | Removes a `DealerInfo`. |
+| **QuoteController** | `POST` | `/quotes` | Creates a new `Quote`. |
+| | `GET` | `/quotes?name={customerName}` | Retrieves quotes matching a customer name. |
+| | `GET` | `/quotes/{quoteId}` | Retrieves a single `Quote` by its ID. |
+| | `PUT` | `/quotes/{quoteId}` | Updates an existing `Quote`. |
+| | `DELETE`| `/quotes/{quoteId}` | Deletes a `Quote`. |
+| **OrderController** | `POST` | `/orders?fromQuote={quoteId}` | Creates a new `Order` from an existing quote. |
+| | `GET` | `/orders?dealer={dealerName}&status={status}` | Retrieves orders, filterable by dealer and status. |
+| | `GET` | `/orders/{orderId}` | Retrieves a single `Order` by its ID. |
+| | `PUT` | `/orders/{orderId}/status` | Updates the status of an `Order` and adds an event. |
+| | `POST` | `/orders/{orderId}/events` | Adds an event to an `Order`. |
+| **ShipmentController**| `POST` | `/shipments` | Creates a new `ShipmentRecord`. |
+| | `GET` | `/shipments?status={status}` | Retrieves all shipments, filterable by the associated order's status. |
+| | `GET` | `/shipments/{orderId}` | Retrieves the shipment record for a given order ID. |
+| | `PUT` | `/shipments/{orderId}` | Updates an existing `ShipmentRecord`. |
+| | `POST` | `/shipments/{orderId}/events` | Adds a tracking event to a shipment. |
+
+### 1.3. Database Schemas and Data Models
+
+The data models, inferred from the repository tests and model classes, represent the core business entities. These models would map to collections in MongoDB.
+
+*   **`CatalogItem`**
+    *   `skuNumber`: String (Primary Key)
+    *   `description`: String
+    *   `price`: double
+    *   `height`: int
+    *   `width`: int
+
+*   **`DealerInfo`**
+    *   `name`: String (Primary Key)
+    *   `contact`: String
+    *   `phone`: String
+    *   `email`: String
+    *   `address`: String
+
+*   **`Quote`**
+    *   `quoteId`: String (Primary Key)
+    *   `dealerName`: String (FK to DealerInfo)
+    *   `customerName`: String
+    *   `validUntil`: Date
+    *   `quoteItems`: List<`QuoteItemInfo`>
+    *   ... (other fields like `comments`, `terms`, `city`, `postalCode`)
+
+*   **`QuoteItemInfo`** (Embedded in `Quote`)
+    *   `skuNumber`: String (FK to CatalogItem)
+    *   `amount`: int
+
+*   **`Order`**
+    *   `orderId`: String (Primary Key, e.g., "order-{quoteId}")
+    *   `quoteId`: String (FK to Quote)
+    *   `status`: String (Enum: `None`, `Created`, `Confirmed`, `Started`, `Built`, `Shipped`, `Delivered`)
+    *   `events`: List<`OrderEventInfo`>
+
+*   **`OrderEventInfo`** (Embedded in `Order`)
+    *   `date`: String
+    *   `comments`: String
+
+*   **`ShipmentRecord`**
+    *   `orderId`: String (Primary Key, FK to Order)
+    *   `deliveryDate`: String
+    *   `contactName`: String
+    *   `deliveryAddress`: `DeliveryAddress` (Embedded)
+    *   `primaryContactPhone`: `PhoneInfo` (Embedded)
+    *   `alternateContactPhone`: `PhoneInfo` (Embedded)
+    *   `events`: List<`ShipmentEventInfo`>
+
+*   **`ShipmentEventInfo`** (Embedded in `ShipmentRecord`)
+    *   `date`: String
+    *   `comments`: String
+
+### 1.4. Service Dependencies and Communication Patterns
+
+*   **Internal Dependencies:**
+    *   Controllers depend on the Repository layer for all data operations.
+    *   The `RepositoryFactory` is a central point of dependency for creating repository instances.
+    *   There are strong data dependencies between the domains:
+        *   `Quote` depends on `DealerInfo` and `CatalogItem`.
+        *   `Order` depends on `Quote`.
+        *   `ShipmentRecord` depends on `Order`.
+*   **External Dependencies:** The service depends on a MongoDB database for persistent storage (as shown by integration tests).
+
+### 1.5. Key Business Logic and Algorithms
+
+*   **Order Creation Workflow**: An order is not created directly. It must be generated from an existing `Quote`. The `POST /orders?fromQuote={quoteId}` endpoint encapsulates this logic. An order cannot be created for a quote that already has an order.
+*   **Status Management**: Updating an order's status (`PUT /orders/{id}/status`) is an atomic business operation that not only changes the status field but also creates an associated `OrderEventInfo` record to track the history of the change.
+*   **Data Validation**: The controller tests demonstrate validation logic, returning `HttpStatus.BAD_REQUEST` for invalid input (e.g., empty IDs) and `HttpStatus.CONFLICT` for duplicate resource creation.
+
+### 1.6. Configuration and Deployment Details
+
+*   **Configuration (`test/resources/application.properties`):**
+    *   `server.port`: 8080
+    *   `management.port`: 8081
+    *   `ordering.storage`: `memory` (default for unit tests, can be switched to `mongodb`).
+    *   `mongodb.host`: `localhost`
+    *   `mongodb.database`: `orderingtest` (uses a dedicated test database).
+*   **Frameworks:** Spring Framework is used for REST controllers (`@RestController`, `ResponseEntity`, etc. are implied by the test structure).
+*   **Testing:** JUnit is the testing framework. The tests are structured to run against both an in-memory mock repository (`Mock*RepositoryTest`) and a real MongoDB instance (`Mongo*RepositoryTest`), with the latter being categorized as `IntegrationTests`.
+
+### 1.7. Architectural Patterns
+
+*   **Layered Architecture**: A classic presentation (Controller) and data access (Repository) layer separation is evident.
+*   **Repository Pattern**: Data access is abstracted through repository interfaces, decoupling business logic from the persistence technology.
+*   **Abstract Factory Pattern**: The `RepositoryFactory` class is used to create families of related repository objects (e.g., all mock repositories or all MongoDB repositories) based on a configuration string (`"memory"` or `"mongodb"`).
+
+---
+
+## 2. Web Client
+
+This section details the architecture of the static web client.
+
+### 2.1. Component Name and Responsibilities
+
+*   **`MRP Client`**: A Single Page Application (SPA) that serves as the user interface for the `OrderService`. It provides views for managing Dealers, Quotes, Orders, Deliveries (Shipments), and the Product Catalog.
+
+### 2.2. API Interfaces (Consumed from Backend)
+
+The `js/data.js` file acts as the client-side data access layer, making RESTful calls to the `OrderService`. It consumes all the endpoints listed in section 1.2. Key observations:
+*   The client uses the term "Deliveries" to refer to what the backend calls "Shipments".
+*   All requests are made with `Pragma: no-cache` and `Cache-Control: no-cache` headers to ensure fresh data is always fetched.
+*   It implements full CRUD functionality for all major entities.
+
+### 2.3. Data Models
+
+The client-side JavaScript code mirrors the backend data models. It uses `WinJS.Binding.as()` to create observable objects that can be bound to UI elements. It frequently adds a temporary `__new: true` flag to objects to differentiate between a `POST` (create) and `PUT` (update) operation.
+
+### 2.4. Key Business Logic
+
+*   **Order Creation**: The client correctly implements the flow where an order is created from a quote.
+*   **Shipment/Delivery Creation**: The client can create a shipment record for an existing order.
+*   **State Management**: The client maintains in-memory lists of data (e.g., `Data.dealers`, `Data.quotes`) which are populated from the server and bound to the UI.
+
+### 2.5. Configuration and Deployment Details
+
+*   **Build Tool**: Gradle is used to build the client. The `gradlew` and `gradlew.bat` scripts are provided.
+*   **Deployment Artifact**: The build process creates a `mrp.war` file (as per `README.md`), which is a standard Java Web Application Archive. This indicates the client is deployed on a Java web server like Tomcat.
+*   **Configuration**: A `js/serverconfig.js` file is referenced, which is expected to contain the base URL (`baseAddress`) of the backend `OrderService`.
+*   **Frameworks/Libraries**:
+    *   **WinJS**: Used for UI components (NavBar, ListView, Dialogs) and data binding.
+    *   **Google Maps API**: Included for potential location-based features.
+
+### 2.6. Architectural Patterns
+
+*   **Single Page Application (SPA)**: The application uses a single `contenthost` div to load different "pages" (HTML fragments), providing a fluid user experience without full page reloads.
+*   **Data Access Layer**: The `data.js` file encapsulates all communication with the backend, separating API logic from the UI presentation logic.

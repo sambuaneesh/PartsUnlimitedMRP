@@ -1,0 +1,123 @@
+An architectural summary of the provided codebase chunk (Part 2 of 6) is presented below. This summary is structured for microservice decomposition analysis, detailing components, interfaces, data models, and deployment strategies.
+
+### 1. Overall System Overview
+
+This codebase chunk defines the deployment and infrastructure for the **Parts Unlimited MRP** application, a fictional Manufacturing Resource Planning system. The application follows a classic three-tier architecture consisting of a web front-end, an ordering service (application logic), and a database.
+
+The provided files describe multiple methods for deploying this application, primarily targeting **Azure Stack**, but also including a complete **Docker-based** setup. This indicates a strong emphasis on **Infrastructure as Code (IaC)**. The core application components remain consistent across all deployment methods.
+
+### 2. Component Names and Their Responsibilities
+
+The system is logically divided into three main application components and several infrastructure/configuration components.
+
+#### Application Components
+
+| Component Name | Implementation | Runtime Environment | Responsibilities |
+| :--- | :--- | :--- | :--- |
+| **Web Front-end** | `mrp.war` | Apache Tomcat 7/8 | Provides the user interface for the MRP system. Interacts with the Ordering Service to perform business operations. |
+| **Ordering Service** | `ordering-service-*.jar` | Java 8 JRE | Contains the core business logic. Manages quotes, orders, shipments, and interacts with the database. |
+| **Database** | MongoDB | `mongod` process | Provides data persistence for all application entities, including product catalog, dealers, quotes, orders, and shipments. |
+
+#### Infrastructure & Configuration Management Components
+
+| Component Name | Technology | Responsibilities |
+| :--- | :--- | :--- |
+| **Azure Stack VM Deployment**| ARM Templates | Defines the entire cloud infrastructure on Azure Stack, including VMs, networking (VNet, NSG, Public IP), and storage for hosting the MRP application as a monolithic unit. |
+| **Puppet Configuration** | Puppet (`init.pp`) | Automates the configuration of a VM to run the MRP application stack (MongoDB, Java, Tomcat, application deployment, and data seeding). Includes templates for a Puppet Master and agent nodes. |
+| **Chef Configuration** | Chef (`default.rb`) | Provides an alternative recipe to automate the configuration of a VM for the MRP stack, similar to the Puppet configuration. |
+| **Ansible Configuration** | Ansible (`*.yml`) | Contains playbooks for provisioning Azure resources (VMs, networking) and configuring them (e.g., installing Apache/Nginx). Primarily for lab environments. |
+| **Docker Deployment** | Docker (`Dockerfile`, scripts) | Defines a containerized deployment for each application component (`web`, `order`, `db`), enabling local development and container-based hosting. |
+
+### 3. API Endpoints and Interfaces
+
+The components communicate over defined network ports, which are configured in the Network Security Groups (NSGs) of the ARM templates and exposed in the Docker setup.
+
+| Service | Port | Protocol | Description |
+| :--- | :--- | :--- | :--- |
+| **Web Front-end** | **9080** | TCP | Main application HTTP endpoint for user access (in VM deployments). |
+| **Web Front-end (Docker)** | **80** | TCP | Exposed host port for user access, mapped to container port 8080 (in Docker deployment). |
+| **Ordering Service** | **8080** | TCP | Internal HTTP/REST API for business logic, called by the Web Front-end. |
+| **Database (MongoDB)**| **27017** | TCP | Standard MongoDB wire protocol port for the Ordering Service connection. |
+| **Database (REST)** | **28017** | TCP | Simple HTTP REST interface for MongoDB, enabled in the Docker setup. |
+| **Administration** | **22** | TCP | SSH access for all provisioned virtual machines. |
+| **Puppet Master** | **8140**, **443**, **61613** | TCP | Ports for Puppet agent communication, web console (HTTPS), and MCollective respectively. |
+
+### 4. Database Schemas and Data Models
+
+The system uses a MongoDB database named `ordering`. The initial schema and data are defined in `deploy/docker/Database/drop/MongoRecords.js`.
+
+**Database:** MongoDB
+**DB Name:** `ordering`
+
+**Collections:**
+
+*   **`catalog`**: Stores product information.
+    *   `skuNumber`: (String, PK) e.g., "LIG-0001"
+    *   `description`: (String) e.g., "Helogen Headlights (2 Pack)"
+    *   `price`: (Number) e.g., 38.99
+    *   `inventory`: (Number) Current stock count.
+    *   `leadTime`: (Number) Days to restock.
+
+*   **`dealers`**: Stores dealer information.
+    *   `name`, `address`, `email`, `phone`: (String)
+
+*   **`quotes`**: Stores customer price quotes.
+    *   `quoteId`: (String, PK)
+    *   `validUntil`: (ISODate)
+    *   `customerName`, `dealerName`, `city`, `state`, `postalCode`: (String)
+    *   `totalCost`: (String/Number)
+    *   `discount`: (String/Number)
+    *   `quoteItems`: (Array of Objects)
+        *   `skuNumber`: (String, FK to `catalog`)
+        *   `amount`: (Number)
+
+*   **`orders`**: Stores approved orders.
+    *   `orderId`: (String, PK)
+    *   `quoteId`: (String, FK to `quotes`)
+    *   `orderDate`: (ISODate)
+    *   `status`: (String) e.g., "Created", "DeliveryConfirmed"
+    *   `events`: (Array)
+
+*   **`shipments`**: Stores shipping details for orders.
+    *   `orderId`: (String, FK to `orders`)
+    *   `contactName`: (String)
+    *   `primaryContactPhone`: (Object) `{ "phoneNumber": String, "kind": String }`
+    *   `deliveryAddress`: (Object) `{ "street": String, "city": String, ... }`
+    *   `events`: (Array)
+
+### 5. Service Dependencies and Communication Patterns
+
+*   **User -> Web Front-end:** A user interacts with the system via HTTP on port 9080 (VM) or 80 (Docker).
+*   **Web Front-end -> Ordering Service:** The Web Front-end acts as a client to the Ordering Service. It makes synchronous, internal API calls over HTTP to `localhost:8080` (or the container's network address) to execute business logic.
+*   **Ordering Service -> Database:** The Ordering Service has a direct, stateful dependency on the MongoDB database. It connects via the standard MongoDB protocol on port `27017` to perform CRUD operations. The service's startup script (`run.sh`) explicitly waits for the database to be available, indicating a tight coupling and a critical startup dependency.
+
+### 6. Key Business Logic and Algorithms
+
+*   **Application Logic:** The core business logic is encapsulated within the **Ordering Service** (`ordering-*.jar`). This includes creating quotes, converting quotes into orders, and managing shipment information. The specific algorithms are located within the JAR file (not visible in this chunk).
+*   **Database Seeding:** A critical piece of startup logic is the database seeding process executed by `MongoRecords.js`. This script populates the database with a default product catalog, dealer info, and sample quotes/orders. This logic is orchestrated externally during deployment by Docker, Chef, or Puppet, not by the application services themselves.
+
+### 7. Configuration and Deployment Details
+
+The codebase provides multiple, comprehensive deployment strategies using IaC principles.
+
+*   **Deployment Target:** Azure Stack is the primary cloud target, with Docker for local/containerized environments.
+*   **VM Deployment (ARM Templates):**
+    *   **OS Image:** Primarily `Canonical:UbuntuServer:16.04.3-LTS`.
+    *   **VM Size:** `Standard_A2` for application nodes, `Standard_A3` for Puppet Master.
+    *   **Provisioning:** VMs are provisioned using ARM templates and configured at boot time via `CustomScriptForLinux` VM extensions. These extensions download and execute shell scripts from the project's public GitHub repository (`https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/...`).
+*   **Containerized Deployment (Docker):**
+    *   **Base Images:** `tomcat:7-jre8` (Web), `openjdk:8-jre` (Order), `mongo` (DB).
+    *   **Orchestration:** Simple shell scripts (`BuildAndRun.sh`, `StopAndRemove.sh`) are used to build images and run containers.
+    *   **Networking:** Docker's `--link` feature is used for service discovery (`--link db:mongo`), creating a direct dependency from the `order` container to the `db` container.
+
+### 8. Architectural Patterns and Frameworks Used
+
+*   **Architectural Pattern:** **Three-Tier Architecture**. The system is clearly separated into Presentation (Web), Application/Logic (Ordering Service), and Data (MongoDB) tiers. The deployments support both a co-located/monolithic style (all on one VM) and a distributed style (separate Docker containers).
+*   **Infrastructure Pattern:** **Infrastructure as Code (IaC)**. This is a dominant pattern, with mature configurations for ARM, Puppet, Chef, Ansible, and Docker.
+*   **Frameworks and Technologies:**
+    *   **Backend:** Java
+    *   **Application Server:** Apache Tomcat
+    *   **Database:** MongoDB
+    *   **Cloud:** Azure Stack
+    *   **Containerization:** Docker
+    *   **Configuration Management:** Puppet, Chef, Ansible

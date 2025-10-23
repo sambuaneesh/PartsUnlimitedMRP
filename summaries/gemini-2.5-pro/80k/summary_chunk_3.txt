@@ -1,0 +1,196 @@
+Here is a comprehensive architectural summary of the provided codebase chunk, structured for microservice decomposition analysis.
+
+### 1. High-Level Architectural Overview
+
+The codebase represents the front-end of a Material Requirements Planning (MRP) system, built as a **Single-Page Application (SPA)** using the **WinJS framework**. The architecture follows a **Page Control pattern**, where distinct business domains are encapsulated into self-contained "pages" (HTML, JS, CSS triplets).
+
+-   **Framework:** WinJS (for UI controls like ListView, data binding, navigation, and animations).
+-   **Client-Server Communication:** All interaction with the backend is abstracted through a global `Data` object, which acts as a client-side **Data Access Layer (DAL)** or **Facade**. This summary details the interface of this `Data` object as used by the UI components.
+-   **Core Business Process:** The application facilitates a core workflow: **Quote → Order → Delivery**. Each step builds upon the previous one, indicating a tightly coupled business process.
+
+---
+
+### 2. Core Components (Pages)
+
+#### 2.1. Main / Launchpad
+
+-   **Files:** `pages/main/main.html`, `pages/main/main.js`
+-   **Responsibility:** Acts as the main dashboard and navigation hub for the application.
+-   **UI/View:** Displays a set of "launch tiles" that navigate to the primary functional areas of the application: Dealers, Quotes, Orders, Deliveries, and Catalog.
+-   **Business Logic:** On tile click, it uses `WinJS.Navigation.navigate` to load the corresponding page control. It has no data-handling logic.
+-   **Dependencies:** Navigates to all other top-level page components.
+
+#### 2.2. Dealers Management
+
+-   **Files:** `pages/dealers/dealers.html`, `pages/dealers/dealers.js`
+-   **Responsibility:** Provides full CRUD (Create, Read, Update, Delete) functionality for managing Dealer entities.
+-   **UI/View:** A classic list-detail view. A `ListView` on the left displays all dealers, and a form on the right allows viewing and editing the selected dealer's details.
+-   **Business Logic:**
+    -   Fetches the complete list of dealers on page load.
+    -   Handles adding, saving, and deleting dealers through a common toolbar (`Controls.EditTools`).
+    -   Integrates an `addAddressHandler` utility, suggesting a dependency on an external mapping or address autocomplete service.
+-   **Data Model (`Dealer`):**
+    -   `id` (implicit primary key)
+    -   `name`: string
+    -   `contact`: string
+    -   `address`: string
+    -   `email`: string
+    -   `phone`: string
+-   **Client-Side API & Dependencies:**
+    -   `Data.dealersGet()`: Fetches all dealers.
+    -   `Data.dealerSave(dealer)`: Creates or updates a dealer.
+    -   `Data.dealerDelete(dealer)`: Deletes a dealer.
+    -   `Data.dealerCreate()`: Creates a new dealer object in memory.
+
+#### 2.3. Quotes Management
+
+-   **Files:** `pages/quotes/quotes.html`, `pages/quotes/quotes.js`
+-   **Responsibility:** Provides CRUD functionality for sales quotes. A quote is the first step in the sales process and can be converted into an Order.
+-   **UI/View:** A list-detail view for quotes. The detail form includes fields for customer, dealer, dimensions, costs, and terms.
+-   **Business Logic & Workflows:**
+    -   Standard CRUD operations for quotes.
+    -   **Create Order Workflow:** The "edit" button is repurposed to navigate to the Orders page, passing the current quote to initiate order creation. This is a key business process transition.
+    -   **Manage Extras:** A button opens the `extras` component in a popup to manage `additionalItems` associated with the quote.
+-   **Data Model (`Quote`):**
+    -   `quoteId` (implicit primary key)
+    -   `dealerName`: string
+    -   `customerName`: string
+    -   `validUntil`: date string
+    -   `city`: string
+    -   `postalCode`: string
+    -   `comments`: string
+    -   `purpose`: string (Enum: "Refrigerator", "Freezer")
+    -   `unitDescription`: string
+    -   `width`, `height`, `depth`: number
+    -   `ambientAverage`, `ambientPeak`: number
+    -   `terms`: string
+    -   `totalCost`: number
+    -   `discount`: number
+    -   `additionalItems`: array (Managed by `Extras` component, see below)
+-   **Client-Side API & Dependencies:**
+    -   `Data.quotesGet()`: Fetches all quotes.
+    -   `Data.quoteSave(quote)`: Saves a quote.
+    -   `Data.quoteDelete(quote)`: Deletes a quote.
+    -   `Data.quoteCreate()`: Creates a new quote object.
+    -   Navigates to `pages/orders/orders.html`.
+    -   Uses `pages/extras/extras.html` as a popup.
+
+#### 2.4. Orders Management
+
+-   **Files:** `pages/orders/orders.html`, `pages/orders/orders.js`
+-   **Responsibility:** Manages orders, which are created from quotes. Tracks the lifecycle of an order through various statuses.
+-   **UI/View:** A composite list-detail view. The detail section displays both order-specific fields (e.g., `status`, `orderDate`) and the full details of the underlying quote.
+-   **Business Logic & Workflows:**
+    -   Can be initialized from the Quotes page to create an order from a quote.
+    -   Fetches orders and then, for each order in the list, fetches its corresponding quote (`Data.quoteGetById`). This is a **client-side join** pattern (N+1 query).
+    -   **Create Delivery Workflow:** The "edit" button is repurposed as "Deliver", navigating to the Deliveries page to create a delivery from the current order.
+    -   Manages `events` (notes/logs) associated with the order via the `orderevents` popup.
+    -   Manages `additionalItems` on the underlying quote via the `extras` popup.
+-   **Data Model (`Order`):**
+    -   `orderId` (implicit primary key)
+    -   `quoteId`: foreign key (links to `Quote`)
+    -   `orderDate`: date string
+    -   `status`: string (Enum: "Created", "Confirmed", "Started", "Built", "DeliveryConfirmed", "Shipped", "Delivered", "Installed")
+    -   `events`: array (Managed by `OrderEvents` component, see below)
+    -   `__quote`: A hydrated `Quote` object, fetched and attached on the client.
+-   **Client-Side API & Dependencies:**
+    -   `Data.ordersGet()`: Fetches all orders.
+    -   `Data.orderSave(order, originalOrder)`: Saves an order.
+    -   `Data.orderDelete(order)`: Deletes an order.
+    -   `Data.orderCreateFromQuote(quote)`: Creates an order from a quote.
+    -   `Data.orderFindById(orderId)`: Local search for an order.
+    -   `Data.quoteGetById(quoteId)`: **Dependency** on the quote data source.
+    -   Navigates to `pages/deliveries/deliveries.html`.
+    -   Uses `pages/extras/extras.html` and `pages/orderevents/orderevents.html` as popups.
+
+#### 2.5. Deliveries Management
+
+-   **Files:** `pages/deliveries/deliveries.html`, `pages/deliveries/deliveries.js`
+-   **Responsibility:** Manages the final delivery details for a confirmed order.
+-   **UI/View:** A highly composite list-detail view. The detail section aggregates information from three entities: Delivery, Order, and Quote.
+-   **Business Logic & Workflows:**
+    -   Can be initialized from the Orders page to create a delivery.
+    -   Performs a **chained client-side join**: for each `Delivery`, it fetches the corresponding `Order` (`Data.orderGetById`), which in turn contains the hydrated `Quote` object.
+    -   Allows managing events for both the Delivery and the underlying Order, demonstrating tight coupling.
+    -   Allows managing extras for the underlying Quote.
+-   **Data Model (`Delivery`):**
+    -   `deliveryId` (implicit primary key)
+    -   `orderId`: foreign key (links to `Order`)
+    -   `deliveryDate`: date string
+    -   `deliveryAddress`: object { `city`, `postalCode` }
+    -   `primaryContactPhone`: object { `phoneNumber` }
+    -   `alternateContactPhone`: object { `phoneNumber` }
+    -   `events`: array (Managed by `OrderEvents` component)
+    -   `__order`: A hydrated `Order` object.
+    -   `__quote`: A hydrated `Quote` object (via `__order`).
+-   **Client-Side API & Dependencies:**
+    -   `Data.deliveriesGet()`: Fetches all deliveries.
+    -   `Data.deliverySave(delivery, originalDelivery)`: Saves a delivery.
+    -   `Data.deliveryDelete(delivery)`: Deletes a delivery.
+    -   `Data.deliveryCreateFromOrder(order)`: Creates a delivery.
+    -   `Data.deliveryFindById(orderId)`: Local search for a delivery.
+    -   `Data.orderGetById(orderId)`: **Dependency** on the order data source.
+    -   Uses `pages/extras/extras.html` and `pages/orderevents/orderevents.html` as popups.
+
+---
+
+### 3. Reusable/Shared Components (Popups)
+
+#### 3.1. Extras Management Popup
+
+-   **Files:** `pages/extras/extras.html`, `pages/extras/extras.js`
+-   **Responsibility:** A reusable UI component for managing a list of `additionalItems` on a `Quote`. It allows adding/removing items from a master catalog.
+-   **Communication Pattern:**
+    -   Receives a reference to the parent object's `additionalItems` array via the `options.state` object.
+    -   On load, it fetches the entire product catalog (`Data.catalogGet()`).
+    -   It populates its view by cross-referencing the SKUs in `additionalItems` with the master catalog data.
+    -   On `unload`, it mutates the original `additionalItems` array directly to persist changes back to the calling component (`Quotes`, `Orders`, or `Deliveries`).
+-   **Data Models:**
+    -   **`AdditionalItem`** (as part of `Quote`):
+        -   `skuNumber`: string
+        -   `shouldPreInstall`: boolean
+        -   `amount`: number
+    -   **`CatalogItem`** (for lookup):
+        -   `skuNumber`: string
+        -   `description`: string
+        -   `unit`: string
+        -   `unitPrice`: number
+-   **Client-Side API & Dependencies:**
+    -   `Data.catalogGet()`: Fetches the entire product catalog.
+    -   `Data.catalogFindSku(skuNumber)`: Performs a local search.
+    -   `Data.catalogSave(item)`: Saves a new item to the catalog.
+    -   `Data.catalogCreate()`: Creates a new catalog item locally.
+
+#### 3.2. Order Events Popup
+
+-   **Files:** `pages/orderevents/orderevents.html`, `pages/orderevents/orderevents.js`
+-   **Responsibility:** A reusable UI for managing a list of timestamped event logs/comments for an `Order` or `Delivery`.
+-   **Communication Pattern:**
+    -   Similar to the Extras popup, it receives a reference to the parent's `events` array.
+    -   It allows CRUD operations on this array.
+    -   On `unload`, it mutates the original `events` array to persist changes.
+-   **Data Model (`Event`):**
+    -   `date`: date string
+    -   `comments`: string
+-   **Client-Side API & Dependencies:**
+    -   No direct `Data.*` calls for saving events; they are saved as part of the parent entity (`Order` or `Delivery`).
+    -   *Anomaly:* It calls `Data.catalogGet()` which appears to be unused, likely a copy-paste artifact.
+
+---
+
+### 4. Summary for Microservice Decomposition Analysis
+
+-   **Clear Service Candidates:**
+    -   **Dealer Service:** The `Dealers` component is self-contained with its own data model and CRUD operations. It has no dependencies on other core business entities.
+    -   **Catalog Service:** The `Catalog` data (used via the `Extras` popup) is a distinct entity and can be managed by its own service.
+
+-   **Tightly Coupled Core Workflow (Quote-Order-Delivery):**
+    -   The `Quote -> Order -> Delivery` process represents a **Saga** or a long-running business transaction. Decomposing these into separate services would be complex.
+    -   **Data Dependencies:** `Order` is meaningless without its `Quote`. `Delivery` is meaningless without its `Order`. The UI reflects this by performing client-side joins to aggregate all necessary data for display.
+    -   A potential decomposition could be a single **"Sales Fulfillment" Service** that manages all three entities (Quotes, Orders, Deliveries) and their state transitions. Separating them would require robust event-driven communication and data replication to handle the cross-service data lookups currently done on the client.
+
+-   **Data Aggregation at the Client:** The UI is currently responsible for fetching and combining data from different logical entities (`Delivery`, `Order`, `Quote`). In a microservice architecture, this responsibility should be moved to a **Backend-For-Frontend (BFF)** or an **API Gateway** to reduce chattiness and offload this logic from the client.
+
+-   **Cross-Cutting Concerns:**
+    -   **Events:** The `Event` model is used by both Orders and Deliveries. This could be a generic "Auditing" or "Logging" service, or the logic could be duplicated within the owning service (e.g., an Order service manages Order Events).
+    -   **Extras/Catalog Items:** The list of `additionalItems` is part of the `Quote` but its data is validated against the `Catalog`. This shows a clear dependency between a potential `Sales Fulfillment Service` and a `Catalog Service`.

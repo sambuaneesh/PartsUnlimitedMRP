@@ -1,0 +1,183 @@
+An architectural summary of the `Clients/Web` codebase chunk (Part 6 of 6) is provided below, focusing on details relevant to microservice decomposition analysis.
+
+### 1. High-Level Architecture
+
+The `Clients/Web` component is a client-side **Single Page Application (SPA)** built using the Microsoft **WinJS** framework. Its primary responsibility is to provide a rich user interface for managing the Parts Unlimited MRP system's core business entities: Dealers, Catalog, Quotes, Orders, and Deliveries. The application runs entirely in the user's web browser, rendering views dynamically and communicating with a backend server via HTTP requests for all data operations.
+
+-   **Architectural Style**: Single Page Application (SPA) with client-side rendering.
+-   **Key Technologies**: HTML5, CSS3, JavaScript.
+-   **Core Framework**: **WinJS**, a Microsoft UI framework, is used extensively for application lifecycle management, navigation, UI controls (ListView, ContentDialog), and data binding.
+
+### 2. Architectural Patterns & Frameworks
+
+-   **Single Page Application (SPA)**: The application shell is loaded once (`index.html` from a previous chunk), and subsequent views are dynamically loaded into a container element without full page reloads. The `Application.PageControlNavigator` in `navigator.js` manages this flow.
+-   **Master-Detail UI Pattern**: This is the dominant UI pattern across all management pages. A `WinJS.UI.ListView` on the left displays a list of items (the "master" view), and a form on the right displays the data for the selected item (the "detail" view), allowing for editing.
+-   **WinJS Framework**:
+    -   `WinJS.Application`: Manages the application lifecycle (activation, suspension) in `default.js`.
+    -   `WinJS.Navigation`: Handles SPA navigation between different pages (`main`, `quotes`, `orders`, etc.).
+    -   `WinJS.UI.Pages.define`: Defines page controls, encapsulating the logic for each view (`.js` files in `pages/`).
+    -   `WinJS.Binding`: Used for data binding between JavaScript data models and HTML elements, including a custom two-way binding implementation in `default.js`.
+-   **Third-Party Libraries**:
+    -   **Date.js**: A comprehensive date/time library that extends the native JavaScript `Date` object with powerful parsing, formatting, and manipulation capabilities. It is used for handling and displaying dates throughout the application.
+    -   **Google Maps Places API**: Used for address autocompletion in forms (e.g., dealer address, quote address).
+
+### 3. Core Components
+
+#### 3.1. Application Shell & Core Logic (`js/`)
+
+-   **`default.js`**: The application's main entry point.
+    -   **Responsibilities**: Initializes the WinJS application, sets up the main navigator, handles application activation states, and defines global helper functions.
+    -   **Global Helpers**:
+        -   `showProgress(message)` / `hideProgress()`: Manages a global loading indicator.
+        -   `confirm(title, message, ...)`: Displays a confirmation dialog using `WinJS.UI.ContentDialog`.
+        -   `popup(id, title, page, state)`: A generic function to render a page within a `ContentDialog` popup, used for "Manage Extras" and "Manage Events".
+        -   `addAddressHandler(input, setDataItem)`: Integrates the Google Maps Places Autocomplete functionality into an input element.
+    -   **Custom Binding**: Defines `Binding.Mode.twoway` to enable two-way data binding for form inputs.
+
+-   **`navigator.js`**:
+    -   **Component**: `Application.PageControlNavigator`.
+    -   **Responsibilities**: Manages the lifecycle of pages within the SPA. It listens for navigation events, loads new page HTML/JS into the DOM, runs page-enter animations, and handles the cleanup of old pages.
+
+-   **`serverconfig.js`**:
+    -   **Responsibilities**: Provides the base URL for the backend API.
+    -   **Configuration**: `var baseAddress = 'http://' + window.location.hostname + ':8080'`. This configuration couples the web client to a backend API expected to be running on the same host but on port **8080**.
+
+### 4. Service Dependencies & Communication
+
+The Web Client is dependent on a backend server for all its data. The communication contract is defined by a global `Data` object (presumably loaded from a `data.js` file in a previous chunk), which abstracts the underlying HTTP calls.
+
+#### 4.1. Backend API Contract (Inferred from usage)
+
+The client interacts with the backend through a set of functions that map to business domains. This interface represents a "Backend for Frontend" (BFF) style API.
+
+-   **Catalog API**:
+    -   `Data.catalogGet()`: Fetches the entire product catalog.
+    -   `Data.catalogSave(item)`: Creates or updates a catalog item.
+    -   `Data.catalogDelete(item)`: Deletes a catalog item.
+    -   `Data.catalogCreate()`: Creates a new, empty catalog item object on the client.
+    -   `Data.catalogFindSku(skuNumber)`: Finds a catalog item by SKU locally.
+-   **Dealers API**:
+    -   `Data.dealersGet()`: Fetches all dealers.
+    -   `Data.dealerSave(item)`: Creates or updates a dealer.
+    -   `Data.dealerDelete(item)`: Deletes a dealer.
+    -   `Data.dealerCreate()`: Creates a new, empty dealer object on the client.
+-   **Quotes API**:
+    -   `Data.quotesGet(filter)`: Fetches all quotes.
+    -   `Data.quoteGetById(id)`: Fetches a single quote by its ID.
+    -   `Data.quoteSave(item)`: Creates or updates a quote.
+    -   `Data.quoteDelete(item)`: Deletes a quote.
+    -   `Data.quoteCreate()`: Creates a new, empty quote object on the client.
+-   **Orders API**:
+    -   `Data.ordersGet(filter)`: Fetches all orders.
+    -   `Data.orderGetById(id)`: Fetches a single order by its ID.
+    -   `Data.orderSave(item, originalItem)`: Creates or updates an order.
+    -   `Data.orderDelete(item)`: Deletes an order.
+    -   `Data.orderCreateFromQuote(quote)`: Creates a new order based on a quote.
+-   **Deliveries API**:
+    -   `Data.deliveriesGet()`: Fetches all deliveries.
+    -   `Data.deliverySave(item, originalItem)`: Creates or updates a delivery.
+    -   `Data.deliveryDelete(item)`: Deletes a delivery.
+    -   `Data.deliveryCreateFromOrder(order)`: Creates a new delivery based on an order.
+    -   `Data.deliveryFindById(orderId)`: Finds a delivery by its associated Order ID locally.
+
+#### 4.2. External Services
+
+-   **Google Maps Places API**: Used for address autocompletion. Requires an API key and network access to Google's services.
+
+### 5. Feature Modules & Data Models
+
+The application is functionally decomposed into pages, each representing a core business domain.
+
+#### 5.1. Main Page (`pages/main/`)
+
+-   **Responsibility**: Acts as the main dashboard and navigation hub ("launchpad").
+-   **UI**: Displays large, clickable tiles for navigating to Dealers, Quotes, Orders, Deliveries, and Catalog.
+
+#### 5.2. Catalog Management (`pages/catalog/`)
+
+-   **Responsibility**: Provides CRUD functionality for product catalog items.
+-   **Data Model**: `CatalogItem`
+    -   `skuNumber`: string
+    -   `description`: string
+    -   `unit`: string
+    -   `unitPrice`: number
+
+#### 5.3. Dealer Management (`pages/dealers/`)
+
+-   **Responsibility**: Provides CRUD functionality for dealers.
+-   **Data Model**: `Dealer`
+    -   `name`: string
+    -   `contact`: string
+    -   `address`: string
+    -   `email`: string
+    -   `phone`: string
+
+#### 5.4. Quote Management (`pages/quotes/`)
+
+-   **Responsibility**: Provides CRUD for quotes. A key business process starts here: a quote can be converted into an order.
+-   **Key Business Logic**: The "Edit" button action is not to edit but to **create an order from the selected quote**, navigating to the Orders page.
+-   **Data Model**: `Quote`
+    -   `dealerName`: string
+    -   `validUntil`: date string
+    -   `customerName`: string
+    -   `city`: string
+    -   `postalCode`: string
+    -   `comments`: string
+    -   `purpose`: string (e.g., "Refrigerator", "Freezer")
+    -   `unitDescription`: string
+    -   `width`, `height`, `depth`: number
+    -   `ambientAverage`, `ambientPeak`: number
+    -   `terms`: string
+    -   `totalCost`, `discount`: number
+    -   `additionalItems`: array of `AdditionalItem` (`{ skuNumber, shouldPreInstall, amount }`)
+
+#### 5.5. Order Management (`pages/orders/`)
+
+-   **Responsibility**: Manages orders, which are created from quotes. It allows for status updates and serves as the precursor to a delivery.
+-   **Key Business Logic**:
+    -   Can be initiated from the Quotes page with a selected quote.
+    -   The "Edit" button is repurposed to **create a delivery from the selected order**, navigating to the Deliveries page.
+    -   Displays composite information from its associated `Quote` object.
+-   **Data Model**: `Order`
+    -   `orderId`: string/guid
+    -   `quoteId`: string/guid (foreign key)
+    -   `orderDate`: date string
+    -   `status`: string (enum: "Created", "Confirmed", "Started", etc.)
+    -   `events`: array of `OrderEvent` (`{ date, comments }`)
+    -   `__quote`: The full associated `Quote` object (loaded client-side).
+
+#### 5.6. Delivery Management (`pages/deliveries/`)
+
+-   **Responsibility**: Manages deliveries, which are created from orders.
+-   **Key Business Logic**:
+    -   Can be initiated from the Orders page.
+    -   Displays a rich, composite view of the `Delivery`, its underlying `Order`, and the original `Quote`.
+-   **Data Model**: `Delivery`
+    -   `orderId`: string/guid (foreign key and primary key)
+    -   `deliveryDate`: date string
+    -   `deliveryAddress`: object (`{ city, postalCode }`)
+    -   `primaryContactPhone`, `alternateContactPhone`: object (`{ phoneNumber }`)
+    -   `events`: array of `OrderEvent` (`{ date, comments }`)
+    -   `__order`: The full associated `Order` object.
+    -   `__quote`: The full associated `Quote` object.
+
+#### 5.7. Extras Management (Popup) (`pages/extras/`)
+
+-   **Responsibility**: A sub-component (modal dialog) for managing the `additionalItems` array on a `Quote`.
+-   **Key Business Logic**: It fetches the full catalog to allow users to search for and add/remove items. On closing, it synchronizes its local list of extras back to the parent `Quote` object in memory.
+
+#### 5.8. Order Events Management (Popup) (`pages/orderevents/`)
+
+-   **Responsibility**: A sub-component (modal dialog) for viewing and managing the `events` array on an `Order` or `Delivery`.
+-   **Key Business Logic**: Allows adding, editing, and deleting timestamped event logs. On closing, it synchronizes the event list back to the parent object in memory.
+
+### 6. Summary for Microservice Decomposition
+
+-   **Clear Service Boundaries**: The application's UI is already divided along clear business domain boundaries: **Catalog**, **Dealers**, **Quotes**, **Orders**, and **Deliveries**. These are strong candidates for separate microservices.
+-   **Data Coupling & Aggregation**: The UI reveals significant data coupling and the need for data aggregation.
+    -   The **Orders** page needs data from a **Quote**.
+    -   The **Deliveries** page needs data from an **Order** *and* a **Quote**.
+    -   This suggests that if these were separate microservices, the backend would either need to perform server-side joins/aggregation (e.g., in a BFF or API Gateway) or the client would continue to make multiple calls, as it does now (`Data.orderGetById`, then `Data.quoteGetById`).
+-   **Business Process Flow**: The UI clearly defines a core business workflow: **Quote → Order → Delivery**. This flow must be preserved in any microservice architecture, likely through asynchronous events or choreographed API calls.
+-   **Shared Data**: The **Catalog** is a shared dependency for **Quotes** (for adding "extras"). This suggests a dedicated Catalog service that other services can query. The **Dealers** data is used by **Quotes**.
+-   **API Design**: The inferred `Data.*` API serves as an excellent blueprint for a BFF (Backend for Frontend) gateway. This gateway would be responsible for interacting with the downstream microservices (e.g., a Quote Service, Order Service) and aggregating the data required by the complex UI views.

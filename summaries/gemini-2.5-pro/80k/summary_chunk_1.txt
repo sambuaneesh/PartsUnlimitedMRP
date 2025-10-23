@@ -1,0 +1,181 @@
+Here is a comprehensive architectural summary for the Parts Unlimited MRP codebase, chunk 1 of 3, designed for microservice decomposition analysis.
+
+### 1. System Overview
+
+**Parts Unlimited MRP** is a fictional Manufacturing Resource Planning (MRP) application designed for training purposes. It's a Java-based web application composed of three main parts: a web frontend, a backend order service, and a backend integration service. The system uses a MongoDB database for persistence and is designed to be deployed on Linux, with extensive support for cloud environments (Azure/Azure Stack) and containerization (Docker).
+
+The overall architecture follows a classic three-tier model but includes an asynchronous integration component, making it a hybrid system with characteristics of both monolithic and distributed architectures.
+
+---
+
+### 2. Core Components
+
+The application is logically divided into three primary components located in the `src/` directory.
+
+#### 2.1. Clients (Frontend Web Application)
+
+*   **Component Name**: `Clients/Web`
+*   **Responsibilities**: Provides the user interface for all MRP functionalities, including viewing the product catalog, managing dealers, creating quotes, placing orders, and tracking deliveries.
+*   **Technology Stack**:
+    *   Static HTML, CSS, JavaScript.
+    *   No specific frontend framework is apparent (e.g., React, Angular); it uses plain JavaScript for DOM manipulation and AJAX calls.
+    *   Packaged as a standard Java Web Archive (`mrp.war`) for deployment.
+*   **API Interfaces (Client-to-Backend Communication)**:
+    *   The frontend communicates with the `OrderService` via RESTful API calls.
+    *   Configuration for the backend endpoint is managed in `src/Clients/Web/js/serverconfig.js`.
+    *   AJAX calls defined in various `.js` files (`catalog.js`, `orders.js`, etc.) map UI actions to `OrderService` API endpoints. For example, `pages/orders/orders.js` would call endpoints like `GET /orders`.
+*   **Deployment**:
+    *   Built into `mrp.war` using Gradle (`src/Clients/gradlew`).
+    *   Designed to run on a Java Servlet Container. The `deploy/docker/Clients/Dockerfile` specifies `tomcat:7-jre8`.
+    *   The `deploy/deploy_mrp_app.sh` script deploys it to `/var/lib/tomcat7/webapps/` and configures Tomcat to run on port `9080`.
+
+#### 2.2. OrderService (Backend API)
+
+*   **Component Name**: `OrderService`
+*   **Responsibilities**: Acts as the core backend monolith. It exposes a REST API to manage the primary business domains:
+    *   **Catalog**: Manages product/part information (`skuNumber`, `description`, `price`, `inventory`).
+    *   **Dealers**: Manages dealer information.
+    *   **Quotes**: Manages sales quotes.
+    *   **Orders**: Manages orders, which are created from quotes.
+    *   **Shipments**: Manages shipment and delivery information for orders.
+*   **Technology Stack**:
+    *   Java 8
+    *   Spring Boot (inferred from dependencies, configuration, and controllers)
+    *   Gradle for build management.
+    *   MongoDB for data persistence.
+*   **Architectural Patterns**:
+    *   **REST API**: Exposes all functionality via HTTP endpoints.
+    *   **Repository Pattern**: Abstracts data access using repositories (e.g., `OrderRepository.java`). Includes both MongoDB (`MongoOrderRepository`) and mock (`MockOrderRepository`) implementations.
+*   **API Endpoints** (Defined in `src/Backend/OrderService/src/main/java/smpl/ordering/controllers/`):
+    *   **Catalog**:
+        *   `GET /catalog`: Lists all catalog items.
+        *   `POST /catalog`: Adds a new item to the catalog.
+    *   **Dealers**:
+        *   `GET /dealers`: Lists all dealers.
+        *   `POST /dealers`: Adds a new dealer.
+    *   **Quotes**:
+        *   `GET /quotes`: Lists all quotes (can be filtered by `name`).
+        *   `POST /quotes`: Creates a new quote.
+        *   `GET /quotes/{quoteId}`: Retrieves a specific quote.
+        *   `PUT /quotes/{quoteId}`: Updates a specific quote.
+        *   `DELETE /quotes/{quoteId}`: Deletes a specific quote.
+    *   **Orders**:
+        *   `GET /orders`: Lists all orders (can be filtered by `dealer` and `status`).
+        *   `POST /orders?fromQuote={quoteId}`: Creates a new order from an existing quote.
+        *   `GET /orders/{orderId}`: Retrieves a specific order.
+    *   **Shipments**:
+        *   `GET /shipments`: Lists all shipments (can be filtered by `status`).
+        *   `POST /shipments`: Creates a new shipment record for an order.
+        *   `GET /shipments/{orderId}`: Retrieves the shipment for a specific order.
+        *   `PUT /shipments/{orderId}`: Updates the shipment for a specific order.
+        *   `POST /shipments/{orderId}/events`: Adds an event (e.g., comment) to a shipment.
+    *   **Health Check**:
+        *   `GET /ping`: A simple health check endpoint.
+*   **Service Dependencies**:
+    *   Directly depends on a **MongoDB** instance. Connection properties are in `application.properties`.
+*   **Configuration** (`src/Backend/OrderService/src/main/resources/application.properties`):
+    *   `server.port=8080`
+    *   `spring.data.mongodb.host`, `spring.data.mongodb.port`, `spring.data.mongodb.database`
+*   **Deployment**:
+    *   Built into a standalone executable JAR (`ordering-service-0.1.0.jar`).
+    *   The `deploy/docker/Order/Dockerfile` runs it on `openjdk:8-jre`.
+    *   The `deploy/docker/Order/drop/run.sh` script waits for the MongoDB container (`mongo`) to be available before starting the service.
+
+#### 2.3. IntegrationService (Backend Integrator)
+
+*   **Component Name**: `IntegrationService`
+*   **Responsibilities**: Acts as a bridge between the core MRP system and an external "Parts Unlimited Website". It is responsible for:
+    1.  Polling an **Azure Storage Queue** for new orders from the website, transforming them, and creating corresponding Quotes, Orders, and Shipments in the MRP system by calling the `OrderService` API.
+    2.  Polling the `OrderService` for catalog/inventory updates and pushing them as messages to a different **Azure Storage Queue** for the website to consume.
+*   **Technology Stack**:
+    *   Java 8, Spring Boot (specifically for `@EnableScheduling`).
+    *   Microsoft Azure Storage SDK for queue communication.
+    *   Gradle for build management.
+*   **Architectural Patterns**:
+    *   **Adapter/Anti-Corruption Layer**: Isolates the core `OrderService` from the external system's data models and communication protocol.
+    *   **Asynchronous Communication**: Uses message queues (Azure Storage Queue) for robust, decoupled communication.
+    *   **Scheduled Polling**: Uses scheduled tasks (`@Scheduled`) to periodically check for new messages and data updates.
+*   **Key Business Logic**:
+    *   `CreateOrderProcessTask.java`: A scheduled task (runs every 30 seconds) that reads `OrderMessage` from the `orders` queue, uses `MrpConnectService` to call the `OrderService` API to create a new quote/order/shipment, and then deletes the message from the queue.
+    *   `UpdateProductProcessTask.java`: A scheduled task (runs every 30 seconds) that calls the `OrderService`'s `/catalog` endpoint, packages the inventory data into a `ProductMessage`, and sends it to the `product` (inventory) queue.
+*   **Service Dependencies & Communication**:
+    *   **Outbound**: Makes REST API calls to the `OrderService`. The client implementation is in `MrpConnectService.java`.
+    *   **Inbound/Outbound**: Communicates with two **Azure Storage Queues**. The logic is encapsulated in `QueueService.java` and `QueueFactory.java`.
+*   **Data Models**:
+    *   `models/website`: Defines data structures for messages from/to the queues (e.g., `OrderMessage`, `ProductMessage`).
+    *   `models/mrp`: Defines data structures to map to the `OrderService` API (e.g., `Quote`, `Order`).
+*   **Configuration** (`src/Backend/IntegrationService/src/main/resources/application.properties`):
+    *   `azure.storage.connectionstring`: Connection details for Azure Storage.
+    *   `azure.storage.queue.orders`: Name of the incoming orders queue (`orders`).
+    *   `azure.storage.queue.inventory`: Name of the outgoing inventory update queue (`product`).
+    *   `mrp.endpoint`: The base URL for the `OrderService` API (e.g., `http://127.0.0.1:8080/`).
+*   **Deployment**:
+    *   Built into a standalone executable JAR (`integration-service-0.1.0.jar`).
+    *   Intended to run as a background process.
+
+---
+
+### 3. Data Storage (MongoDB)
+
+*   **Technology**: MongoDB
+*   **Database Name**: `ordering`
+*   **Data Seeding**: The `deploy/MongoRecords.js` script is used to populate the database with initial data.
+*   **Database Schema (Collections)**:
+    *   **`catalog`**: Stores product information.
+        *   `skuNumber`: (String) Unique product identifier.
+        *   `description`: (String)
+        *   `price`: (Number)
+        *   `inventory`: (Number)
+        *   `leadTime`: (Number)
+    *   **`dealers`**: Stores dealer information.
+        *   `name`: (String)
+        *   `address`: (String)
+        *   `email`: (String)
+        *   `phone`: (String)
+    *   **`quotes`**: Stores quote details.
+        *   `quoteId`: (String)
+        *   `customerName`: (String)
+        *   `dealerName`: (String)
+        *   `validUntil`: (Date/String)
+        *   `totalCost`: (String/Number)
+        *   `quoteItems`: (Array of Objects) `[{ skuNumber, amount }]`
+    *   **`orders`**: Stores order details, linking back to a quote.
+        *   `orderId`: (String)
+        *   `quoteId`: (String)
+        *   `orderDate`: (Date/String)
+        *   `status`: (String) e.g., "Created", "DeliveryConfirmed".
+        *   `events`: (Array)
+    *   **`shipments`**: Stores delivery information for an order.
+        *   `orderId`: (String)
+        *   `contactName`: (String)
+        *   `primaryContactPhone`: (Object) `{ phoneNumber, kind }`
+        *   `deliveryAddress`: (Object) `{ street, city, state, postalCode, specialInstructions }`
+        *   `events`: (Array)
+
+---
+
+### 4. Deployment and Operations
+
+The codebase contains a rich set of deployment and configuration artifacts, indicating a strong focus on DevOps practices.
+
+*   **CI/CD**:
+    *   A `.travis.yml` file defines a Continuous Integration pipeline using Travis CI. It executes `./gradlew build` for all three components (`Clients`, `OrderService`, `IntegrationService`), ensuring they compile and pass tests on every commit.
+*   **Containerization (Docker)**:
+    *   The `deploy/docker/` directory provides Dockerfiles to containerize each part of the system:
+        *   `Database/Dockerfile`: Runs the official `mongo` image.
+        *   `Order/Dockerfile`: Runs the `OrderService` JAR on an `openjdk:8-jre` base image.
+        *   `Clients/Dockerfile`: Runs the `Clients` WAR on a `tomcat:7-jre8` base image.
+    *   `BuildAndRun.sh` script automates building the images and running the containers, linking the `Order` service to the `db` (mongo) container.
+*   **Infrastructure as Code (IaC) & Configuration Management**:
+    *   **Azure/Azure Stack**: The `deploy/azurestack/` directory contains numerous Azure Resource Manager (ARM) templates (`.json` files) for provisioning entire environments, including VMs, networks, and security groups.
+    *   **Templates exist for**:
+        *   A base Ubuntu VM.
+        *   A standalone Jenkins, Chef, or Puppet server.
+        *   A complete MRP application environment, sometimes co-deployed with Jenkins.
+    *   **Configuration Scripts**:
+        *   **Ansible**: `Labfiles/ansible-azure-lab/` contains playbooks (`.yml`) for provisioning VMs and configuring them with web servers (httpd, nginx).
+        *   **Chef**: `Labfiles/.../DeployusingChef/final/default.rb` contains a Chef recipe to fully install and configure the MRP application stack (Java, MongoDB, Tomcat, deploy artifacts).
+        *   **Puppet**: `Labfiles/.../Puppet/final/init.pp` contains a Puppet manifest to perform the same setup as the Chef recipe.
+*   **Manual/Scripted Deployment**:
+    *   The `deploy/deploy_mrp_app.sh` script provides a non-containerized method for deploying the application to a pre-configured Linux VM (Tomcat, MongoDB, Java).
+    *   `deploy/SSH-MRP-Artifacts.ps1` is a PowerShell script that automates copying build artifacts and running the deployment script on a remote Linux server via SSH.

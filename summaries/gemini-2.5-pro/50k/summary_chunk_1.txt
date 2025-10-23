@@ -1,0 +1,141 @@
+Here is a comprehensive architectural summary of the Parts Unlimited MRP codebase chunk 1 of 4, structured for microservice decomposition analysis.
+
+### 1. Overall System Architecture
+
+The Parts Unlimited MRP system is a Java-based web application designed as a fictional Manufacturing Resource Planning tool. The architecture is composed of three primary, separately deployable components: a static web frontend, a RESTful backend order service, and a backend integration service. The system relies on a MongoDB database for persistence. The codebase heavily emphasizes DevOps practices, providing extensive tooling for automated deployment via Docker, Infrastructure as Code (ARM templates for Azure Stack), and Configuration Management (Chef, Puppet, Ansible).
+
+**Technology Stack:**
+*   **Backend:** Java 8, Spring Framework (implied), Gradle
+*   **Frontend:** HTML, CSS, JavaScript (static files)
+*   **Database:** MongoDB
+*   **Web Server:** Apache Tomcat 7
+*   **CI/CD & Deployment:** Travis CI, Docker, Azure ARM Templates, PowerShell, Shell scripting, Chef, Puppet, Ansible, Jenkins
+
+---
+
+### 2. Component Names and Responsibilities
+
+The system is logically divided into three main components:
+
+| Component Name | Directory | Responsibility | Artifact |
+| :--- | :--- | :--- | :--- |
+| **Web UI (Clients)** | `src/Clients/Web/` | Provides the user interface for managing the MRP system. It's a static single-page application (SPA) that communicates with the `OrderService` via REST APIs. It covers functionality for viewing catalog items, dealers, quotes, orders, and deliveries. | `mrp.war` |
+| **Order Service** | `src/Backend/OrderService/` | The core backend service. It exposes a REST API to manage the primary business domains: Catalogs, Dealers, Quotes, Orders, and Shipments. It handles all business logic and data persistence for these domains. | `ordering-service-0.1.0.jar` |
+| **Integration Service** | `src/Backend/IntegrationService/` | A background processing service responsible for integrating the MRP system with an external system (the "Parts Unlimited Website"). It operates by polling message queues for new products and orders from the external system, transforming the data, and using the `OrderService` API to persist them in the MRP system. | `integration-service-0.1.0.jar` |
+
+---
+
+### 3. API Endpoints and Interfaces
+
+#### 3.1. Order Service (REST API)
+
+This service provides the primary API for the application, consumed by both the Web UI and the Integration Service.
+
+**Base URL:** (not specified, but typically `/api/` or `/`)
+
+| Controller | Endpoint | HTTP Method | Description |
+| :--- | :--- | :--- | :--- |
+| `PingController` | `/ping` | GET | Health check endpoint. Returns "OK". |
+| `CatalogController` | `/catalog` | GET | Retrieves a list of all catalog items. |
+| | `/catalog/{id}` | GET | Retrieves a single catalog item by its SKU number. |
+| `DealerController` | `/dealers` | GET | Retrieves a list of all dealers. |
+| | `/dealers/{id}` | GET | Retrieves a single dealer by ID. |
+| `QuoteController` | `/quotes` | GET | Retrieves a list of all quotes. |
+| | `/quotes` | POST | Creates a new quote. |
+| | `/quotes/{id}` | GET | Retrieves a single quote by its ID. |
+| `OrderController` | `/orders` | GET | Retrieves a list of all orders. |
+| | `/orders` | POST | Creates a new order from a quote. |
+| | `/orders/{id}` | GET | Retrieves a single order by its ID. |
+| | `/orders/{id}` | PUT | Updates the status of an existing order. |
+| | `/orders/{id}/events` | POST | Adds an event to an order's history. |
+| `ShipmentController`| `/shipments` | GET | Retrieves a list of all shipments. |
+| | `/shipments/{id}` | GET | Retrieves a single shipment by its order ID. |
+
+#### 3.2. Integration Service (External Interfaces)
+
+This service does not expose an API but consumes messages from an external message queue system.
+
+*   **Order Creation Queue:** Consumes `OrderMessage` objects (from the external "website") to create new orders in the MRP system.
+*   **Product Update Queue:** Consumes `ProductMessage` objects (from the external "website") to update the product catalog in the MRP system.
+
+---
+
+### 4. Database Schemas and Data Models
+
+The application uses a single MongoDB database named `ordering`. The initial data and schema structure are defined in `deploy/MongoRecords.js`.
+
+| Collection | Description | Schema Fields (and Sub-documents) |
+| :--- | :--- | :--- |
+| **catalog** | Stores product information. | `_id`, `skuNumber`, `description`, `price`, `inventory`, `leadTime` |
+| **dealers** | Stores information about parts dealers. | `_id`, `name`, `address`, `email`, `phone` |
+| **quotes** | Stores price quotes generated for customers. | `_id`, `quoteId`, `validUntil`, `customerName`, `dealerName`, `city`, `state`, `postalCode`, `totalCost`, `discount`, `quoteItems` (`skuNumber`, `amount`) |
+| **orders** | Stores customer orders, linked to quotes. | `_id`, `orderId`, `quoteId`, `orderDate`, `status` (`Created`, `DeliveryConfirmed`, etc.), `events` (array of event info) |
+| **shipments** | Stores delivery and shipping information for orders. | `_id`, `orderId`, `contactName`, `primaryContactPhone` (`phoneNumber`, `kind`), `deliveryAddress` (`street`, `city`, `state`, `postalCode`, `specialInstructions`), `events` (array of event info) |
+
+---
+
+### 5. Service Dependencies and Communication Patterns
+
+*   **Web UI -> Order Service:** Synchronous communication via RESTful HTTP calls. The UI is tightly coupled to the Order Service API for all its data needs.
+*   **Integration Service -> Order Service:** Synchronous communication via RESTful HTTP calls. The `MrpConnectService.java` acts as a client to the Order Service API to create orders and update catalog items.
+*   **Integration Service <-> External System (Parts Unlimited Website):** Asynchronous communication via a message queue. The Integration Service acts as a Polling Consumer, periodically checking queues for new messages (`OrderMessage`, `ProductMessage`) to process. This decouples the MRP system from the external website.
+
+**Diagram:**
+```
+[Web UI (SPA)] --(REST API)--> [Order Service] <--(REST API)-- [Integration Service] --(Message Queue)--> [External Website]
+       |                               ^
+       |                               |
+       +----------------------> [MongoDB ("ordering")]
+```
+
+---
+
+### 6. Key Business Logic and Algorithms
+
+*   **OrderService:**
+    *   Implements standard Create, Read, Update, Delete (CRUD) operations for all core entities.
+    *   `OrderController`: Contains logic to create an order from a `quoteId`, and to update an order's status through a PUT request.
+    *   Uses a Repository Pattern to abstract data access, with implementations for both MongoDB and in-memory mocks (for testing).
+
+*   **IntegrationService:**
+    *   **Data Transformation:** Its primary role is to act as an Anti-Corruption Layer/Adapter. It contains separate data models for the external "website" (`website.*`) and the internal MRP system (`mrp.*`), and it transforms data from one model to the other before calling the Order Service.
+    *   **Scheduled Processing:** Uses scheduled tasks (`CreateOrderProcessTask`, `UpdateProductProcessTask`) that run periodically to poll the message queues. This represents a time-driven, asynchronous integration pattern.
+
+---
+
+### 7. Configuration and Deployment Details
+
+The project is heavily focused on automated and flexible deployment.
+
+*   **Build:**
+    *   All three components (`Clients`, `OrderService`, `IntegrationService`) are built using **Gradle**.
+    *   The CI process is defined in `.travis.yml`, which runs `./gradlew build` for each component.
+
+*   **Deployment Scenarios:**
+    1.  **Manual VM Deployment:**
+        *   Scripts like `deploy_mrp_app.sh` and `install_mrp_dependencies.sh` outline the process for deploying on a Linux VM.
+        *   Steps include installing Java and MongoDB, copying artifacts (`.war`, `.jar`), seeding the database using `MongoRecords.js`, configuring Tomcat's port, and running the services.
+    2.  **Docker / Containerization:**
+        *   The `deploy/docker/` directory contains `Dockerfile`s for the Web UI (Tomcat), Order Service (OpenJDK), and Database (Mongo).
+        *   `BuildAndRun.sh` script demonstrates building the images and running them as linked containers (`--link db:mongo`), indicating a dependency from the Order service container to the DB container.
+    3.  **Infrastructure as Code (Azure Stack):**
+        *   The `deploy/azurestack/` directory contains a comprehensive set of **Azure ARM templates** (`.json` files) for provisioning entire environments.
+        *   Templates exist for various scenarios: a base MRP application, MRP with Jenkins, a standalone Chef server, a standalone Puppet master, etc. This shows a mature IaC practice for cloud deployment.
+        *   Custom shell scripts (`install_chef.sh`, `install_jenkins_1604.sh`) are used within the ARM templates to configure the provisioned VMs.
+
+*   **Configuration Management:**
+    *   The `Labfiles` directory contains examples and labs for **Ansible**, **Chef**, and **Puppet**, demonstrating how to manage the application's configuration post-deployment.
+
+*   **Application Configuration:**
+    *   `OrderService` and `IntegrationService` use `application.properties` files for configuration, including database connection details (`spring.data.mongodb.uri`) and server ports (`server.port`).
+
+---
+
+### 8. Architectural Patterns and Frameworks
+
+*   **Architectural Style:** A **logically-decomposed monolith**. While there are three distinct deployable units, they represent different layers (presentation, business/data, integration) of a single application rather than independent microservices. The `OrderService` centralizes a large amount of business logic, making it a "core" monolith.
+*   **Repository Pattern:** Used in `OrderService` to decouple business logic from data persistence (e.g., `OrderRepository` interface with `MongoOrderRepository` implementation).
+*   **Adapter / Anti-Corruption Layer:** The `IntegrationService` serves this role by isolating the MRP domain from the external "Parts Unlimited Website" domain.
+*   **Polling Consumer:** The `IntegrationService` uses this pattern to retrieve messages from an external queue.
+*   **Infrastructure as Code (IaC):** A dominant theme, implemented with Dockerfiles and extensive Azure ARM templates.
+*   **Frameworks Used:** Spring (Boot/MVC), Gradle, Java 8, Apache Tomcat, MongoDB.

@@ -1,0 +1,115 @@
+This document provides a comprehensive architectural summary of the Web Client codebase (chunk 4 of 4), focusing on details relevant to microservice decomposition analysis.
+
+### 1. Overall Architecture & Frameworks
+
+The codebase represents a client-side Single Page Application (SPA) built using the **WinJS (Windows Library for JavaScript)** framework. This suggests it was designed either as a modern web application or to be packaged as a Windows Store application using web technologies (HTML, CSS, JavaScript).
+
+-   **Architectural Style**: It follows a client-server architecture, with this codebase being the client.
+-   **Key Patterns**:
+    -   **Single Page Application (SPA)**: A central navigator (`navigator.js`) dynamically loads and unloads page fragments (`pages/*/*.html`) into the main view, avoiding full page reloads.
+    -   **MVVM-like Pattern**: Each page component separates concerns:
+        -   **View**: HTML files define the UI structure and bindings.
+        -   **ViewModel**: The corresponding page JavaScript file manages UI state, data, and user interaction logic.
+        -   **Model**: Plain JavaScript objects representing business entities (e.g., Dealer, Quote), fetched from a backend.
+    -   **Repository/Data Service (Implicit)**: An unseen global `Data` object is used to abstract all communication with the backend API, acting as a data access layer for the application.
+-   **Key Frameworks/Libraries**:
+    -   **WinJS**: Provides UI controls (e.g., `ListView`, `ContentDialog`), SPA navigation, data binding, and a `Promise`-based asynchronous model.
+    -   **Date.js**: A third-party library (`date.js`) used for advanced client-side date parsing, formatting, and manipulation. It heavily extends the native `Date` object.
+
+### 2. Component Breakdown & Responsibilities
+
+The application is modularized into pages, each representing a core business domain.
+
+| Component/Module             | Files                                                   | Responsibilities                                                                                                                                                                                            |
+| ---------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Core Application**         | `default.js`, `navigator.js`                            | Handles application startup, lifecycle (`activated`, `checkpoint`), SPA navigation, and provides global utilities like progress indicators (`showProgress`), dialogs (`confirm`), and popups (`popup`).          |
+| **Main Page**                | `pages/main/`                                           | The main dashboard/landing page. Provides navigation tiles to the primary functional areas of the application.                                                                                                |
+| **Catalog Management**       | `pages/catalog/`                                        | Provides a CRUD (Create, Read, Update, Delete) interface for managing product catalog items.                                                                                                                |
+| **Dealer Management**        | `pages/dealers/`                                        | Provides a CRUD interface for managing dealer information. Integrates with Google Maps Places for address autocompletion.                                                                                     |
+| **Quote Management**         | `pages/quotes/`                                         | Provides a CRUD interface for managing sales quotes. Allows adding "extras" from the catalog via a popup. A quote can be converted into an Order.                                                              |
+| **Order Management**         | `pages/orders/`                                         | Provides a CRUD interface for managing orders, which are created from quotes. Manages order status and a log of events. An order can be converted into a Delivery.                                            |
+| **Delivery Management**      | `pages/deliveries/`                                     | Provides a CRUD interface for managing deliveries, created from orders. Manages delivery-specific details (address, contacts) and events. Displays aggregated data from the underlying Order and Quote.    |
+| **Extras Management (Popup)**  | `pages/extras/`                                         | A modal/popup component used within the Quote/Order workflow to add, view, and remove optional items (extras) from the catalog for a specific quote.                                                          |
+| **Events Management (Popup)**  | `pages/orderevents/`                                    | A modal/popup component used within the Order/Delivery workflow to add, view, and remove timestamped event logs (e.g., "Order Confirmed", "Item Shipped") associated with an order or delivery.                 |
+
+### 3. API Endpoints & Communication (Inferred)
+
+The client communicates with a backend server via a RESTful API. The API contract is inferred from the usage of the (unseen) `Data` service object.
+
+**Configuration:**
+-   **Base URL**: `http://<window.location.hostname>:8080` (configured in `serverconfig.js`). This implies the API is expected to run on the same host as the web app but on a different port.
+
+**Inferred API Endpoints:**
+
+| Domain    | Method                             | HTTP Verb & Endpoint (Likely) | Description                                         |
+| --------- | ---------------------------------- | ----------------------------- | --------------------------------------------------- |
+| Catalog   | `Data.catalogGet()`                | `GET /api/catalog`            | Fetches all catalog items.                          |
+|           | `Data.catalogSave(item)`           | `POST /api/catalog` or `PUT /api/catalog/{id}` | Creates or updates a catalog item.    |
+|           | `Data.catalogDelete(item)`         | `DELETE /api/catalog/{id}`    | Deletes a catalog item.                             |
+| Dealers   | `Data.dealersGet()`                | `GET /api/dealers`            | Fetches all dealers.                                |
+|           | `Data.dealerSave(item)`            | `POST /api/dealers` or `PUT /api/dealers/{id}` | Creates or updates a dealer.        |
+|           | `Data.dealerDelete(item)`          | `DELETE /api/dealers/{id}`    | Deletes a dealer.                                   |
+| Quotes    | `Data.quotesGet()`                 | `GET /api/quotes`             | Fetches all quotes.                                 |
+|           | `Data.quoteGetById(id)`            | `GET /api/quotes/{id}`        | Fetches a single quote by its ID.                   |
+|           | `Data.quoteSave(item)`             | `POST /api/quotes` or `PUT /api/quotes/{id}` | Creates or updates a quote.          |
+|           | `Data.quoteDelete(item)`           | `DELETE /api/quotes/{id}`     | Deletes a quote.                                    |
+| Orders    | `Data.ordersGet()`                 | `GET /api/orders`             | Fetches all orders.                                 |
+|           | `Data.orderGetById(id)`            | `GET /api/orders/{id}`        | Fetches a single order by its ID.                   |
+|           | `Data.orderSave(item, orig)`       | `POST /api/orders` or `PUT /api/orders/{id}` | Creates or updates an order.          |
+|           | `Data.orderDelete(item)`           | `DELETE /api/orders/{id}`     | Deletes an order.                                   |
+|           | `Data.orderCreateFromQuote(quote)` | `POST /api/orders`            | Creates a new order based on an existing quote.     |
+| Deliveries| `Data.deliveriesGet()`             | `GET /api/deliveries`         | Fetches all deliveries.                             |
+|           | `Data.deliverySave(item, orig)`    | `POST /api/deliveries` or `PUT /api/deliveries/{id}` | Creates or updates a delivery.  |
+|           | `Data.deliveryDelete(item)`        | `DELETE /api/deliveries/{id}` | Deletes a delivery.                                 |
+|           | `Data.deliveryCreateFromOrder(order)`| `POST /api/deliveries`        | Creates a new delivery based on an existing order.  |
+
+### 4. Data Models & Schemas (Inferred from UI Bindings)
+
+The following data models are used on the client-side, reflecting the expected backend schema.
+
+-   **`Dealer`**:
+    -   `name`, `contact`, `address`, `email`, `phone` (all strings)
+-   **`CatalogItem`**:
+    -   `skuNumber`: string (PK)
+    -   `description`: string
+    -   `unit`: string
+    -   `unitPrice`: number
+-   **`Quote`**:
+    -   `quoteId`: number (PK)
+    -   `dealerName`, `customerName`, `city`, `postalCode`, `comments`, `purpose`, `unitDescription`, `terms`: strings
+    -   `validUntil`: date string
+    -   `width`, `height`, `depth`, `ambientAverage`, `ambientPeak`, `totalCost`, `discount`: numbers
+    -   `additionalItems`: `[{ skuNumber: string, shouldPreInstall: boolean, amount: number }]` (Array of extras)
+-   **`Order`**:
+    -   `orderId`: number (PK)
+    -   `quoteId`: number (FK to Quote)
+    -   `orderDate`: date string
+    -   `status`: string (Enum: `Created`, `Confirmed`, `Shipped`, `Delivered`, etc.)
+    -   `events`: `[OrderEvent]`
+-   **`Delivery`**:
+    -   `orderId`: number (PK/FK to Order)
+    -   `deliveryDate`: date string
+    -   `deliveryAddress`: `{ city: string, postalCode: string }`
+    -   `primaryContactPhone`: `{ phoneNumber: string }`
+    -   `alternateContactPhone`: `{ phoneNumber: string }`
+    -   `events`: `[OrderEvent]`
+-   **`OrderEvent`**:
+    -   `date`: datetime string
+    -   `comments`: string
+
+### 5. Service Dependencies & Communication Patterns
+
+-   **Backend API**: The entire application is dependent on the backend API server running at the configured address. All data operations are asynchronous, using `WinJS.Promise`.
+-   **Google Maps Places API**: An external dependency for address autocompletion in the Dealer, Order, and Delivery pages.
+-   **Client-Side Data Aggregation**: The `Orders` page fetches the associated `Quote` for each order (`Data.quoteGetById`). The `Deliveries` page fetches the associated `Order` (`Data.orderGetById`), which in turn requires its `Quote`. This leads to a **chatty communication pattern** where displaying a list item can trigger multiple subsequent API calls. This is a critical consideration for microservice design, suggesting a potential need for a Backend-for-Frontend (BFF) or an API Gateway to aggregate this data.
+-   **Business Workflow**: The application enforces a clear business process flow through its UI navigation: `Quote` -> `Order` -> `Delivery`. This flow is a key driver for service boundaries.
+
+### 6. Key Business Logic
+
+-   **CRUD Operations**: Standard create, read, update, and delete logic is implemented for all major entities.
+-   **State Transitions**: The application manages the lifecycle of orders through status changes (e.g., `Created` -> `Confirmed`).
+-   **Entity Conversion**: Logic exists to create one entity from another, forming a core business workflow:
+    -   `orderCreateFromQuote(quote)`: Converts a `Quote` into an `Order`.
+    -   `deliveryCreateFromOrder(order)`: Converts an `Order` into a `Delivery`.
+-   **Client-Side Sorting**: The `orderevents` popup sorts events by date on the client.
+-   **Data Synchronization**: The `Extras` and `OrderEvents` popups directly modify arrays on the parent entity object (`additionalItems`, `events`). When the popup is closed (`unload` event), the modified arrays persist as part of the parent entity, which is then saved.

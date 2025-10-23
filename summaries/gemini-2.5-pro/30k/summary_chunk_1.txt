@@ -1,0 +1,140 @@
+An architectural summary of the Parts Unlimited MRP codebase (Chunk 1 of 6) is provided below, focusing on details relevant to microservice decomposition analysis.
+
+### 1. Overall System Architecture
+
+The Parts Unlimited MRP system is a Java-based, open-source Manufacturing Resource Planning (MRP) application. The architecture is composed of three primary, distinct components as described in the `README.md`:
+1.  **Frontend Service**: A static web application responsible for the user interface.
+2.  **Order Service**: A Java-based backend service handling core business logic and data persistence.
+3.  **Integration Service**: A Java-based backend service designed to integrate with an external "Parts Unlimited Website" system.
+
+The system uses a monolithic database (MongoDB) shared by the Order and Integration services. The overall design appears to be a coarse-grained, service-oriented architecture.
+
+---
+
+### 2. Application Components
+
+#### 2.1. Clients (Frontend Web App)
+
+*   **Component Name**: `Clients/Web`
+*   **Responsibilities**: Provides the user interface for managing catalogs, dealers, quotes, orders, and deliveries. It is a client-side application that communicates with the backend `OrderService`.
+*   **Architectural Style**: Single Page Application (SPA) with distinct sections loaded dynamically (`pages` directory).
+*   **Technology Stack**:
+    *   HTML5, CSS, vanilla JavaScript.
+    *   Served via Apache Tomcat (as indicated by the `mrp.war` packaging and deployment scripts).
+*   **API Interfaces & Communication**:
+    *   Communicates exclusively with the `OrderService` via RESTful HTTP calls.
+    *   The base URL for the backend is likely configured in `js/serverconfig.js`.
+    *   Interacts with endpoints for CRUD operations on:
+        *   Catalog (`/api/catalog`)
+        *   Dealers (`/api/dealers`)
+        *   Quotes (`/api/quotes`)
+        *   Orders (`/api/orders`)
+        *   Deliveries/Shipments (`/api/shipments`)
+*   **Configuration & Deployment**:
+    *   Built into a `mrp.war` file using Gradle (`Clients/gradlew build`).
+    *   The `deploy/docker/Clients/Dockerfile` suggests deployment into a container, requiring the `.war` file to be placed in the `drop` folder.
+    *   Deployment scripts (`deploy_mrp_app.sh`) copy the `mrp.war` to `/var/lib/tomcat7/webapps`.
+
+#### 2.2. OrderService (Backend)
+
+*   **Component Name**: `Backend/OrderService`
+*   **Responsibilities**: The core backend service that manages all primary business domains: catalog items, dealers, quotes, orders, and shipments. It exposes a REST API for the frontend and handles all data persistence.
+*   **Architectural Style**: RESTful API service. Appears to be a self-contained Spring Boot or similar application (judging by `OrderingInitializer` and `OrderingConfiguration`), although the specific framework is not explicitly named in the file list.
+*   **Technology Stack**:
+    *   Java (Version 8, as per `.travis.yml` and `Install-Build-Dependencies.sh`).
+    *   Gradle for build automation.
+    *   Repository Pattern for data access abstraction (`repositories` package).
+*   **API Endpoints**: The service exposes the following REST endpoints through its controllers (`src/main/java/smpl/ordering/controllers`):
+    *   `PingController`:
+        *   `GET /api/ping`: Health check.
+    *   `CatalogController`:
+        *   `GET /api/catalog`: Get all catalog items.
+        *   `GET /api/catalog/{skuNumber}`: Get a specific catalog item by SKU.
+    *   `DealerController`:
+        *   `GET /api/dealers`: Get all dealers.
+        *   `GET /api/dealers/{dealerName}`: Get a specific dealer by name.
+    *   `QuoteController`:
+        *   `GET /api/quotes`: Get all quotes.
+        *   `POST /api/quotes`: Create a new quote.
+        *   `GET /api/quotes/{quoteId}`: Get a specific quote by ID.
+    *   `OrderController`:
+        *   `GET /api/orders`: Get all orders.
+        *   `POST /api/orders`: Create a new order from a quote.
+        *   `GET /api/orders/{orderId}`: Get a specific order by ID.
+        *   `POST /api/orders/{orderId}/events`: Add an event to an order (e.g., update status).
+    *   `ShipmentController`:
+        *   `GET /api/shipments`: Get all shipments.
+        *   `GET /api/shipments/order/{orderId}`: Get shipment details for a specific order.
+        *   `POST /api/shipments/order/{orderId}`: Create a shipment record for an order.
+        *   `POST /api/shipments/{shipmentId}/events`: Add a shipping event.
+*   **Data Models**:
+    *   The `models` package defines the core domain entities: `CatalogItem`, `DealerInfo`, `Order`, `Quote`, `ShipmentRecord`, `Delivery`, etc. These models directly map to the database collections.
+*   **Service Dependencies**:
+    *   Directly depends on a MongoDB instance for data persistence.
+    *   Does not appear to have any direct synchronous dependencies on other application services.
+*   **Configuration & Deployment**:
+    *   Configuration is managed via `resources/application.properties`, which contains settings for MongoDB (`mongodb.host`, `mongodb.port`, `mongodb.database`) and the service port (`server.port`, defaults to 8080).
+    *   Built into a fat JAR (`ordering-service-0.1.0.jar`) using Gradle.
+    *   The `deploy/docker/Order/Dockerfile` packages this JAR into a container and runs it with `java -jar`.
+    *   Deployment scripts start the service directly using `java -jar /var/lib/partsunlimited/ordering-service-0.1.0.jar`.
+
+#### 2.3. IntegrationService (Backend)
+
+*   **Component Name**: `Backend/IntegrationService`
+*   **Responsibilities**: Acts as an integration bridge between the Parts Unlimited MRP system and an external "Parts Unlimited Website". It processes order and product updates asynchronously.
+*   **Architectural Pattern**: Appears to be an **Anti-Corruption Layer (ACL)**. It has two distinct sets of data models (`models/mrp` and `models/website`), suggesting it translates data between the two systems.
+*   **Technology Stack**:
+    *   Java (Version 8).
+    *   Gradle for build automation.
+*   **Key Business Logic**:
+    *   Logic is encapsulated in scheduled tasks that run periodically.
+    *   `CreateOrderProcessTask`: Reads order messages from a queue (`website.orders.new`), translates them into the MRP `Order` format, and sends them to the `OrderService` via its API (`MrpConnectService`).
+    *   `UpdateProductProcessTask`: Reads product update messages from a queue (`website.products.update`), translates them to the MRP `CatalogItem` format, and likely updates the catalog via the `OrderService` API.
+*   **Service Dependencies & Communication Patterns**:
+    *   **Asynchronous (Inbound)**: Consumes messages from an external message queue. The specific queue technology is abstracted behind `QueueService` and `QueueFactory`, but this is a critical integration point.
+    *   **Synchronous (Outbound)**: Communicates with the `OrderService`'s REST API using `MrpConnectService` to create orders and update catalog items. The `application.properties` file configures the `OrderService` endpoint (`mrp.service.url`).
+*   **Data Models**:
+    *   `models/website`: `OrderMessage`, `ProductMessage`. Represents the data format of the external system.
+    *   `models/mrp`: `Order`, `CatalogItem`. Represents the data format of the internal MRP system.
+*   **Configuration & Deployment**:
+    *   Built into a fat JAR (`integration-service-0.1.0.jar`) using Gradle.
+    *   Configuration is in `resources/application.properties` (e.g., `mrp.service.url`, queue connection details).
+    *   Deployment details are less explicit than for other services but would involve running the JAR file on a server. It is not included in the primary deployment script (`deploy_mrp_app.sh`), indicating it may be an optional or separately deployed component.
+
+---
+
+### 3. Data Persistence (MongoDB)
+
+*   **Database Technology**: MongoDB. This is confirmed by repository implementations (`mongodb` package in `OrderService`), configuration files, and deployment scripts.
+*   **Database Name**: `ordering`.
+*   **Database Schema & Data Models**:
+    *   The schema is document-based and is defined implicitly by the Java models and explicitly by the seeding script `deploy/MongoRecords.js`.
+    *   **Collections**:
+        *   `catalog`: Stores product information.
+            *   `skuNumber` (string), `description` (string), `price` (double), `inventory` (int), `leadTime` (int).
+        *   `dealers`: Stores dealer information.
+            *   `name` (string), `address` (string), `email` (string), `phone` (string).
+        *   `quotes`: Stores customer quotes for parts.
+            *   `quoteId` (string), `validUntil` (date), `customerName` (string), `dealerName` (string), `totalCost` (string), `quoteItems` (array of objects: `skuNumber`, `amount`).
+        *   `orders`: Stores orders created from quotes.
+            *   `orderId` (string), `quoteId` (string), `orderDate` (date), `status` (string), `events` (array).
+        *   `shipments`: Stores shipping details for orders.
+            *   `orderId` (string), `contactName` (string), `primaryContactPhone` (object: `phoneNumber`, `kind`), `deliveryAddress` (object: `street`, `city`, `state`, `postalCode`), `events` (array).
+
+---
+
+### 4. Configuration and Deployment
+
+*   **Build System**: Gradle is used consistently across all three Java/Web projects. A top-level `.travis.yml` defines the CI build process, executing `./gradlew build` for each component.
+*   **Containerization**: Docker is supported for deployment.
+    *   `deploy/docker/Database/Dockerfile`: Sets up a MongoDB container and uses `MongoRecords.js` to seed it. This tightly couples the initial data state with the container image.
+    *   `deploy/docker/Order/Dockerfile`: Packages the `ordering-service` JAR.
+    *   `deploy/docker/Clients/Dockerfile`: Packages the `mrp.war` file.
+*   **Infrastructure as Code (IaC) & Automation**:
+    *   The codebase is rich with deployment automation assets, primarily for **Azure and Azure Stack**.
+    *   **Azure Resource Manager (ARM) templates** (`.json` files) are provided to provision entire environments, including Virtual Machines, networks, and security groups for various scenarios (e.g., standalone MRP, MRP with Jenkins, Chef, Puppet).
+    *   **Configuration Management**: Scripts for Chef (`default.rb`), Puppet (`init.pp`), and Ansible (`.yml` files) are included in `Labfiles`, demonstrating automated configuration of deployed VMs.
+    *   **Deployment Scripts**:
+        *   `deploy/deploy_mrp_app.sh`: A shell script for deploying the `OrderService` and `Clients` application onto a pre-configured Linux VM with Tomcat7 and MongoDB.
+        *   `deploy/SSH-MRP-Artifacts.ps1`: A PowerShell script for remotely copying build artifacts and executing the deployment script over SSH.
+*   **CI/CD**: The presence of `.travis.yml` and extensive Jenkins templates (`deploy/azurestack/instances/jenkins_*`) indicates that CI/CD is a core part of the intended workflow for this application.
