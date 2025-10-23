@@ -1,0 +1,4120 @@
+
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/controllers/CatalogControllerTest.java
+================================================
+package smpl.ordering.controllers;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.CatalogItem;
+import smpl.ordering.repositories.CatalogItemsRepository;
+import smpl.ordering.repositories.RepositoryFactory;
+
+import java.util.List;
+
+import static org.junit.Assert.*;
+
+@SuppressWarnings("unchecked")
+public class CatalogControllerTest
+{
+    @Before
+    public void setUp() throws Exception
+    {
+        // Make sure we're using memory-based repositories.
+        RepositoryFactory.reset("memory");
+
+        // Make sure the repository is empty.
+        CatalogItemsRepository catalog = RepositoryFactory.getCatalogItemsRepository();
+        ((TestPath) catalog).reset();
+
+        controller = new CatalogController();
+    }
+
+    @Test
+    public void testAddCatalogItem() throws Exception
+    {
+        ResponseEntity response =
+                controller.addCatalogItem(new CatalogItem("ACC-0001", "Shelving", 10.50, 4, 3));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        // Negative test case
+
+        response = controller.addCatalogItem(new CatalogItem("", "Shelving", 11.50, 4, 3));
+        assertNotNull(response);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+
+        response = controller.addCatalogItem(new CatalogItem("ACC-0001", "Shelving", 11.50, 4, 3));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+    }
+
+    @Test
+    public void testUpsertCatalogItem() throws Exception
+    {
+        ResponseEntity response =
+                controller.upsertCatalogItem("ACC-0001", new CatalogItem("ACC-0001", "Shelving", 10.50, 4, 3));
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+
+        response = controller.addCatalogItem(new CatalogItem("ACC-0001", "Shelving", 10.50, 4, 3));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response =
+                controller.upsertCatalogItem("ACC-0001", new CatalogItem("ACC-0001", "Shelving", 12.50, 4, 3));
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        ResponseEntity<CatalogItem> getResponse = controller.getCatalogItem("ACC-0001");
+        assertNotNull(getResponse);
+        assertNotNull(getResponse.getBody());
+        assertEquals(HttpStatus.OK, getResponse.getStatusCode());
+
+        CatalogItem catalogItem = getResponse.getBody();
+        assertEquals("ACC-0001", catalogItem.getSkuNumber());
+        assertEquals(12.50, catalogItem.getPrice(), 0.01);
+    }
+
+    @Test
+    public void testGetCatalogItems() throws Exception
+    {
+        {
+            ResponseEntity<List<CatalogItem>> response = controller.getCatalogItems();
+            assertNotNull(response);
+            assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+
+            List<CatalogItem> list = response.getBody();
+            assertNull(list);
+        }
+
+        controller.addCatalogItem(new CatalogItem("ACC-0001", "Shelving", 10.50, 4, 3));
+        controller.addCatalogItem(new CatalogItem("ACC-0002", "Refrigeration Unit", 2500, 2, 7));
+        controller.addCatalogItem(new CatalogItem("ACC-0003", "Freezer Unit", 4500, 4, 5));
+
+        {
+            ResponseEntity<List<CatalogItem>> response = controller.getCatalogItems();
+            assertNotNull(response);
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+
+            List<CatalogItem> list = response.getBody();
+            assertEquals(3, list.size());
+        }
+    }
+
+    @Test
+    public void testGetCatalogItem() throws Exception
+    {
+        {
+            ResponseEntity<CatalogItem> response = controller.getCatalogItem("ACC-0002");
+            assertNotNull(response);
+            assertNull(response.getBody());
+            assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        }
+
+        controller.addCatalogItem(new CatalogItem("ACC-0001", "Shelving", 10.50, 4, 3));
+        controller.addCatalogItem(new CatalogItem("ACC-0002", "Refrigeration Unit", 2500, 2, 7));
+        controller.addCatalogItem(new CatalogItem("ACC-0003", "Freezer Unit", 4500, 4, 5));
+
+        {
+            ResponseEntity<CatalogItem> response = controller.getCatalogItem("ACC-0002");
+            assertNotNull(response);
+            assertNotNull(response.getBody());
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+
+            CatalogItem catalogItem = response.getBody();
+            assertEquals("ACC-0002", catalogItem.getSkuNumber());
+        }
+    }
+
+    @Test
+    public void testRemoveCatalogItem() throws Exception
+    {
+        ResponseEntity response = controller.addCatalogItem(new CatalogItem("ACC-0001", "Shelving", 10.50, 4, 3));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.removeCatalogItem("ACC-0001");
+        assertNotNull(response);
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+
+        ResponseEntity<CatalogItem> getResponse = controller.getCatalogItem("ACC-0001");
+        assertNotNull(getResponse);
+        assertEquals(HttpStatus.NOT_FOUND, getResponse.getStatusCode());
+    }
+
+    private CatalogController controller;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/controllers/DealerControllerTest.java
+================================================
+package smpl.ordering.controllers;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.DealerInfo;
+import smpl.ordering.repositories.DealersRepository;
+import smpl.ordering.repositories.DealersRepositoryTest;
+import smpl.ordering.repositories.RepositoryFactory;
+
+import java.util.List;
+
+import static org.junit.Assert.*;
+
+@SuppressWarnings("unchecked")
+public class DealerControllerTest
+{
+
+    @Before
+    public void setUp() throws Exception
+    {
+        // Make sure we're using memory-based repositories.
+        RepositoryFactory.reset("memory");
+
+        // Make sure the repository is empty.
+        DealersRepository dealers = RepositoryFactory.getDealersRepository();
+        ((TestPath) dealers).reset();
+
+        controller = new DealerController();
+    }
+
+    @Test
+    public void testAddDealer() throws Exception
+    {
+        ResponseEntity response = controller.addDealer(DealersRepositoryTest.createDealer("DLR-1"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        // Negative test case
+
+        response = controller.addDealer(DealersRepositoryTest.createDealer(null));
+        assertNotNull(response);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+
+        response = controller.addDealer(DealersRepositoryTest.createDealer(""));
+        assertNotNull(response);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+
+        response = controller.addDealer(DealersRepositoryTest.createDealer("DLR-1"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+    }
+
+    @Test
+    public void testUpdateDealer() throws Exception
+    {
+        ResponseEntity response = controller.addDealer(DealersRepositoryTest.createDealer("DLR-1"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        DealerInfo update = DealersRepositoryTest.createDealer("DLR-1");
+        update.setContact("Jane Doe");
+
+        response = controller.updateDealer("DLR-1", update);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        ResponseEntity<DealerInfo> getDealer = controller.getDealer("DLR-1");
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        update = getDealer.getBody();
+        assertNotNull(update);
+        assertEquals("Jane Doe", update.getContact());
+
+        // Negative tests
+
+        update.setName(null);
+        response = controller.updateDealer("DLR-1", update);
+        assertNotNull(response);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+
+        update.setName("");
+        response = controller.updateDealer("DLR-1", update);
+        assertNotNull(response);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+
+        update = DealersRepositoryTest.createDealer("DLR-2");
+        response = controller.updateDealer("DLR-2", update);
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    public void testGetDealers() throws Exception
+    {
+        {
+            ResponseEntity<List<DealerInfo>> response = controller.getDealers();
+            assertNotNull(response);
+            assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+            assertNull(response.getBody());
+        }
+
+        createDealers();
+
+        {
+            ResponseEntity<List<DealerInfo>> response = controller.getDealers();
+            assertNotNull(response);
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+
+            List<DealerInfo> dealers = response.getBody();
+            assertNotNull(dealers);
+            assertEquals(4, dealers.size());
+        }
+    }
+
+    private void createDealers()
+    {
+        controller.addDealer(DealersRepositoryTest.createDealer("DLR-1"));
+        controller.addDealer(DealersRepositoryTest.createDealer("DLR-2"));
+        controller.addDealer(DealersRepositoryTest.createDealer("DLR-3"));
+        controller.addDealer(DealersRepositoryTest.createDealer("DLR-4"));
+    }
+
+    @Test
+    public void testGetDealer() throws Exception
+    {
+        {
+            ResponseEntity<DealerInfo> response = controller.getDealer("DLR-1");
+            assertNotNull(response);
+            assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+            assertNull(response.getBody());
+        }
+
+        createDealers();
+
+        {
+            ResponseEntity<DealerInfo> response = controller.getDealer("DLR-1");
+            assertNotNull(response);
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+
+            DealerInfo dealer = response.getBody();
+            assertNotNull(dealer);
+            assertEquals("DLR-1", dealer.getName());
+        }
+    }
+
+    @Test
+    public void testRemoveDealer() throws Exception
+    {
+        createDealers();
+
+        {
+            ResponseEntity<List<DealerInfo>> response = controller.getDealers();
+            assertNotNull(response);
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+
+            List<DealerInfo> dealers = response.getBody();
+            assertNotNull(dealers);
+            assertEquals(4, dealers.size());
+        }
+
+        ResponseEntity remove = controller.removeDealer("DLR-1");
+        assertNotNull(remove);
+        assertEquals(HttpStatus.NO_CONTENT, remove.getStatusCode());
+
+        {
+            ResponseEntity<List<DealerInfo>> response = controller.getDealers();
+            assertNotNull(response);
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+
+            List<DealerInfo> dealers = response.getBody();
+            assertNotNull(dealers);
+            assertEquals(3, dealers.size());
+        }
+    }
+
+    private DealerController controller;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/controllers/OrderControllerTest.java
+================================================
+package smpl.ordering.controllers;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.*;
+import smpl.ordering.repositories.QuoteRepositoryTest;
+import smpl.ordering.repositories.RepositoryFactory;
+
+import java.net.URI;
+import java.text.DateFormat;
+import java.util.Date;
+import java.util.List;
+
+import static org.junit.Assert.*;
+
+@SuppressWarnings("unchecked")
+public class OrderControllerTest
+{
+
+    @Before
+    public void setUp() throws Exception
+    {
+        // Make sure we're using memory-based repositories.
+        RepositoryFactory.reset("memory");
+
+        // Make sure the repositories are empty.
+        ((TestPath) RepositoryFactory.getDealersRepository()).reset();
+        ((TestPath) RepositoryFactory.getCatalogItemsRepository()).reset();
+        ((TestPath) RepositoryFactory.getQuoteRepository()).reset();
+        ((TestPath) RepositoryFactory.getOrderRepository()).reset();
+
+        quotes = new QuoteController();
+        controller = new OrderController();
+    }
+
+    @Test
+    public void testCreateOrder() throws Exception
+    {
+        ResponseEntity response = quotes.createQuote(QuoteRepositoryTest.createQuote("quote-4711"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.createOrder("quote-4711");
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        Order order = ((ResponseEntity<Order>) response).getBody();
+        assertEquals("quote-4711", order.getQuoteId());
+        HttpHeaders headers = response.getHeaders();
+        assertEquals(new URI("/orders/" + order.getOrderId()), headers.getLocation());
+
+        response = controller.getOrderById(order.getOrderId());
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("quote-4711", order.getQuoteId());
+    }
+
+    @Test
+    public void testGetOrderById() throws Exception
+    {
+        ResponseEntity response = controller.getOrderById("order-not-there");
+        assertNotNull(response);
+        assertNull(response.getBody());
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+
+        response = quotes.createQuote(QuoteRepositoryTest.createQuote("quote-4711"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.createOrder("quote-4711");
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        Order refOrder = ((ResponseEntity<Order>) response).getBody();
+        assertNotNull(refOrder);
+
+        response = controller.getOrderById(refOrder.getOrderId());
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        Order order = ((ResponseEntity<Order>) response).getBody();
+        assertNotNull(order);
+
+        assertEquals(refOrder, order);
+    }
+
+    @Test
+    public void testGetQuotesByDealerName() throws Exception
+    {
+        ResponseEntity response = controller.getOrdersByDealerName("DLR-1", OrderStatus.None);
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+
+        List<Order> orders = ((ResponseEntity<List<Order>>) response).getBody();
+        assertNull(orders);
+
+        response = quotes.createQuote(QuoteRepositoryTest.createQuote("quote-4711"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.createOrder("quote-4711");
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        Order refOrder = ((ResponseEntity<Order>) response).getBody();
+        assertNotNull(refOrder);
+
+        response = controller.getOrdersByDealerName("DLR-1", OrderStatus.Created);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        orders = ((ResponseEntity<List<Order>>) response).getBody();
+        assertNotNull(orders);
+        assertEquals(1, orders.size());
+
+        assertEquals(refOrder, orders.get(0));
+
+        // Case insensitive.
+
+        response = controller.getOrdersByDealerName("dlr-1", OrderStatus.Created);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        // optional dealer
+        response = controller.getOrdersByDealerName("", OrderStatus.Created);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        // optional dealer, status
+        response = controller.getOrdersByDealerName("", OrderStatus.None);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+    }
+
+    @Test
+    public void testAddEvent() throws Exception
+    {
+        ResponseEntity response = quotes.createQuote(QuoteRepositoryTest.createQuote("quote-4711"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.createOrder("quote-4711");
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        Order refOrder = ((ResponseEntity<Order>) response).getBody();
+        assertNotNull(refOrder);
+
+        response = controller.addEvent(refOrder.getOrderId(), new OrderEventInfo("testAddEvent-1"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.addEvent(refOrder.getOrderId(), new OrderEventInfo("testAddEvent-2"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.addEvent(refOrder.getOrderId(), new OrderEventInfo("1/1/2000", "testAddEvent-3"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.getOrderById(refOrder.getOrderId());
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        Order order = ((ResponseEntity<Order>) response).getBody();
+        assertNotNull(order);
+        assertNotNull(order.getEvents());
+        assertEquals(3, order.getEvents().size());
+
+        DateFormat df = DateFormat.getDateInstance(DateFormat.SHORT);
+        String today = df.format(new Date());
+
+        for (int i = 0; i < order.getEvents().size(); ++i)
+        {
+            assertEquals(today, order.getEvents().get(i).getDate());
+            assertTrue(order.getEvents().get(i).getComments().startsWith("testAddEvent"));
+        }
+    }
+
+    @Test
+    public void testUpdate() throws Exception
+    {
+        ResponseEntity response = quotes.createQuote(QuoteRepositoryTest.createQuote("quote-4711"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.createOrder("quote-4711");
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        Order refOrder = ((ResponseEntity<Order>) response).getBody();
+        assertNotNull(refOrder);
+
+        response = controller.updateStatus(refOrder.getOrderId(), new OrderUpdateInfo(OrderStatus.Confirmed, "testUpdate-1"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        response = controller.updateStatus(refOrder.getOrderId(), new OrderUpdateInfo(OrderStatus.Started, "testUpdate-2"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        response = controller.updateStatus(refOrder.getOrderId(), new OrderUpdateInfo(OrderStatus.Built, "testUpdate-3"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        response = controller.updateStatus(refOrder.getOrderId(), new OrderUpdateInfo(OrderStatus.Shipped, "testUpdate-4"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        response = controller.getOrderById(refOrder.getOrderId());
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        Order order = ((ResponseEntity<Order>) response).getBody();
+        assertNotNull(order);
+        assertNotNull(order.getEvents());
+        assertEquals(4, order.getEvents().size());
+
+        DateFormat df = DateFormat.getDateInstance(DateFormat.SHORT);
+        String today = df.format(new Date());
+
+        for (int i = 0; i < order.getEvents().size(); ++i)
+        {
+            assertEquals(today, order.getEvents().get(i).getDate());
+            assertTrue(order.getEvents().get(i).getComments().startsWith("testUpdate"));
+        }
+    }
+
+    private QuoteController quotes;
+    private OrderController controller;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/controllers/QuoteControllerTest.java
+================================================
+package smpl.ordering.controllers;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.Quote;
+import smpl.ordering.repositories.QuoteRepositoryTest;
+import smpl.ordering.repositories.RepositoryFactory;
+
+import java.net.URI;
+import java.util.List;
+
+import static org.junit.Assert.*;
+
+@SuppressWarnings("unchecked")
+public class QuoteControllerTest
+{
+
+    @Before
+    public void setUp() throws Exception
+    {
+        // Make sure we're using memory-based repositories.
+        RepositoryFactory.reset("memory");
+
+        // Make sure the repositories are empty.
+        ((TestPath) RepositoryFactory.getDealersRepository()).reset();
+        ((TestPath) RepositoryFactory.getCatalogItemsRepository()).reset();
+        ((TestPath) RepositoryFactory.getQuoteRepository()).reset();
+
+        controller = new QuoteController();
+    }
+
+
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    @Test
+    public void testCreateQuote() throws Exception
+    {
+        ResponseEntity response = controller.createQuote(QuoteRepositoryTest.createQuote("quote-4711"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        Quote q = ((ResponseEntity<Quote>) response).getBody();
+        assertNotNull(q);
+        assertEquals("quote-4711", q.getQuoteId());
+        HttpHeaders headers = response.getHeaders();
+        assertEquals(new URI("/quotes/quote-4711"), headers.getLocation());
+
+        response = controller.createQuote(QuoteRepositoryTest.createQuote(null));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        q = ((ResponseEntity<Quote>) response).getBody();
+        assertNotNull(q);
+        // The default quote id is a random integer. We'll get an exception if not.
+        Integer.parseInt(q.getQuoteId());
+        headers = response.getHeaders();
+        assertEquals(new URI("/quotes/" + q.getQuoteId()), headers.getLocation());
+
+        response = controller.createQuote(QuoteRepositoryTest.createQuote(""));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        q = ((ResponseEntity<Quote>) response).getBody();
+        assertNotNull(q);
+        // The default quote id is a random integer. We'll get an exception if not.
+        Integer.parseInt(q.getQuoteId());
+        headers = response.getHeaders();
+        assertEquals(new URI("/quotes/" + q.getQuoteId()), headers.getLocation());
+
+        response = controller.createQuote(QuoteRepositoryTest.createQuote("quote-4711"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    public void testUpdateQuote() throws Exception
+    {
+        Quote q = QuoteRepositoryTest.createQuote("quote-4711");
+
+        ResponseEntity response = controller.updateQuote("quote-4711", q);
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+
+        response = controller.createQuote(q);
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.updateQuote("quote-4711", q);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        response = controller.getQuoteById("quote-4711");
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        q = ((ResponseEntity<Quote>) response).getBody();
+        assertNotNull(q);
+        assertEquals("quote-4711", q.getQuoteId());
+    }
+
+    @Test
+    public void testGetQuoteById() throws Exception
+    {
+        ResponseEntity response = controller.getQuoteById("quote-4711");
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+
+        createNewQuote();
+    }
+
+    private void createNewQuote()
+    {
+        Quote q = QuoteRepositoryTest.createQuote("quote-4711");
+        ResponseEntity response = controller.createQuote(q);
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.getQuoteById("quote-4711");
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+    }
+
+    @Test
+    public void testGetQuotesByCustomerName() throws Exception
+    {
+        ResponseEntity response = controller.getQuotesByCustomerName("cust-");
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+
+        Quote q = QuoteRepositoryTest.createQuote("quote-4711");
+        response = controller.createQuote(q);
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.getQuotesByCustomerName("cust-");
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        List<Quote> quotes = ((ResponseEntity<List<Quote>>) response).getBody();
+        assertNotNull(quotes);
+        assertEquals(1, quotes.size());
+
+        controller.createQuote(QuoteRepositoryTest.createQuote("quote-4712"));
+
+        response = controller.getQuotesByCustomerName("cust-");
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        quotes = ((ResponseEntity<List<Quote>>) response).getBody();
+        assertNotNull(quotes);
+        assertEquals(2, quotes.size());
+    }
+
+    @Test
+    public void testDeleteQuote() throws Exception
+    {
+        ResponseEntity response = controller.deleteQuote("quote-4711");
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+
+        createNewQuote();
+
+        response = controller.deleteQuote("quote-4711");
+        assertNotNull(response);
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+
+        response = controller.getQuoteById("quote-4711");
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+
+    private QuoteController controller;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/controllers/ShipmentControllerTest.java
+================================================
+package smpl.ordering.controllers;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.*;
+import smpl.ordering.repositories.QuoteRepositoryTest;
+import smpl.ordering.repositories.RepositoryFactory;
+import smpl.ordering.repositories.ShipmentRepositoryTest;
+
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+
+@SuppressWarnings("unchecked")
+public class ShipmentControllerTest
+{
+    @Before
+    public void setUp() throws Exception
+    {
+        // Make sure we're using memory-based repositories.
+        RepositoryFactory.reset("memory");
+
+        // Make sure the repositories are empty.
+        ((TestPath) RepositoryFactory.getDealersRepository()).reset();
+        ((TestPath) RepositoryFactory.getCatalogItemsRepository()).reset();
+        ((TestPath) RepositoryFactory.getQuoteRepository()).reset();
+        ((TestPath) RepositoryFactory.getOrderRepository()).reset();
+        ((TestPath) RepositoryFactory.getShipmentRepository()).reset();
+
+        quotes = new QuoteController();
+        orders = new OrderController();
+        controller = new ShipmentController();
+
+    }
+
+    @Test
+    public void testCreateShipment()
+    {
+        ShipmentRecord info = ShipmentRepositoryTest.createShipmentRecord("order-quote-4711");
+
+        ResponseEntity response = controller.createShipmentRecord(info);
+        assertNotNull(response);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+
+        createQuoteAndOrder("quote-4711");
+
+        response = controller.createShipmentRecord(info);
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+    }
+
+    @Test
+    public void testGetAllShipments()
+    {
+        Order order = createQuoteAndOrder("quote-4711");
+
+        ResponseEntity response = controller.createShipmentRecord(ShipmentRepositoryTest.createShipmentRecord(order.getOrderId()));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.getShipments(OrderStatus.None);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        List<ShipmentRecord> list = ((ResponseEntity<List<ShipmentRecord>>) response).getBody();
+        assertNotNull(list);
+        assertEquals(1, list.size());
+        assertNotNull(list.get(0).getEvents());
+        assertEquals(order.getOrderId(), list.get(0).getOrderId());
+    }
+
+    @Test
+    public void testGetShipmentsByStatus()
+    {
+        Order order = createQuoteAndOrder("quote-4711");
+
+        ResponseEntity response = controller.createShipmentRecord(ShipmentRepositoryTest.createShipmentRecord(order.getOrderId()));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.getShipments(OrderStatus.Created);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        List<ShipmentRecord> list = ((ResponseEntity<List<ShipmentRecord>>) response).getBody();
+        assertNotNull(list);
+        assertEquals(1, list.size());
+        assertNotNull(list.get(0).getEvents());
+        assertEquals(order.getOrderId(), list.get(0).getOrderId());
+
+        response = orders.updateStatus(order.getOrderId(), new OrderUpdateInfo(OrderStatus.Shipped, "The thing has shipped"));
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        response = controller.getShipments(OrderStatus.Shipped);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        list = ((ResponseEntity<List<ShipmentRecord>>) response).getBody();
+        assertNotNull(list);
+        assertEquals(1, list.size());
+        assertNotNull(list.get(0).getEvents());
+        assertEquals(order.getOrderId(), list.get(0).getOrderId());
+
+        response = controller.getShipments(OrderStatus.Delivered);
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    public void testUpdateShipment()
+    {
+        Order order = createQuoteAndOrder("quote-4711");
+
+        ShipmentRecord record = ShipmentRepositoryTest.createShipmentRecord(order.getOrderId());
+
+        ResponseEntity response = controller.createShipmentRecord(record);
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.getShipment(order.getOrderId());
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        ShipmentRecord rec = ((ResponseEntity<ShipmentRecord>) response).getBody();
+        assertNotNull(rec);
+        assertNotNull(rec.getEvents());
+        assertEquals(0, rec.getEvents().size());
+
+        record.setContactName("John Jones");
+
+        controller.updateShipment(record.getOrderId(), record);
+
+        response = controller.getShipment(record.getOrderId());
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        rec = ((ResponseEntity<ShipmentRecord>) response).getBody();
+        assertNotNull(rec);
+        assertEquals(rec.getContactName(), "John Jones");
+        assertNotNull(rec.getEvents());
+        assertEquals(0, rec.getEvents().size());
+    }
+
+    @Test
+    public void testAddEventToShipment()
+    {
+        Order order = createQuoteAndOrder("quote-4711");
+
+        ShipmentRecord record = ShipmentRepositoryTest.createShipmentRecord(order.getOrderId());
+
+        ResponseEntity response = controller.createShipmentRecord(record);
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = controller.getShipment(order.getOrderId());
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        ShipmentRecord rec = ((ResponseEntity<ShipmentRecord>) response).getBody();
+        assertNotNull(rec);
+        assertNotNull(rec.getEvents());
+        assertEquals(0, rec.getEvents().size());
+
+        controller.addEvent(record.getOrderId(), new ShipmentEventInfo("12/13/2014", "The truck is on its way..."));
+
+        response = controller.getShipment(record.getOrderId());
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        rec = ((ResponseEntity<ShipmentRecord>) response).getBody();
+        assertNotNull(rec);
+        assertNotNull(rec.getEvents());
+        assertEquals(1, rec.getEvents().size());
+        assertEquals("The truck is on its way...", rec.getEvents().get(0).getComments());
+    }
+
+    @SuppressWarnings("SameParameterValue")
+    private Order createQuoteAndOrder(String id)
+    {
+        ResponseEntity response = quotes.createQuote(QuoteRepositoryTest.createQuote(id));
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        response = orders.createOrder(id);
+        assertNotNull(response);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+
+        return ((ResponseEntity<Order>) response).getBody();
+    }
+
+
+    private QuoteController quotes;
+    private OrderController orders;
+    private ShipmentController controller;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/CatalogItemsRepositoryTest.java
+================================================
+package smpl.ordering.repositories;
+
+import smpl.ordering.TestPath;
+import smpl.ordering.models.CatalogItem;
+
+import java.util.List;
+
+import static org.junit.Assert.*;
+
+public class CatalogItemsRepositoryTest
+{
+    protected void setUp() throws Exception
+    {
+        catalog = RepositoryFactory.getCatalogItemsRepository();
+        ((TestPath) catalog).reset();
+
+        catalog.upsertCatalogItem("ACC-0001", new CatalogItem("ACC-0001", "Shelving", 10.50, 4, 3), null);
+        catalog.upsertCatalogItem("ACC-0002", new CatalogItem("ACC-0002", "Refrigeration Unit", 2500, 4, 3), null);
+        catalog.upsertCatalogItem("ACC-0003", new CatalogItem("ACC-0003", "Freezer Unit", 4500, 4, 3), null);
+    }
+
+    protected void testGetCatalogItems()
+    {
+        List<CatalogItem> list = catalog.getCatalogItems();
+        assertNotNull(list);
+        assertEquals(3, list.size());
+        assertEquals("ACC-0001", list.get(0).getSkuNumber());
+        assertEquals("ACC-0002", list.get(1).getSkuNumber());
+        assertEquals("ACC-0003", list.get(2).getSkuNumber());
+
+        catalog.upsertCatalogItem("ACC-0004", new CatalogItem("ACC-0004", "Shelving", 13.50, 4, 3), null);
+        list = catalog.getCatalogItems();
+        assertEquals(4, list.size());
+
+        assertEquals("ACC-0004", list.get(3).getSkuNumber());
+    }
+
+    protected void testGetCatalogItem()
+    {
+        assertEquals(10.50, catalog.getCatalogItem("ACC-0001").getPrice(), 0.01);
+        assertEquals(2500, catalog.getCatalogItem("ACC-0002").getPrice(), 0.10);
+        assertEquals(4500, catalog.getCatalogItem("ACC-0003").getPrice(), 0.10);
+    }
+
+    protected void testUpsertCatalogItem()
+    {
+        assertTrue(catalog.upsertCatalogItem("ACC-0001", new CatalogItem("ACC-0001", "Shelving", 11.50, 4, 3), null));
+        assertFalse(catalog.upsertCatalogItem("ACC-0004", new CatalogItem("ACC-0004", "Shelving", 13.50, 4, 3), null));
+        assertEquals(11.50, catalog.getCatalogItem("ACC-0001").getPrice(), 0.01);
+    }
+
+    protected void testRemoveCatalogItem()
+    {
+        assertTrue(catalog.removeCatalogItem("ACC-0001", null));
+        assertFalse(catalog.removeCatalogItem("ACC-0004", null));
+        List<CatalogItem> list = catalog.getCatalogItems();
+        assertEquals(2, list.size());
+        assertTrue(catalog.removeCatalogItem("ACC-0002", null));
+        assertTrue(catalog.removeCatalogItem("ACC-0003", null));
+        list = catalog.getCatalogItems();
+        assertEquals(0, list.size());
+    }
+
+    private static CatalogItemsRepository catalog;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/DealersRepositoryTest.java
+================================================
+package smpl.ordering.repositories;
+
+import smpl.ordering.TestPath;
+import smpl.ordering.models.DealerInfo;
+
+import java.util.List;
+
+import static org.junit.Assert.*;
+
+public class DealersRepositoryTest
+{
+    public void setUp() throws Exception
+    {
+        repository = RepositoryFactory.getDealersRepository();
+        ((TestPath) repository).reset();
+
+        repository.upsertDealer(createDealer("DLR-1"), null);
+        repository.upsertDealer(createDealer("DLR-2"), null);
+        repository.upsertDealer(createDealer("DLR-3"), null);
+        repository.upsertDealer(createDealer("DLR-4"), null);
+    }
+
+    public void testGetDealers()
+    {
+        List<DealerInfo> dealers = repository.getDealers();
+        assertNotNull(dealers);
+        assertEquals(4, dealers.size());
+        for (DealerInfo info : dealers)
+        {
+            assertEquals("John Doe", info.getContact());
+        }
+        assertEquals("DLR-1", dealers.get(0).getName());
+        assertEquals("DLR-2", dealers.get(1).getName());
+        assertEquals("DLR-3", dealers.get(2).getName());
+        assertEquals("DLR-4", dealers.get(3).getName());
+    }
+
+    public void testGetDealer()
+    {
+        DealerInfo dealer = repository.getDealer("DLR-1");
+        assertEquals("DLR-1@tempuri.org", dealer.getEmail());
+        dealer = repository.getDealer("DLR-5");
+        assertNull(dealer);
+    }
+
+    public void testUpsertDealer()
+    {
+        DealerInfo dealer = repository.getDealer("DLR-1");
+        assertEquals("DLR-1@tempuri.org", dealer.getEmail());
+        dealer.setEmail("jd@tempuri.org");
+        assertTrue(repository.upsertDealer(dealer, null));
+        dealer = repository.getDealer("DLR-1");
+        assertEquals("jd@tempuri.org", dealer.getEmail());
+
+        assertFalse(repository.upsertDealer(createDealer("DLR-5"), null));
+        dealer = repository.getDealer("DLR-5");
+        assertNotNull(dealer);
+        assertEquals("DLR-5@tempuri.org", dealer.getEmail());
+
+        assertEquals(5, repository.getDealers().size());
+    }
+
+    public void testRemoveDealer()
+    {
+        assertTrue(repository.removeDealer("DLR-1", null));
+        assertEquals(3, repository.getDealers().size());
+
+        assertFalse(repository.removeDealer("DLR-5", null));
+
+        assertTrue(repository.removeDealer("DLR-2", null));
+        assertTrue(repository.removeDealer("DLR-3", null));
+        assertTrue(repository.removeDealer("DLR-4", null));
+
+        assertFalse(repository.removeDealer("DLR-2", null));
+    }
+
+    public static DealerInfo createDealer(String name)
+    {
+        DealerInfo info = new DealerInfo();
+        info.setName(name);
+        info.setPhone("425-555-1212");
+        info.setContact("John Doe");
+        info.setEmail(name + "@tempuri.org");
+        info.setAddress("1234 Main St., Redmond, WA 98052");
+        return info;
+    }
+
+    private DealersRepository repository;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/OrderRepositoryTest.java
+================================================
+package smpl.ordering.repositories;
+
+import smpl.ordering.ConflictingRequestException;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.*;
+
+import java.util.List;
+
+import static org.junit.Assert.*;
+
+@SuppressWarnings("EmptyCatchBlock")
+public class OrderRepositoryTest
+{
+    public void setUp() throws Exception
+    {
+        // Set up some data for the order tests to access.
+
+        DealersRepository dealers = RepositoryFactory.getDealersRepository();
+        ((TestPath)dealers).reset();
+
+        dealers.upsertDealer(DealersRepositoryTest.createDealer("DLR-1"), null);
+        dealers.upsertDealer(DealersRepositoryTest.createDealer("DLR-2"), null);
+        dealers.upsertDealer(DealersRepositoryTest.createDealer("DLR-3"), null);
+        dealers.upsertDealer(DealersRepositoryTest.createDealer("DLR-4"), null);
+
+        CatalogItemsRepository catalog = RepositoryFactory.getCatalogItemsRepository();
+        ((TestPath)catalog).reset();
+
+        catalog.upsertCatalogItem("ACC-0001", new CatalogItem("ACC-0001", "Shelving", 10.50, 4, 3), null);
+        catalog.upsertCatalogItem("ACC-0002", new CatalogItem("ACC-0002", "Refrigeration Unit", 2500, 2, 7), null);
+        catalog.upsertCatalogItem("ACC-0003", new CatalogItem("ACC-0003", "Freezer Unit", 4500, 4, 5), null);
+
+        QuoteRepository quotes = RepositoryFactory.getQuoteRepository();
+        ((TestPath)quotes).reset();
+        repository = RepositoryFactory.getOrderRepository();
+        ((TestPath)repository).reset();
+
+        for (int i = 0; i < 10; ++i)
+        {
+            Quote template = quotes.createQuote(QuoteRepositoryTest.createQuote(String.format("quote-%s", i)));
+            repository.createOrder(template.getQuoteId());
+        }
+    }
+
+    public void testHasOrder()
+    {
+        assertTrue(repository.hasOrder("order-quote-0"));
+        assertFalse(repository.hasOrder("order-not-there"));
+    }
+
+    public void testGetOrder()
+    {
+        Order o1 = repository.getOrder("order-quote-0");
+        assertNotNull(o1);
+        assertNull(repository.getOrder("order-not-there"));
+
+        String qid = o1.getQuoteId();
+        assertEquals("quote-0", qid);
+    }
+
+    public void testGetOrdersByQuoteId()
+    {
+        Order order = repository.getOrderByQuoteId("quote-100");
+        assertNull(order);
+
+        order = repository.getOrderByQuoteId("quote-1");
+        assertNotNull(order);
+        assertEquals("quote-1", order.getQuoteId());
+    }
+
+    public void testGetOrdersByStatus()
+    {
+        List<Order> orders = repository.getOrdersByStatus(OrderStatus.Delivered);
+        assertNotNull(orders);
+        assertEquals(0, orders.size());
+
+        orders = repository.getOrdersByStatus(OrderStatus.Created);
+        assertNotNull(orders);
+        assertEquals(10, orders.size());
+    }
+
+
+    public void testGetOrdersByDealerName()
+    {
+        List<Order> orders = repository.getOrdersByDealerName("DLR-1", OrderStatus.Created);
+        assertNotNull(orders);
+        assertEquals(10, orders.size());
+
+        orders = repository.getOrdersByDealerName("DLR-100", OrderStatus.Created);
+        assertNotNull(orders);
+        assertEquals(0, orders.size());
+
+        orders = repository.getOrdersByDealerName("DLR-1", OrderStatus.Confirmed);
+        assertNotNull(orders);
+        assertEquals(0, orders.size());
+    }
+
+    public void testCreateOrder() throws Exception
+    {
+        QuoteRepository quotes = RepositoryFactory.getQuoteRepository();
+
+        Quote template = quotes.createQuote(QuoteRepositoryTest.createQuote("quote-4711"));
+        Order o1 = repository.createOrder(template.getQuoteId());
+
+        assertNotNull(o1);
+        assertEquals(o1.getQuoteId(), "quote-4711");
+        assertEquals(0, o1.getEvents().size());
+        assertEquals(OrderStatus.Created, o1.getStatus());
+
+        List<Order> orders = repository.getOrdersByDealerName("DLR-1", OrderStatus.Created);
+        assertNotNull(orders);
+        assertEquals(11, orders.size());
+
+        try {
+            // Duplicate orders...
+            assertNull(repository.createOrder(template.getQuoteId()));
+        } catch (ConflictingRequestException bre) { }
+    }
+
+    public void testUpdateOrder() throws Exception
+    {
+        QuoteRepository quotes = RepositoryFactory.getQuoteRepository();
+
+        Quote template = quotes.createQuote(QuoteRepositoryTest.createQuote("quote-4712"));
+        Order o1 = repository.createOrder(template.getQuoteId());
+        assertNotNull(o1);
+        assertEquals(o1.getQuoteId(), "quote-4712");
+        assertEquals(0, o1.getEvents().size());
+        assertEquals(OrderStatus.Created, o1.getStatus());
+
+        String orderId = o1.getOrderId();
+
+        OrderEventInfo info = new OrderEventInfo();
+        info.setDate("1/1/2001");
+        info.setComments("This is a unit test");
+        o1.addEvent(info);
+        repository.updateOrder(o1.getOrderId(), o1, null);
+
+        Order o2 = repository.getOrder(orderId);
+        assertNotNull(o2);
+        assertEquals(o2.getQuoteId(), "quote-4712");
+        assertEquals(1, o2.getEvents().size());
+
+        info = o2.getEvents().get(0);
+        assertEquals("This is a unit test", info.getComments());
+        assertEquals("1/1/2001", info.getDate());
+    }
+
+    public void testUpdateOrder1() throws Exception
+    {
+        QuoteRepository quotes = RepositoryFactory.getQuoteRepository();
+
+        Quote template = quotes.createQuote(QuoteRepositoryTest.createQuote("quote-4713"));
+        Order o1 = repository.createOrder(template.getQuoteId());
+        assertNotNull(o1);
+        assertEquals(o1.getQuoteId(), "quote-4713");
+        assertEquals(0, o1.getEvents().size());
+        assertEquals(OrderStatus.Created, o1.getStatus());
+
+        String orderId = o1.getOrderId();
+
+        OrderEventInfo info = new OrderEventInfo();
+        info.setDate("1/2/2001");
+        info.setComments("This is a unit test");
+        OrderUpdateInfo update = new OrderUpdateInfo();
+        update.setStatus(OrderStatus.Confirmed);
+        update.setEventInfo(info);
+        repository.updateOrder(o1.getOrderId(), update, null);
+
+        Order o2 = repository.getOrder(orderId);
+        assertNotNull(o2);
+        assertEquals(o2.getQuoteId(), "quote-4713");
+        assertEquals(1, o2.getEvents().size());
+        assertEquals(OrderStatus.Confirmed, o2.getStatus());
+
+        info = o2.getEvents().get(0);
+        assertEquals("This is a unit test", info.getComments());
+        assertEquals("1/2/2001", info.getDate());
+    }
+
+    private OrderRepository repository;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/QuoteRepositoryTest.java
+================================================
+package smpl.ordering.repositories;
+
+import smpl.ordering.BadRequestException;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.CatalogItem;
+import smpl.ordering.models.QuoteItemInfo;
+import smpl.ordering.models.Quote;
+import smpl.ordering.repositories.mock.test.MockDealersRepositoryTest;
+
+import java.util.List;
+
+import static org.junit.Assert.*;
+
+@SuppressWarnings("EmptyCatchBlock")
+public class QuoteRepositoryTest
+{
+    public void setUp() throws Exception
+    {
+        // Set up some data for the quote tests to access.
+
+        repository = RepositoryFactory.getQuoteRepository();
+        ((TestPath) repository).reset();
+
+        DealersRepository dealers = RepositoryFactory.getDealersRepository();
+        ((TestPath) dealers).reset();
+
+        dealers.upsertDealer(MockDealersRepositoryTest.createDealer("DLR-1"), null);
+        dealers.upsertDealer(MockDealersRepositoryTest.createDealer("DLR-2"), null);
+        dealers.upsertDealer(MockDealersRepositoryTest.createDealer("DLR-3"), null);
+        dealers.upsertDealer(MockDealersRepositoryTest.createDealer("DLR-4"), null);
+
+        CatalogItemsRepository catalog = RepositoryFactory.getCatalogItemsRepository();
+        ((TestPath) catalog).reset();
+
+        catalog.upsertCatalogItem("ACC-0001", new CatalogItem("ACC-0001", "Shelving", 10.50, 4, 3), null);
+        catalog.upsertCatalogItem("ACC-0002", new CatalogItem("ACC-0002", "Refrigeration Unit", 2500, 2, 7), null);
+        catalog.upsertCatalogItem("ACC-0003", new CatalogItem("ACC-0003", "Freezer Unit", 4500, 4, 5), null);
+
+        for (int i = 0; i < 10; ++i)
+        {
+            repository.createQuote(createQuote(String.format("quote-%s", i)));
+        }
+    }
+
+    public void testGetQuote()
+    {
+        Quote q1 = repository.getQuote("quote-0");
+        assertNotNull(q1);
+        assertNull(repository.getQuote("quote-100"));
+
+        assertEquals("quote-0", q1.getQuoteId());
+        assertEquals("cust-quote-0", q1.getCustomerName());
+        assertEquals(2, q1.getQuoteItems().size());
+
+        QuoteItemInfo a0 = q1.getQuoteItems().get(0);
+        QuoteItemInfo a1 = q1.getQuoteItems().get(1);
+
+        assertTrue(
+            ("ACC-0001".equals(a0.getSkuNumber()) && "ACC-0003".equals(a1.getSkuNumber())) ||
+            ("ACC-0001".equals(a1.getSkuNumber()) && "ACC-0003".equals(a0.getSkuNumber())));
+        assertTrue(
+            (15 == a0.getAmount() && 1 == a1.getAmount()) ||
+            (15 == a1.getAmount() && 1 == a0.getAmount()));
+    }
+
+    public void testGetQuotesByCustomerName()
+    {
+        List<Quote> q1 = repository.getQuotesByCustomerName("cust-quote-7");
+        assertNotNull(q1);
+        assertEquals(1, q1.size());
+        List<Quote> q3 = repository.getQuotesByCustomerName("non-existent");
+        assertNotNull(q3);
+        assertTrue(q3.isEmpty());
+
+        List<Quote> q2 = repository.getQuotesByCustomerName("cust-quote");
+        assertNotNull(q2);
+        assertEquals(10, q2.size());
+    }
+
+    public void testCreateQuote() throws Exception
+    {
+        Quote template = createQuote("New-Quote-1");
+
+        Quote q1 = repository.createQuote(template);
+
+        assertEquals(template, q1);
+
+        try
+        {
+            // Duplicate
+            repository.createQuote(template);
+            fail("Duplicate quote not caught.");
+        }
+        catch (BadRequestException bre)
+        {
+        }
+    }
+
+    public void testUpdateQuote()
+    {
+        Quote q1 = repository.getQuote("quote-5");
+        assertNotNull(q1);
+
+        q1.setState("WA");
+        assertTrue(repository.updateQuote("quote-5", q1, null));
+
+        Quote q2 = repository.getQuote("quote-5");
+        assertEquals(q1, q2);
+
+        assertFalse(repository.updateQuote("quote-16", q1, null));
+    }
+
+    public void testRemoveQuote()
+    {
+        assertTrue(repository.removeQuote("quote-5", null));
+        assertFalse(repository.removeQuote("quote-16", null));
+        List<Quote> q2 = repository.getQuotesByCustomerName("cust-quote");
+        assertNotNull(q2);
+        assertEquals(9, q2.size());
+    }
+
+    public static Quote createQuote(String quoteId)
+    {
+        Quote quote = new Quote();
+        quote.setQuoteId(quoteId);
+        quote.setDealerName("DLR-1");
+        quote.setCustomerName("cust-" + quoteId);
+        quote.addQuoteItem("ACC-0001", 15);
+        quote.addQuoteItem("ACC-0003", 1);
+        return quote;
+    }
+
+    private QuoteRepository repository;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/ShipmentRepositoryTest.java
+================================================
+package smpl.ordering.repositories;
+
+import smpl.ordering.BadRequestException;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.*;
+
+import java.util.List;
+
+import static org.junit.Assert.*;
+
+@SuppressWarnings("EmptyCatchBlock")
+public class ShipmentRepositoryTest
+{
+    public void setUp() throws Exception
+    {
+        // Set up some data for the order tests to access.
+
+        DealersRepository dealers = RepositoryFactory.getDealersRepository();
+        ((TestPath) dealers).reset();
+
+        dealers.upsertDealer(DealersRepositoryTest.createDealer("DLR-1"), null);
+        dealers.upsertDealer(DealersRepositoryTest.createDealer("DLR-2"), null);
+        dealers.upsertDealer(DealersRepositoryTest.createDealer("DLR-3"), null);
+        dealers.upsertDealer(DealersRepositoryTest.createDealer("DLR-4"), null);
+
+        CatalogItemsRepository catalog = RepositoryFactory.getCatalogItemsRepository();
+        ((TestPath) catalog).reset();
+
+        catalog.upsertCatalogItem("ACC-0001", new CatalogItem("ACC-0001", "Shelving", 10.50, 4, 3), null);
+        catalog.upsertCatalogItem("ACC-0002", new CatalogItem("ACC-0002", "Refrigeration Unit", 2500, 2, 7), null);
+        catalog.upsertCatalogItem("ACC-0003", new CatalogItem("ACC-0003", "Freezer Unit", 4500, 4, 5), null);
+
+        QuoteRepository quotes = RepositoryFactory.getQuoteRepository();
+        ((TestPath) quotes).reset();
+        orders = RepositoryFactory.getOrderRepository();
+        ((TestPath) orders).reset();
+
+        shipments = RepositoryFactory.getShipmentRepository();
+        ((TestPath) shipments).reset();
+
+        for (int i = 0; i < 10; ++i)
+        {
+            Quote template = quotes.createQuote(QuoteRepositoryTest.createQuote(String.format("quote-%s", i)));
+            Order order = orders.createOrder(template.getQuoteId());
+            if (i < 5)
+            {
+                shipments.createShipment(createShipmentRecord(order.getOrderId()));
+                order.setStatus(OrderStatus.Shipped);
+                orders.updateOrder(order.getOrderId(), order, null);
+            }
+        }
+    }
+
+    public void testGetShipments()
+    {
+        List<ShipmentRecord> records = shipments.getShipments(OrderStatus.None);
+        assertNotNull(records);
+        assertEquals(5, records.size());
+
+        records = shipments.getShipments(OrderStatus.Delivered);
+        assertNotNull(records);
+        assertEquals(0, records.size());
+
+        records = shipments.getShipments(OrderStatus.Shipped);
+        assertNotNull(records);
+        assertEquals(5, records.size());
+    }
+
+    public void testGetShipmentById()
+    {
+        ShipmentRecord record = shipments.getShipmentById("order-quote-0");
+        assertNotNull(record);
+        assertNotNull(record.getEvents());
+        assertEquals(0, record.getEvents().size());
+    }
+
+    public void testCreateShipment() throws BadRequestException
+    {
+        List<ShipmentRecord> records = shipments.getShipments(OrderStatus.None);
+        assertNotNull(records);
+        assertEquals(5, records.size());
+
+        try
+        {
+            // Duplicate shipment record
+            Order o = orders.getOrder("order-quote-0");
+            shipments.createShipment(createShipmentRecord(o.getOrderId()));
+            fail("Should have seen an exception");
+        }
+        catch (BadRequestException bre)
+        {
+        }
+
+        Order o = orders.getOrder("order-quote-5");
+        ShipmentRecord newShipment = shipments.createShipment(createShipmentRecord(o.getOrderId()));
+        assertNotNull(newShipment);
+        assertEquals(o.getOrderId(), newShipment.getOrderId());
+
+        records = shipments.getShipments(OrderStatus.None);
+        assertNotNull(records);
+        assertEquals(6, records.size());
+    }
+
+    public void testUpdateShipment()
+    {
+        ShipmentRecord record = shipments.getShipmentById("order-quote-0");
+        assertNotNull(record);
+        assertNotNull(record.getEvents());
+        assertEquals(0, record.getEvents().size());
+
+        record.addEvent("12/1/2014", "This is just a test.");
+
+        shipments.updateShipment(record);
+
+        getShipment("order-quote-0");
+    }
+
+    private void getShipment(String id)
+    {
+        ShipmentRecord record;
+        record = shipments.getShipmentById(id);
+        assertNotNull(record);
+        assertNotNull(record.getEvents());
+        assertEquals(1, record.getEvents().size());
+
+        assertEquals("12/1/2014", record.getEvents().get(0).getDate());
+        assertEquals("This is just a test.", record.getEvents().get(0).getComments());
+    }
+
+    public void testAddEvent()
+    {
+        ShipmentRecord record = shipments.getShipmentById("order-quote-0");
+        assertNotNull(record);
+        assertNotNull(record.getEvents());
+        assertEquals(0, record.getEvents().size());
+
+        shipments.addEvent("order-quote-0", new ShipmentEventInfo("12/1/2014", "This is just a test."));
+
+        getShipment("order-quote-0");
+    }
+
+    public static ShipmentRecord createShipmentRecord(String orderId)
+    {
+        ShipmentRecord result = new ShipmentRecord();
+        result.setOrderId(orderId);
+        result.setDeliveryDate("02/02/2015");
+        result.setContactName("Jane Smith");
+        result.setPrimaryContactPhone(new PhoneInfo("206-555-1212", "Mobile"));
+        result.setAlternateContactPhone(new PhoneInfo("206-555-1111", "Work"));
+        result.setDeliveryAddress(new DeliveryAddress("123 Main Street", "Bellevue", "WA", "98006", "Near KFC"));
+        return result;
+    }
+
+    private OrderRepository orders;
+    private ShipmentRepository shipments;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/mock/test/MockCatalogItemsRepositoryTest.java
+================================================
+package smpl.ordering.repositories.mock.test;
+
+import org.junit.Before;
+import org.junit.Test;
+import smpl.ordering.repositories.CatalogItemsRepositoryTest;
+import smpl.ordering.repositories.RepositoryFactory;
+
+public class MockCatalogItemsRepositoryTest extends CatalogItemsRepositoryTest
+{
+    @Before
+    @Override
+    public void setUp() throws Exception
+    {
+        // Make sure we're using memory-based repositories.
+        RepositoryFactory.reset("memory");
+        super.setUp();
+    }
+
+    @Test
+    @Override
+    public void testGetCatalogItems()
+    {
+        super.testGetCatalogItems();
+    }
+
+    @Test
+    @Override
+    public void testGetCatalogItem()
+    {
+        super.testGetCatalogItem();
+    }
+
+    @Test
+    @Override
+    public void testUpsertCatalogItem()
+    {
+        super.testUpsertCatalogItem();
+    }
+
+    @Test
+    @Override
+    public void testRemoveCatalogItem()
+    {
+        super.testRemoveCatalogItem();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/mock/test/MockDealersRepositoryTest.java
+================================================
+package smpl.ordering.repositories.mock.test;
+
+import org.junit.Before;
+import org.junit.Test;
+import smpl.ordering.repositories.DealersRepositoryTest;
+import smpl.ordering.repositories.RepositoryFactory;
+
+@SuppressWarnings("EmptyMethod")
+public class MockDealersRepositoryTest
+        extends DealersRepositoryTest
+{
+    @Before
+    @Override
+    public void setUp() throws Exception
+    {
+        // Make sure we're using memory-based repositories.
+        RepositoryFactory.reset("memory");
+        super.setUp();
+    }
+
+    @Test
+    @Override
+    public void testGetDealers()
+    {
+        super.testGetDealers();
+    }
+
+    @Test
+    @Override
+    public void testGetDealer()
+    {
+        super.testGetDealer();
+    }
+
+    @Test
+    @Override
+    public void testUpsertDealer()
+    {
+        super.testUpsertDealer();
+    }
+
+    @Test
+    @Override
+    public void testRemoveDealer()
+    {
+        super.testRemoveDealer();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/mock/test/MockOrderRepositoryTest.java
+================================================
+package smpl.ordering.repositories.mock.test;
+
+import org.junit.Before;
+import org.junit.Test;
+
+import smpl.ordering.repositories.*;
+
+@SuppressWarnings("EmptyMethod")
+public class MockOrderRepositoryTest
+        extends OrderRepositoryTest
+{
+
+    @Before
+    @Override
+    public void setUp() throws Exception
+    {
+        // Make sure we're using memory-based repositories.
+        RepositoryFactory.reset("memory");
+        super.setUp();
+    }
+
+    @Test
+    @Override
+    public void testHasOrder()
+    {
+        super.testHasOrder();
+    }
+
+    @Test
+    @Override
+    public void testGetOrder()
+    {
+        super.testGetOrder();
+    }
+
+    @Test
+    @Override
+    public void testGetOrdersByQuoteId()
+    {
+        super.testGetOrdersByQuoteId();
+    }
+
+    @Test
+    @Override
+    public void testGetOrdersByStatus()
+    {
+        super.testGetOrdersByStatus();
+    }
+
+    @Test
+    @Override
+    public void testGetOrdersByDealerName()
+    {
+        super.testGetOrdersByDealerName();
+    }
+
+    @Test
+    @Override
+    public void testCreateOrder() throws Exception
+    {
+        super.testCreateOrder();
+    }
+
+    @Test
+    @Override
+    public void testUpdateOrder() throws Exception
+    {
+        super.testUpdateOrder();
+    }
+
+    @Test
+    @Override
+    public void testUpdateOrder1() throws Exception
+    {
+        super.testUpdateOrder1();
+    }
+
+    private OrderRepository repository;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/mock/test/MockQuoteRepositoryTest.java
+================================================
+package smpl.ordering.repositories.mock.test;
+
+import org.junit.Before;
+import org.junit.Test;
+import smpl.ordering.repositories.*;
+
+@SuppressWarnings("EmptyMethod")
+public class MockQuoteRepositoryTest
+        extends QuoteRepositoryTest
+{
+    @Before
+    public void setUp() throws Exception
+    {
+        // Make sure we're using memory-based repositories.
+        RepositoryFactory.reset("memory");
+        super.setUp();
+    }
+
+    @Test
+    public void testGetQuote()
+    {
+        super.testGetQuote();
+    }
+
+    @Test
+    public void testGetQuotesByCustomerName()
+    {
+        super.testGetQuotesByCustomerName();
+    }
+
+    @Test
+    public void testCreateQuote() throws Exception
+    {
+        super.testCreateQuote();
+    }
+
+    @Test
+    public void testUpdateQuote()
+    {
+        super.testUpdateQuote();
+    }
+
+    @Test
+    public void testRemoveQuote()
+    {
+        super.testRemoveQuote();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/mock/test/MockShipmentRepositoryTest.java
+================================================
+package smpl.ordering.repositories.mock.test;
+
+import org.junit.Before;
+import org.junit.Test;
+import smpl.ordering.BadRequestException;
+import smpl.ordering.repositories.RepositoryFactory;
+import smpl.ordering.repositories.ShipmentRepositoryTest;
+
+@SuppressWarnings("EmptyMethod")
+public class MockShipmentRepositoryTest extends ShipmentRepositoryTest
+{
+    @Before
+    @Override
+    public void setUp() throws Exception
+    {
+        // Make sure we're using memory-based repositories.
+        RepositoryFactory.reset("memory");
+        super.setUp();
+    }
+
+    @Override
+    @Test
+    public void testGetShipmentById()
+    {
+        super.testGetShipmentById();
+    }
+
+    @Override
+    @Test
+    public void testGetShipments()
+    {
+        super.testGetShipments();
+    }
+
+    @Override
+    @Test
+    public void testCreateShipment() throws BadRequestException
+    {
+        super.testCreateShipment();
+    }
+
+    @Override
+    @Test
+    public void testUpdateShipment()
+    {
+        super.testUpdateShipment();
+    }
+
+    @Override
+    @Test
+    public void testAddEvent()
+    {
+        super.testAddEvent();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/mongodb/test/IntegrationTests.java
+================================================
+package smpl.ordering.repositories.mongodb.test;
+
+public interface IntegrationTests{
+
+}
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/mongodb/test/MongoCatalogItemsRepositoryTest.java
+================================================
+package smpl.ordering.repositories.mongodb.test;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import smpl.ordering.ConfigurationRule;
+import smpl.ordering.repositories.CatalogItemsRepositoryTest;
+import smpl.ordering.repositories.RepositoryFactory;
+
+@Category(IntegrationTests.class)
+public class MongoCatalogItemsRepositoryTest extends CatalogItemsRepositoryTest
+{
+    @Rule
+    public ConfigurationRule rule = new ConfigurationRule();
+
+    @Before
+    @Override
+    public void setUp() throws Exception
+    {
+        // Make sure we're using a clean repository.
+        RepositoryFactory.reset("mongodb");
+        super.setUp();
+    }
+
+    @Test
+    @Override
+    public void testGetCatalogItems()
+    {
+        super.testGetCatalogItems();
+    }
+
+    @Test
+    @Override
+    public void testGetCatalogItem()
+    {
+        super.testGetCatalogItem();
+    }
+
+    @Test
+    @Override
+    public void testUpsertCatalogItem()
+    {
+        super.testUpsertCatalogItem();
+    }
+
+    @Test
+    @Override
+    public void testRemoveCatalogItem()
+    {
+        super.testRemoveCatalogItem();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/mongodb/test/MongoDealersRepositoryTest.java
+================================================
+package smpl.ordering.repositories.mongodb.test;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import smpl.ordering.ConfigurationRule;
+import smpl.ordering.repositories.DealersRepositoryTest;
+import smpl.ordering.repositories.RepositoryFactory;
+
+
+@SuppressWarnings("EmptyMethod")
+@Category(IntegrationTests.class)
+public class MongoDealersRepositoryTest
+        extends DealersRepositoryTest
+{
+    @Rule
+    public ConfigurationRule rule = new ConfigurationRule();
+
+    @Before
+    @Override
+    public void setUp() throws Exception
+    {
+        // Make sure we're using a clean repository.
+        RepositoryFactory.reset("mongodb");
+        super.setUp();
+    }
+
+    @Test
+    @Override
+    public void testGetDealers()
+    {
+        super.testGetDealers();
+    }
+
+    @Test
+    @Override
+    public void testGetDealer()
+    {
+        super.testGetDealer();
+    }
+
+    @Test
+    @Override
+    public void testUpsertDealer()
+    {
+        super.testUpsertDealer();
+    }
+
+    @Test
+    @Override
+    public void testRemoveDealer()
+    {
+        super.testRemoveDealer();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/mongodb/test/MongoOrderRepositoryTest.java
+================================================
+package smpl.ordering.repositories.mongodb.test;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import smpl.ordering.ConfigurationRule;
+import smpl.ordering.repositories.OrderRepositoryTest;
+import smpl.ordering.repositories.RepositoryFactory;
+
+@SuppressWarnings("EmptyMethod")
+@Category(IntegrationTests.class)
+public class MongoOrderRepositoryTest
+        extends OrderRepositoryTest
+{
+    @Rule
+    public ConfigurationRule rule = new ConfigurationRule();
+
+    @Before
+    @Override
+    public void setUp() throws Exception
+    {
+        // Make sure we're using a clean repository.
+        RepositoryFactory.reset("mongodb");
+        super.setUp();
+    }
+
+    @Test
+    @Override
+
+    public void testHasOrder()
+    {
+        super.testHasOrder();
+    }
+
+    @Test
+    @Override
+    public void testGetOrder()
+    {
+        super.testGetOrder();
+    }
+
+    @Test
+    @Override
+    public void testGetOrdersByQuoteId()
+    {
+        super.testGetOrdersByQuoteId();
+    }
+
+    @Test
+    @Override
+    public void testGetOrdersByStatus()
+    {
+        super.testGetOrdersByStatus();
+    }
+
+    @Test
+    @Override
+    public void testGetOrdersByDealerName()
+    {
+        super.testGetOrdersByDealerName();
+    }
+
+    @Test
+    @Override
+    public void testCreateOrder() throws Exception
+    {
+        super.testCreateOrder();
+    }
+
+    @Test
+    @Override
+    public void testUpdateOrder() throws Exception
+    {
+        super.testUpdateOrder();
+    }
+
+    @Test
+    @Override
+    public void testUpdateOrder1() throws Exception
+    {
+        super.testUpdateOrder1();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/mongodb/test/MongoQuoteRepositoryTest.java
+================================================
+package smpl.ordering.repositories.mongodb.test;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import smpl.ordering.ConfigurationRule;
+import smpl.ordering.repositories.QuoteRepositoryTest;
+import smpl.ordering.repositories.RepositoryFactory;
+
+@SuppressWarnings("EmptyMethod")
+@Category(IntegrationTests.class)
+public class MongoQuoteRepositoryTest
+        extends QuoteRepositoryTest
+{
+    @Rule
+    public ConfigurationRule rule = new ConfigurationRule();
+
+    @Before
+    @Override
+    public void setUp() throws Exception
+    {
+        // Make sure we're using a clean repository.
+        RepositoryFactory.reset("mongodb");
+        super.setUp();
+    }
+
+    @Test
+    @Override
+    public void testGetQuote()
+    {
+        super.testGetQuote();
+    }
+
+    @Test
+    @Override
+    public void testGetQuotesByCustomerName()
+    {
+        super.testGetQuotesByCustomerName();
+    }
+
+    @Test
+    @Override
+    public void testCreateQuote() throws Exception
+    {
+        super.testCreateQuote();
+    }
+
+    @Test
+    @Override
+    public void testUpdateQuote()
+    {
+        super.testUpdateQuote();
+    }
+
+    @Test
+    @Override
+    public void testRemoveQuote()
+    {
+        super.testRemoveQuote();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/repositories/mongodb/test/MongoShipmentRepositoryTest.java
+================================================
+package smpl.ordering.repositories.mongodb.test;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import smpl.ordering.BadRequestException;
+import smpl.ordering.ConfigurationRule;
+import smpl.ordering.repositories.RepositoryFactory;
+import smpl.ordering.repositories.ShipmentRepositoryTest;
+
+@SuppressWarnings("EmptyMethod")
+@Category(IntegrationTests.class)
+public class MongoShipmentRepositoryTest extends ShipmentRepositoryTest
+{
+    @Rule
+    public ConfigurationRule rule = new ConfigurationRule();
+
+    @Before
+    @Override
+    public void setUp() throws Exception
+    {
+        // Make sure we're using a clean repository.
+        RepositoryFactory.reset("mongodb");
+        super.setUp();
+    }
+
+    @Override
+    @Test
+    public void testGetShipmentById()
+    {
+        super.testGetShipmentById();
+    }
+
+    @Override
+    @Test
+    public void testGetShipments()
+    {
+        super.testGetShipments();
+    }
+
+    @Override
+    @Test
+    public void testCreateShipment() throws BadRequestException
+    {
+        super.testCreateShipment();
+    }
+
+    @Override
+    @Test
+    public void testUpdateShipment()
+    {
+        super.testUpdateShipment();
+    }
+
+    @Override
+    @Test
+    public void testAddEvent()
+    {
+        super.testAddEvent();
+    }
+
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/resources/application.properties
+================================================
+###########
+# This properties file is intended to be used for running unit tests.
+###########
+
+#
+# Service configuration, applies to Spring Boot, not when deploying under
+# an application server, for which configuration is done separately.
+#
+server.port: 8080
+management.port: 8081
+management.address: 127.0.0.1
+
+#
+# Configuration elements specific to the Fabrikant ordering service.
+# Test against in-memory repositories except for those tests that are explicitly testing
+# persistent store-based repositories.
+#
+ordering.storage: memory
+ordering.pingMessage: Testing
+ordering.validationMessage: Testing
+
+# MongoDB server used for unit tests.
+mongodb.host: localhost
+# Use a database separate from the production database.
+mongodb.database: orderingtest
+
+
+
+
+================================================
+FILE: src/Clients/README.md
+================================================
+# Building the Client #
+
+The MRP client is a static website.  The build process here creates a single archive (war) file that is used by the Tomcat host for the site.
+
+## Windows ##
+
+Building on Windows the following command is used to build the client WAR file.
+
+```
+.\gradlew.bat build
+
+```
+This creates the ```mrp.war``` in the ```./build/libs``` directory.
+
+## Linux ##
+
+Building on Linux the following command is used to build the client WAR file.
+
+```
+# ensure the 'gradlew' is executable
+chmod +x gradlew
+
+# now build
+./gradlew build
+
+```
+
+## Cleaning all builds ##
+
+### Windows ###
+
+Run ```removeBuild.bat``` to remove the ```./build``` directory.
+
+### Linux ###
+
+On Linux remove the ```./build``` with the following command to 'clean'
+
+```
+rm -rf ./build
+```
+
+## MRP.war file ##
+
+Ensure you copy or move the ```./build/libs/mrp.war``` file to your location needed to run.
+
+
+
+
+================================================
+FILE: src/Clients/gradlew
+================================================
+#!/usr/bin/env bash
+
+##############################################################################
+##
+##  Gradle start up script for UN*X
+##
+##############################################################################
+
+# Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
+DEFAULT_JVM_OPTS=""
+
+APP_NAME="Gradle"
+APP_BASE_NAME=`basename "$0"`
+
+# Use the maximum available, or set MAX_FD != -1 to use that value.
+MAX_FD="maximum"
+
+warn ( ) {
+    echo "$*"
+}
+
+die ( ) {
+    echo
+    echo "$*"
+    echo
+    exit 1
+}
+
+# OS specific support (must be 'true' or 'false').
+cygwin=false
+msys=false
+darwin=false
+case "`uname`" in
+  CYGWIN* )
+    cygwin=true
+    ;;
+  Darwin* )
+    darwin=true
+    ;;
+  MINGW* )
+    msys=true
+    ;;
+esac
+
+# For Cygwin, ensure paths are in UNIX format before anything is touched.
+if $cygwin ; then
+    [ -n "$JAVA_HOME" ] && JAVA_HOME=`cygpath --unix "$JAVA_HOME"`
+fi
+
+# Attempt to set APP_HOME
+# Resolve links: $0 may be a link
+PRG="$0"
+# Need this for relative symlinks.
+while [ -h "$PRG" ] ; do
+    ls=`ls -ld "$PRG"`
+    link=`expr "$ls" : '.*-> \(.*\)$'`
+    if expr "$link" : '/.*' > /dev/null; then
+        PRG="$link"
+    else
+        PRG=`dirname "$PRG"`"/$link"
+    fi
+done
+SAVED="`pwd`"
+cd "`dirname \"$PRG\"`/" >&-
+APP_HOME="`pwd -P`"
+cd "$SAVED" >&-
+
+CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+
+# Determine the Java command to use to start the JVM.
+if [ -n "$JAVA_HOME" ] ; then
+    if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
+        # IBM's JDK on AIX uses strange locations for the executables
+        JAVACMD="$JAVA_HOME/jre/sh/java"
+    else
+        JAVACMD="$JAVA_HOME/bin/java"
+    fi
+    if [ ! -x "$JAVACMD" ] ; then
+        die "ERROR: JAVA_HOME is set to an invalid directory: $JAVA_HOME
+
+Please set the JAVA_HOME variable in your environment to match the
+location of your Java installation."
+    fi
+else
+    JAVACMD="java"
+    which java >/dev/null 2>&1 || die "ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
+
+Please set the JAVA_HOME variable in your environment to match the
+location of your Java installation."
+fi
+
+# Increase the maximum file descriptors if we can.
+if [ "$cygwin" = "false" -a "$darwin" = "false" ] ; then
+    MAX_FD_LIMIT=`ulimit -H -n`
+    if [ $? -eq 0 ] ; then
+        if [ "$MAX_FD" = "maximum" -o "$MAX_FD" = "max" ] ; then
+            MAX_FD="$MAX_FD_LIMIT"
+        fi
+        ulimit -n $MAX_FD
+        if [ $? -ne 0 ] ; then
+            warn "Could not set maximum file descriptor limit: $MAX_FD"
+        fi
+    else
+        warn "Could not query maximum file descriptor limit: $MAX_FD_LIMIT"
+    fi
+fi
+
+# For Darwin, add options to specify how the application appears in the dock
+if $darwin; then
+    GRADLE_OPTS="$GRADLE_OPTS \"-Xdock:name=$APP_NAME\" \"-Xdock:icon=$APP_HOME/media/gradle.icns\""
+fi
+
+# For Cygwin, switch paths to Windows format before running java
+if $cygwin ; then
+    APP_HOME=`cygpath --path --mixed "$APP_HOME"`
+    CLASSPATH=`cygpath --path --mixed "$CLASSPATH"`
+
+    # We build the pattern for arguments to be converted via cygpath
+    ROOTDIRSRAW=`find -L / -maxdepth 1 -mindepth 1 -type d 2>/dev/null`
+    SEP=""
+    for dir in $ROOTDIRSRAW ; do
+        ROOTDIRS="$ROOTDIRS$SEP$dir"
+        SEP="|"
+    done
+    OURCYGPATTERN="(^($ROOTDIRS))"
+    # Add a user-defined pattern to the cygpath arguments
+    if [ "$GRADLE_CYGPATTERN" != "" ] ; then
+        OURCYGPATTERN="$OURCYGPATTERN|($GRADLE_CYGPATTERN)"
+    fi
+    # Now convert the arguments - kludge to limit ourselves to /bin/sh
+    i=0
+    for arg in "$@" ; do
+        CHECK=`echo "$arg"|egrep -c "$OURCYGPATTERN" -`
+        CHECK2=`echo "$arg"|egrep -c "^-"`                                 ### Determine if an option
+
+        if [ $CHECK -ne 0 ] && [ $CHECK2 -eq 0 ] ; then                    ### Added a condition
+            eval `echo args$i`=`cygpath --path --ignore --mixed "$arg"`
+        else
+            eval `echo args$i`="\"$arg\""
+        fi
+        i=$((i+1))
+    done
+    case $i in
+        (0) set -- ;;
+        (1) set -- "$args0" ;;
+        (2) set -- "$args0" "$args1" ;;
+        (3) set -- "$args0" "$args1" "$args2" ;;
+        (4) set -- "$args0" "$args1" "$args2" "$args3" ;;
+        (5) set -- "$args0" "$args1" "$args2" "$args3" "$args4" ;;
+        (6) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" ;;
+        (7) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" "$args6" ;;
+        (8) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" "$args6" "$args7" ;;
+        (9) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" "$args6" "$args7" "$args8" ;;
+    esac
+fi
+
+# Split up the JVM_OPTS And GRADLE_OPTS values into an array, following the shell quoting and substitution rules
+function splitJvmOpts() {
+    JVM_OPTS=("$@")
+}
+eval splitJvmOpts $DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS
+JVM_OPTS[${#JVM_OPTS[*]}]="-Dorg.gradle.appname=$APP_BASE_NAME"
+
+exec "$JAVACMD" "${JVM_OPTS[@]}" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+
+
+
+================================================
+FILE: src/Clients/gradlew.bat
+================================================
+@if "%DEBUG%" == "" @echo off
+@rem ##########################################################################
+@rem
+@rem  Gradle startup script for Windows
+@rem
+@rem ##########################################################################
+
+@rem Set local scope for the variables with windows NT shell
+if "%OS%"=="Windows_NT" setlocal
+
+@rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
+set DEFAULT_JVM_OPTS=
+
+set DIRNAME=%~dp0
+if "%DIRNAME%" == "" set DIRNAME=.
+set APP_BASE_NAME=%~n0
+set APP_HOME=%DIRNAME%
+
+@rem Find java.exe
+if defined JAVA_HOME goto findJavaFromJavaHome
+
+set JAVA_EXE=java.exe
+%JAVA_EXE% -version >NUL 2>&1
+if "%ERRORLEVEL%" == "0" goto init
+
+echo.
+echo ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
+echo.
+echo Please set the JAVA_HOME variable in your environment to match the
+echo location of your Java installation.
+
+goto fail
+
+:findJavaFromJavaHome
+set JAVA_HOME=%JAVA_HOME:"=%
+set JAVA_EXE=%JAVA_HOME%/bin/java.exe
+
+if exist "%JAVA_EXE%" goto init
+
+echo.
+echo ERROR: JAVA_HOME is set to an invalid directory: %JAVA_HOME%
+echo.
+echo Please set the JAVA_HOME variable in your environment to match the
+echo location of your Java installation.
+
+goto fail
+
+:init
+@rem Get command-line arguments, handling Windowz variants
+
+if not "%OS%" == "Windows_NT" goto win9xME_args
+if "%@eval[2+2]" == "4" goto 4NT_args
+
+:win9xME_args
+@rem Slurp the command line arguments.
+set CMD_LINE_ARGS=
+set _SKIP=2
+
+:win9xME_args_slurp
+if "x%~1" == "x" goto execute
+
+set CMD_LINE_ARGS=%*
+goto execute
+
+:4NT_args
+@rem Get arguments from the 4NT Shell from JP Software
+set CMD_LINE_ARGS=%$
+
+:execute
+@rem Setup the command line
+
+set CLASSPATH=%APP_HOME%\gradle\wrapper\gradle-wrapper.jar
+
+@rem Execute Gradle
+"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" org.gradle.wrapper.GradleWrapperMain %CMD_LINE_ARGS%
+
+:end
+@rem End local scope for the variables with windows NT shell
+if "%ERRORLEVEL%"=="0" goto mainEnd
+
+:fail
+rem Set variable GRADLE_EXIT_CONSOLE if you need the _script_ return code instead of
+rem the _cmd.exe /c_ return code!
+if  not "" == "%GRADLE_EXIT_CONSOLE%" exit 1
+exit /b 1
+
+:mainEnd
+if "%OS%"=="Windows_NT" endlocal
+
+:omega
+
+
+
+================================================
+FILE: src/Clients/removeBuild.bat
+================================================
+rd /S /Q build > NUL 2>&1
+
+
+
+================================================
+FILE: src/Clients/gradle/wrapper/gradle-wrapper.properties
+================================================
+#Wed Jan 28 14:56:44 PST 2015
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+distributionUrl=http\://services.gradle.org/distributions/gradle-2.1-bin.zip
+
+
+
+================================================
+FILE: src/Clients/Web/default.html
+================================================
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Parts Unlimited</title>
+
+    <!-- WinJS references -->
+    <link href="winjs/css/ui-light.css" rel="stylesheet" />
+    <script src="winjs/js/winjs.js"></script>
+
+    <!-- Fabrikam references -->
+    <link href="css/default.css" rel="stylesheet" />
+    <script src="js/serverconfig.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/navigator.js"></script>
+    <script src="js/date.js"></script>
+    <script src="js/default.js"></script>
+    <script src="controls/edittools/edittools.js"></script>
+    <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?libraries=places"></script>
+</head>
+<body>
+    <ul class="navigation">
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Home', icon: 'url(images/FabrikamIcon.png)', page:'main' }"></div>
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Dealers', icon: 'url(images/DealersIcon.png)', page:'dealers' }"></div>
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Quotes', icon: 'url(images/QuoteIcon.png)', page:'quotes' }"></div>
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Orders', icon: 'url(images/OrderIcon.png)', page:'orders' }"></div>
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Deliveries', icon: 'url(images/DeliveryIcon.png)', page:'deliveries' }"></div>
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Catalog', icon: 'url(images/CatalogIcon.png)', page:'catalog' }"></div>
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Settings', icon: 'url(images/SettingsIcon.png)', page:'settings' }"></div>
+    </ul>
+
+    <div id="progressUnderlay" class="progressUnderlay"></div>
+    <div id="progressContainer" class="progressContainer">
+        <div class="progressMessageContainer win-type-x-large">
+            <h2 id="progressMessage">Starting...</h2>
+        </div>
+        <progress id="progressRing" style="color: #09F;" class="win-large win-ring progressLocation"></progress>
+    </div>
+
+    <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+    <label for="nav-trigger"></label>
+    <div id="contenthost" data-win-control="Application.PageControlNavigator" data-win-options="{home: 'pages/main/main.html'}"></div>
+    <div id="confirmdialog">
+        <div data-win-control="WinJS.UI.ContentDialog" data-win-options="{
+             title: 'The title',
+             primaryCommandText: 'Yes',
+             secondaryCommandText: 'No'
+        }">
+        </div>
+    </div>
+</body>
+</html>
+
+
+
+================================================
+FILE: src/Clients/Web/index.html
+================================================
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Parts Unlimited MRP - Demo</title>
+
+    <!-- WinJS references -->
+    <link href="winjs/css/ui-light.css" rel="stylesheet" />
+    <script src="winjs/js/winjs.js"></script>
+
+    <!-- Parts Unlimited references -->
+    <link href="css/default.css" rel="stylesheet" />
+    <script src="js/serverconfig.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/navigator.js"></script>
+    <script src="js/date.js"></script>
+    <script src="js/default.js"></script>
+    <script src="controls/edittools/edittools.js"></script>
+    <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?libraries=places"></script>
+</head>
+<body>
+    <ul class="navigation">
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Home', icon: 'url(images/FabrikamIcon.png)', page:'main' }"></div>
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Dealers', icon: 'url(images/DealersIcon.png)', page:'dealers' }"></div>
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Quotes', icon: 'url(images/QuoteIcon.png)', page:'quotes' }"></div>
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Orders', icon: 'url(images/OrderIcon.png)', page:'orders' }"></div>
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Deliveries', icon: 'url(images/DeliveryIcon.png)', page:'deliveries' }"></div>
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Catalog', icon: 'url(images/CatalogIcon.png)', page:'catalog' }"></div>
+        <div class="navigationButton" data-win-control="WinJS.UI.NavBarCommand" data-win-options="{ label: 'Settings', icon: 'url(images/SettingsIcon.png)', page:'settings' }"></div>
+    </ul>
+
+    <div id="progressUnderlay" class="progressUnderlay"></div>
+    <div id="progressContainer" class="progressContainer">
+        <div class="progressMessageContainer win-type-x-large">
+            <h2 id="progressMessage">Starting...</h2>
+        </div>
+        <progress id="progressRing" style="color: #09F;" class="win-large win-ring progressLocation"></progress>
+    </div>
+
+    <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+    <label for="nav-trigger"></label>
+    <div id="contenthost" data-win-control="Application.PageControlNavigator" data-win-options="{home: 'pages/main/main.html'}"></div>
+    <div id="confirmdialog">
+        <div data-win-control="WinJS.UI.ContentDialog" data-win-options="{
+             title: 'The title',
+             primaryCommandText: 'Yes',
+             secondaryCommandText: 'No'
+        }">
+        </div>
+    </div>
+</body>
+</html>
+
+
+
+================================================
+FILE: src/Clients/Web/controls/edittools/edittools.css
+================================================
+﻿.edittools {
+    display: block;
+    height: 40px;
+}
+
+.edit-tools-button {
+    min-width: 60px;
+    min-height: 40px;
+    width: 60px;
+    margin: 0px;
+    padding: 0px;
+    height: 40px;
+    background-color: transparent;
+    border: none;
+    font-family: "Segoe UI Symbol", "Symbols";
+    font-size: 18pt;
+}
+
+
+
+================================================
+FILE: src/Clients/Web/controls/edittools/edittools.html
+================================================
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>edittools</title>
+
+    <link href="edittools.css" rel="stylesheet" />
+    <script src="edittools.js"></script>
+</head>
+<body>
+    <div id="edittools-template" class="edittools win-disposable">
+        <button id="edit-tools-delete" class="edit-tools-button" type="button" title="Delete">
+            <label class="edit-tools-button-label" data-label="delete"></label>
+        </button>
+        <button id="edit-tools-save" class="edit-tools-button" type="button" title="Save">
+            <label class="edit-tools-button-label" data-label="save"></label>
+        </button>
+        <button id="edit-tools-edit" class="edit-tools-button" type="button" title="Add">
+            <label class="edit-tools-button-label" data-label="add"></label>
+        </button>
+        <button id="edit-tools-edit" class="edit-tools-button" type="button" title="Order">
+            <label class="edit-tools-button-label" data-label="edit"></label>
+        </button>
+    </div>
+</body>
+</html>
+
+
+
+================================================
+FILE: src/Clients/Web/controls/edittools/edittools.js
+================================================
+﻿(function () {
+    "use strict";
+
+    var controlTemplate = null;
+    var templateInitPromise = null;
+
+    // This will load and cache the control's template.
+    // This happens the first time an instance of the control is created, or when you call Controls.EditTools.cacheControlTemplate
+    function loadControlTemplate() {
+        if (!templateInitPromise) {
+            var controlFragment = document.createElement("div");
+            templateInitPromise = WinJS.UI.Fragments.render("controls/edittools/edittools.html", controlFragment).then(function () {
+                controlTemplate = new WinJS.Binding.Template(controlFragment.querySelector("#edittools-template"));
+                controlTemplate._renderImpl = controlTemplate._compileTemplate({ target: "render" });
+            });
+        }
+        return templateInitPromise;
+    }
+
+    var EditTools = WinJS.Class.define(function (element, options) {
+        var options = options || {};
+        this.element = element || document.createElement("div");
+        this.element.winControl = this;
+        WinJS.UI.setOptions(this, options);
+
+        this.controlInitialized = false;
+        var that = this;
+        this.initPromise = loadControlTemplate().then(function () {
+            that.element.className = controlTemplate.element.className;
+            return controlTemplate.render(options.dataSource, that.element).then(
+                function (element) {
+                    that._initialize();
+                    that.controlInitialized = true;
+                });
+        });
+    }
+    , {
+        _initialize: function () {
+            var that = this;
+            var labels = this.element.querySelectorAll(".edit-tools-button-label");
+            for (var n = 0; n < labels.length; n++) {
+                var label = labels[n];
+                if (WinJS.UI.AppBarIcon[label.dataset.label]) {
+                    label.textContent = WinJS.UI.AppBarIcon[label.dataset.label];
+                }
+                else {
+                    label.textContent = label.dataset.label;
+                }
+                label.parentElement.dataset.label = label.dataset.label;
+            }
+
+            var buttons = this.getButtons();
+            Object.keys(buttons).forEach(function (buttonKey) {
+                var button = buttons[buttonKey];
+                button.addEventListener("click", function () {
+                    that.dispatchEvent("click", {
+                        sender: button,
+                        label: this.dataset.label
+                    });
+                });
+            });
+        },
+
+        ensureInitialized: function () {
+            return this.initPromise;
+        },
+
+        dispose: function () {
+            // TODO: Control clean-up
+            this._disposed = true;
+        },
+
+        getButtons: function () {
+            var buttons = {};
+            var buttonElements = this.element.querySelectorAll(".edit-tools-button");
+            for (var n = 0; n < buttonElements.length; n++) {
+                var buttonElement = buttonElements[n];
+                buttons[buttonElement.dataset.label] = buttonElement;
+            }
+            return buttons;
+        }
+    },
+    {
+        cacheControlTemplate: function () {
+            return loadControlTemplate();
+        },
+    });
+
+    WinJS.Namespace.define("Controls", {
+        EditTools: EditTools,
+    });
+})();
+
+WinJS.Class.mix(Controls.EditTools,
+    WinJS.Utilities.createEventProperties("click"),
+    WinJS.UI.DOMEventMixin);
+
+
+================================================
+FILE: src/Clients/Web/css/default.css
+================================================
+﻿body {
+    overflow-x: hidden;
+    font-weight: 400;
+}
+
+input[type=text] {
+    font-size: 9pt;
+}
+
+select {
+    font-size: 9pt;
+    padding: 2px 10px 5px 6px;
+    min-height: 28px;
+    margin-bottom: 8px;
+    margin-top: 8px;
+    height: 28px;
+}
+
+/*
+Weight and size definitions for typographic classes and elements.
+*/
+h1, .win-type-xx-large {
+    font-size: 42pt;
+    font-weight: 200;
+    letter-spacing: 0;
+    line-height: 1.1429; /* 64px when font-size is 42pt */
+}
+
+h2, .win-type-x-large {
+    font-size: 20pt;
+    font-weight: 200;
+    line-height: 1.2; /* 32px when font-size is 20pt */
+}
+
+h3, .win-type-large {
+    font-size: 11pt;
+    font-weight: 600;
+    line-height: 1.3636; /* 20px when font-size is 11pt */
+}
+
+h4, .win-type-medium, code, pre, samp {
+    font-size: 11pt;
+    font-weight: 400;
+    line-height: 1.3636; /* 20px when font-size is 11pt */
+}
+
+body, h5, .win-type-small, legend {
+    font-size: 11pt;
+    font-weight: 300;
+    line-height: 1.3636; /* 20px when font-size is 11pt */
+}
+
+.win-type-x-small {
+    font-size: 11pt;
+    font-weight: 300;
+    line-height: 1.3636; /* 20px when font-size is 11pt */
+}
+
+h6, caption, figcaption, small, .win-type-xx-small {
+    font-size: 9pt;
+    font-weight: 400;
+    line-height: 1.6667; /* 20px when font-size is 9pt */
+}
+
+h1, h2, h3, h4, h5, h6 {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+#launchpad {
+    height: 300px;
+    width: 640px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 100px;
+}
+
+#companylogo {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+#launchtiles {
+    display: flex;
+    margin-top: 100px;
+}
+
+.launchtile {
+    width: 140px;
+    height: 85px;
+    background-color: #E0E0E0;
+    margin: 10px;
+}
+
+.launchtilelogo {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.launchtiletitle {
+    text-align: center;
+}
+
+.launchtileinner {
+}
+
+#contenthost {
+    min-width: 100%;
+    min-height: 100%;
+    background-color: #fff;
+    position: absolute;
+    top: 0;
+    bottom: 100%;
+    left: 0;
+    z-index: 1;
+}
+
+.titlearea {
+    float: left;
+    height: 40px;
+    margin-top: 3px;
+}
+
+.fragment {
+    height: 100%;
+    width: 100%;
+}
+
+    .fragment section[role=main] {
+        margin: auto 40px;
+        height: calc(100% - 60px);
+    }
+
+.navigation {
+    margin: 0px;
+    padding: 52px 0px 0px 10px;
+    list-style: none;
+    background: #E0E0E0;
+    width: 400px;
+    height: 100%;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 0;
+}
+
+.header-cover {
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    height: 44px;
+    width: 100%;
+    background-color: #E0E0E0;
+    z-index: 1;
+}
+
+.nav-cover {
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    height: 44px;
+    width: 70px;
+    background-color: #E0E0E0;
+    z-index: 2;
+}
+
+.nav-trigger {
+    position: absolute;
+    clip: rect(0, 0, 0, 0);
+}
+
+label[for="nav-trigger"] {
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    z-index: 2;
+    width: 52px;
+    height: 44px;
+    cursor: pointer;
+    background-image: url('../images/hamburger.png');
+    background-size: 30px;
+    background-repeat: no-repeat;
+    background-position-x: 12px;
+    background-position-y: 10px;
+    background-color: #C0C0C0;
+}
+
+.nav-trigger:checked + label {
+    left: 200px;
+}
+
+.nav-trigger:checked ~ #contenthost {
+    left: 200px;
+    box-shadow: 0 0 5px 5px rgba(0,0,0,0.5);
+}
+
+.nav-trigger + label, #contenthost {
+    transition: ease-in-out left 0.3s;
+}
+
+.navigationButton {
+}
+
+.win-navbarcommand-button,
+.win-navbarcommand-splitbutton {
+    background-color: transparent;
+    color: #000000;
+}
+
+h2 {
+    font-size: 28px;
+    font-weight: 100;
+    font-family: arial;
+}
+
+.progressUnderlay {
+    position: absolute;
+    left: 0px;
+    top: 44px;
+    width: 100%;
+    height: 100%;
+    z-index: 90;
+    background-color: black;
+    opacity: 0.0;
+    transition-property: opacity;
+    transition-timing-function: ease;
+    transition-duration: 0.3s;
+}
+
+.progressContainer {
+    display: flex;
+    justify-content: center;
+    align-content: center;
+    flex-direction: column;
+    width: 350px;
+    height: 240px;
+    position: absolute;
+    top: calc(50% - 125px);
+    left: calc(50% - 175px);
+    z-index: 100;
+    color: black;
+    margin-left: 12px;
+    margin-top: 0px;
+    background-color: black;
+    opacity: 0.75;
+}
+
+.progressMessageContainer {
+    color: #09F;
+    margin-bottom: 10px;
+}
+
+#progressMessage {
+    display: flex;
+    justify-content: center;
+    align-content: center;
+    flex-direction: row;
+    margin-bottom: 10px;
+}
+
+.progressLocation {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    color: #09F;
+}
+
+.page-header {
+    background-color: #E0E0E0;
+    height: 44px;
+}
+
+.page-header-home {
+    float: left;
+    margin-left: 60px;
+    margin-right: 10px;
+    padding: 0px;
+    display: inline;
+    background-color: transparent;
+    border-style: none;
+    height: 44px;
+    min-width: 60px;
+}
+
+    .page-header-home img {
+        margin-top: 2px;
+        height: 40px;
+    }
+
+.edittools {
+    margin-left: 10px;
+    margin-top: 10px;
+}
+
+.itemListView {
+    float: left;
+    margin-top: 10px;
+    width: 320px;
+    height: calc(100% - 100px);
+}
+
+.listItem {
+    margin: 14px;
+}
+
+.list-item-entry-small {
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.editDetail {
+    float: left;
+    margin-top: 10px;
+    margin-left: 20px;
+    width: 50%;
+    background: #F0F0F0;
+    padding: 10px;
+    max-height: calc(100% - 120px);
+    overflow-y: auto;
+}
+
+    .editDetail .horizontalDetail {
+        display: inline-block;
+        width: 100%;
+    }
+
+        .editDetail .horizontalDetail .horizontalDetailCol {
+            display: inline-block;
+            width: 32%;
+        }
+
+    .editDetail input[type=text] {
+        float: left;
+        width: calc(100% - 20px);
+    }
+
+    .editDetail .selectinput {
+        float: left;
+        width: calc(100% - 20px);
+    }
+
+    .editDetail .inputlabel {
+        float: left;
+        width: 30%;
+        font-size: 11pt;
+        font-weight: 600;
+        line-height: 1.3636;
+    }
+
+    .editDetail .horizontalDetail .inputlabel {
+        height: 24px;
+        margin-top: 12px;
+        width: 46%;
+    }
+
+    .editDetail .buttonlabel {
+        margin-right: 8px;
+        font-weight: 400;
+    }
+
+    .editDetail .horizontalDetail input {
+        height: 24px;
+        margin-right: 0px;
+        width: 50%;
+    }
+
+.detailExpander {
+    display: inline-block;
+    width: 100%;
+}
+
+.pagePopup .win-contentdialog .win-contentdialog-dialog {
+    max-width: 768px;
+    max-height: 640px;
+}
+
+.pagePopup .win-contentdialog .win-contentdialog-scroller {
+    height: 380px;
+    overflow: hidden;
+}
+
+.pagePopup .fragment {
+    height: 360px;
+    overflow: hidden;
+}
+
+    .pagePopup .fragment section[role=main] {
+        margin: auto 0px;
+        height: 100%;
+    }
+
+.pagePopup .itemListView {
+    height: calc(100% - 50px);
+    max-height: calc(100% - 50px);
+    width: calc(50% - 22px);
+    margin-top: 0px;
+}
+
+.pagePopup .editDetail {
+    float: right;
+    max-height: calc(100% - 60px);
+    margin-left: 10px;
+    width: calc(50% - 22px);
+    margin-top: 0px;
+}
+
+    .pagePopup .editDetail input[type=text] {
+        width: 100%;
+    }
+
+.pagePopup .edittools {
+}
+
+#confirmdialog {
+    z-index: 1000;
+}
+
+.textinput-multiline {
+}
+
+.win-container.win-selected .win-selectionborder {
+    border-width: 2px;
+    border-style: solid;
+}
+
+html.win-hoverable .win-container.win-selected:hover .win-selectionborder {
+    border-width: 2px;
+    border-style: solid;
+}
+
+.win-selectioncheckmarkbackground {
+    display: none;
+}
+
+
+
+================================================
+FILE: src/Clients/Web/js/data.js
+================================================
+﻿(function () {
+    "use strict";
+
+    var rest_headers = { "Content-type": "application/json", "Pragma": "no-cache", "Cache-Control": "no-cache", "If-Modified-Since": new Date(0).toUTCString() };
+
+    var dealers = new WinJS.Binding.List().createSorted(function (l, r) {
+        return l.name < r.name ? -1 : l.name === r.name ? 0 : 1;
+    });
+
+    var catalog = new WinJS.Binding.List().createSorted(function (l, r) {
+        return l.skuNumber < r.skuNumber ? -1 : l.skuNumber === r.skuNumber ? 0 : 1;
+    });
+
+    var quotes = new WinJS.Binding.List().createSorted(function (l, r) {
+        return l.validUntil < r.validUntil ? -1 : l.validUntil === r.validUntil ? 0 : 1;
+    });
+
+    var orders = new WinJS.Binding.List().createSorted(function (l, r) {
+        return l.orderDate < r.orderDate ? -1 : l.orderDate === r.orderDate ? 0 : 1;
+    });
+
+    var deliveries = new WinJS.Binding.List().createSorted(function (l, r) {
+        return l.deliveryDate > r.deliveryDate ? -1 : l.deliveryDate === r.deliveryDate ? 0 : 1;
+    });
+
+    WinJS.Namespace.define("Data", {
+        dealers: dealers,
+        dealersGet: dealersGet,
+        dealerSave: dealerSave,
+        dealerDelete: dealerDelete,
+        dealerCreate: dealerCreate,
+        catalog: catalog,
+        catalogGet: catalogGet,
+        catalogSave: catalogSave,
+        catalogDelete: catalogDelete,
+        catalogCreate: catalogCreate,
+        catalogFindSku: catalogFindSku,
+        quotes: quotes,
+        quotesGet: quotesGet,
+        quoteGetById: quoteGetById,
+        quoteSave: quoteSave,
+        quoteDelete: quoteDelete,
+        quoteCreate: quoteCreate,
+        orders: orders,
+        ordersGet: ordersGet,
+        orderGetById: orderGetById,
+        orderSave: orderSave,
+        orderDelete: orderDelete,
+        orderCreateFromQuote: orderCreateFromQuote,
+        orderFindById: orderFindById,
+        deliveries: deliveries,
+        deliveriesGet: deliveriesGet,
+        deliverySave: deliverySave,
+        deliveryDelete: deliveryDelete,
+        deliveryCreateFromOrder: deliveryCreateFromOrder,
+        deliveryFindById: deliveryFindById
+    });
+
+    function deliveriesGet() {
+
+        return WinJS.xhr({ url: baseAddress + "/shipments", headers: rest_headers }).then(function (response) {
+            if (response.status == 0) {
+                reporterror("Could not retrieve deliveries", "Unfortunately, the server could not be contacted in order to retrieve delivery details.", "");
+                return false;
+            }
+            Data.deliveries.splice(0, Data.deliveries.length);
+            var theDeliveries = JSON.parse(response.responseText);
+            theDeliveries.forEach(function processDealerData(deliveryData) {
+                if (!deliveryData.deliveryDate) {
+                    deliveryData.deliveryDate = Date.today().addMonths(2).toString("M/d/yyyy");
+                }
+                Data.deliveries.push(WinJS.Binding.as(deliveryData));
+            });
+            return WinJS.Promise.wrap(Data.deliveries);
+        }, function (err) {
+            reporterror("Could not retrieve deliveries", "Unfortunately, the server could not be contacted in order to retrieve delivery details.", err);
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function deliverySaveEdits(delivery) {
+        var rawdelivery = delivery;
+        if (delivery.backingData) {
+            rawdelivery = delivery.backingData;
+        }
+        return WinJS.xhr({
+            type: 'put',
+            url: baseAddress + "/shipments/" + encodeURIComponent(delivery.orderId),
+            headers: rest_headers,
+            data: JSON.stringify(rawdelivery),
+        }).then(function (response) {
+            return WinJS.Promise.wrap(delivery);
+        }, function (response) {
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function deliverySaveNew(delivery) {
+        var rawdelivery = delivery;
+        if (delivery.backingData) {
+            rawdelivery = delivery.backingData;
+        }
+        return WinJS.xhr({
+            type: 'post',
+            url: baseAddress + "/shipments",
+            headers: rest_headers,
+            data: JSON.stringify(rawdelivery),
+        }).then(function (response) {
+            return WinJS.Promise.wrap(delivery);
+        }, function (response) {
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function deliverySave(delivery, original) {
+        if (delivery.__new) {
+            return deliverySaveNew(delivery).then(function (saveddelivery) {
+                return orderSave(delivery.__order, original.__order).then(function () {
+                    return saveddelivery;
+                });
+            });
+        }
+        else {
+            return deliverySaveEdits(delivery, original).then(function (saveddelivery) {
+                return orderSave(delivery.__order, original.__order).then(function () {
+                    return saveddelivery;
+                });
+            });
+        }
+    }
+
+    function deliveryDelete(delivery) {
+        return WinJS.xhr({
+            type: 'delete',
+            url: baseAddress + "/shipments/" + encodeURIComponent(delivery.orderId)
+        }).then(function (response) {
+            if (response.status == 204) {
+                var index = deliveries.indexOf(delivery);
+                if (index > -1) {
+                    deliveries.splice(index, 1);
+                }
+            }
+            else if (response.status == 0) {
+                reporterror("Could not delete delivery", "Unfortunately, the server could not be contacted in order to retrieve delivery details.", "");
+                return false;
+            }
+            return WinJS.Promise.wrap(true);
+        }, function (response) {
+            return WinJS.Promise.wrap(false);
+        });
+    }
+
+
+    function deliveryCreateFromOrder(order) {
+        return WinJS.Promise.as(WinJS.Binding.as({
+            "orderId": order.orderId,
+            "deliveryDate": Date.today().addMonths(1).toString("M/d/yyyy"),
+            "events": [],
+            "deliveryAddress": {
+                "street": "",
+                "city": order.__quote.city,
+                "state": "",
+                "postalCode": order.__quote.postalCode,
+                "specialInstructions": ""
+            },
+            "contactName": order.__quote.customerName,
+            "primaryContactPhone": {
+                "phoneNumber": "",
+                "kind": "Mobile"
+            },
+            "alternateContactPhone": {
+                "phoneNumber": "",
+                "kind": "Work"
+            }
+        })).then(function (delivery) {
+            delivery.__new = true;
+            Data.deliveries.push(delivery);
+            return delivery;
+        });
+    }
+
+    function deliveryFindById(orderId) {
+        for (var n = 0; n < deliveries.length; n++) {
+            if (deliveries.getAt(n).orderId == orderId) {
+                return n;
+            }
+        }
+        return -1;
+    }
+
+
+    function orderFindById(orderId) {
+        for (var n = 0; n < orders.length; n++) {
+            if (orders.getAt(n).orderId == orderId) {
+                return n;
+            }
+        }
+        return -1;
+    }
+
+    function ordersGet(dealer, status) {
+
+        if (!dealer) {
+            dealer = "";
+        }
+
+        if (!status) {
+            status = "None";
+        }
+
+        return WinJS.xhr({ url: baseAddress + "/orders?dealer=" + encodeURIComponent(dealer) + "&status=" + encodeURIComponent(status), headers: rest_headers }).then(function (response) {
+            Data.orders.splice(0, Data.orders.length);
+            var theDealers = JSON.parse(response.responseText);
+            theDealers.forEach(function processDealerData(orderData) {
+                orders.push(WinJS.Binding.as(orderData));
+            });
+            return WinJS.Promise.wrap(orders);
+        }, function (err) {
+            reporterror("Could not retrieve orders", "Unfortunately, the server could not be contacted in order to retrieve order details.", err);
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function orderDelete(order) {
+        return WinJS.xhr({
+            type: 'delete',
+            url: baseAddress + "/orders/" + encodeURIComponent(order.orderId)
+        }).then(function (response) {
+            if (response.status == 204) {
+                var index = orders.indexOf(order);
+                if (index > -1) {
+                    orders.splice(index, 1);
+                }
+            }
+            else if (response.status == 0) {
+                reporterror("Could not delete order", "Unfortunately, the server could not be contacted in order to retrieve order details.", "");
+                return false;
+            }
+            return WinJS.Promise.wrap(true);
+        }, function (response) {
+            return WinJS.Promise.wrap(false);
+        });
+    }
+
+    function orderGetById(orderId) {
+
+        return WinJS.xhr({ url: baseAddress + "/orders/" + encodeURIComponent(orderId) + "?unique=" + Date.now(), headers: rest_headers }).then(function (response) {
+            Data.orders.splice(0, Data.orders.length);
+            var orderData = JSON.parse(response.responseText);
+
+            var order = WinJS.Binding.as(orderData);
+
+            return Data.quoteGetById(order.quoteId).then(function (quote) {
+                order.__quote = quote;
+                return order;
+            });
+        });
+    }
+
+    function orderAddEvent(orderId, event) {
+        return WinJS.xhr({
+            type: 'post',
+            url: baseAddress + "/orders/" + encodeURIComponent(orderId) + "/events",
+            headers: rest_headers,
+            data: JSON.stringify(event),
+        }).then(function (response) {
+            return WinJS.Promise.wrap(event);
+        }, function (response) {
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function orderSave(order, original) {
+        if (order.__new) {
+            return orderSaveNew(order).then(function (savedorder) {
+                return quoteSave(order.__quote).then(function () {
+                    return savedorder;
+                });
+            });
+        }
+        else {
+            return orderSaveEdits(order, original).then(function (savedorder) {
+                return quoteSave(order.__quote).then(function () {
+                    return savedorder;
+                });
+            });
+        }
+    }
+
+    function orderSaveEdits(order, original) {
+
+        return orderSaveEditsToStatus(order, original).then(function () {
+            var raworder = order;
+            if (order.backingData) {
+                raworder = order.backingData;
+            }
+            return WinJS.xhr({
+                type: 'put',
+                url: baseAddress + "/orders/" + encodeURIComponent(raworder.orderId),
+                headers: rest_headers,
+                data: JSON.stringify(raworder),
+            }).then(function (response) {
+                return WinJS.Promise.wrap(order);
+            }, function (response) {
+                return WinJS.Promise.wrap(null);
+            });
+        });
+    }
+
+    function orderSaveEditsToStatus(order, original) {
+        var statusSave = WinJS.Promise.as(order);
+        var statusChangeEvent = { date: Date.now().toString("M/d/yyyy hh:mm:ss tt"), comments: "Status change: " + order.status };
+
+        if (order.status != original.status) {
+            statusSave = WinJS.xhr({
+                type: 'put',
+                url: baseAddress + "/orders/" + encodeURIComponent(order.orderId) + "/status",
+                headers: rest_headers,
+                data: JSON.stringify({ status: order.status, eventInfo: statusChangeEvent }),
+            }).then(function (response) {
+                order.events.push(statusChangeEvent);
+                return WinJS.Promise.wrap(order);
+            }, function (response) {
+                return WinJS.Promise.wrap(null);
+            });
+        }
+
+        return statusSave;
+    }
+
+    function orderSaveEditsIndividually(order, original) {
+        var raworder = order;
+        if (order.backingData) {
+            raworder = order.backingData;
+        }
+
+        var statusSave = orderSaveEditsToStatus(order, original);
+        var eventSave = WinJS.Promise.as(order.events);
+
+        if (order.events.length != original.events.length || JSON.stringify(order.events) != JSON.stringify(original.events)) {
+            var toAdd = [];
+
+            var eventMap = {};
+            var originalEventMap = {};
+
+            for (var n = 0; n < order.events.length; n++) {
+                var theDate = new Date(order.events[n].date).toString("M/d/yyyy hh:mm:ss tt");
+                eventMap[theDate + order.events[n].comments] = order.events[n];
+            }
+
+            for (var n = 0; n < original.events.length; n++) {
+                var theDate = new Date(original.events[n].date).toString("M/d/yyyy hh:mm:ss tt");
+                originalEventMap[theDate + original.events[n].comments] = original.events[n];
+            }
+
+            Object.keys(eventMap).forEach(function (extraKey) {
+                if (!originalEventMap[extraKey]) {
+                    toAdd.push(eventMap[extraKey]);
+                }
+            });
+
+            var a = 1;
+        }
+
+        var promises = [];
+
+        promises.push(statusSave);
+
+        for (var n = 0; n < toAdd.length; n++) {
+            promises.push(orderAddEvent(order.orderId, toAdd[n]));
+        }
+
+        return WinJS.Promise.join(promises).then(function (results) {
+            return results;
+        });
+    }
+
+    function orderSaveNew(order) {
+        return WinJS.xhr({
+            type: 'post',
+            url: baseAddress + "/orders",
+            headers: rest_headers,
+            data: JSON.stringify({ fromQuote: order.__quote.quoteId }),
+        }).then(function (response) {
+            if (response.status == 201) {
+                //orders.push(order);
+                return orderGetById("order-" + order.__quote.quoteId);
+            }
+            return WinJS.Promise.wrap(order);
+        }, function (response) {
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function orderCreateFromQuote(quote) {
+        return WinJS.xhr({
+            type: 'post',
+            url: baseAddress + "/orders?fromQuote=" + encodeURIComponent(quote.quoteId),
+            headers: rest_headers,
+            data: JSON.stringify({}),
+        }).then(function (response) {
+            if (response.status == 201) {
+                var orderData = JSON.parse(response.responseText);
+                var order = WinJS.Binding.as(orderData);
+                return order;
+            }
+            else {
+                return null;
+            }
+        }, function (response) {
+            if (response.status == 409) {
+                return orderGetById("order-" + quote.quoteId);
+            }
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function quotesGet(search) {
+
+        return WinJS.xhr({ url: baseAddress + "/quotes?name=" + encodeURIComponent(search) + "&unique=" + Date.now(), headers: rest_headers }).then(function (response) {
+            if (response.status == 0) {
+                reporterror("Could not retrieve quotes", "Unfortunately, the server could not be contacted in order to retrieve quote details.", "");
+                return false;
+            }
+            Data.quotes.splice(0, Data.quotes.length);
+            var theDealers = JSON.parse(response.responseText);
+            theDealers.forEach(function processDealerData(quoteData) {
+                quotes.push(WinJS.Binding.as(quoteData));
+            });
+            return WinJS.Promise.wrap(quotes);
+        }, function (err) {
+            reporterror("Could not retrieve quotes", "Unfortunately, the server could not be contacted in order to retrieve quote details.", err);
+            return WinJS.Promise.wrap(null);
+        });
+    }
+    function quoteDelete(quote) {
+        return WinJS.xhr({
+            type: 'delete',
+            url: baseAddress + "/quotes/" + encodeURIComponent(quote.quoteId)
+        }).then(function (response) {
+            if (response.status == 204) {
+                var index = quotes.indexOf(quote);
+                if (index > -1) {
+                    quotes.splice(index, 1);
+                }
+            }
+            return WinJS.Promise.wrap(true);
+        }, function (response) {
+            return WinJS.Promise.wrap(false);
+        });
+    }
+
+    function quoteGetById(quoteId) {
+
+        return WinJS.xhr({ url: baseAddress + "/quotes/" + encodeURIComponent(quoteId) + "?unique=" + Date.now(), headers: rest_headers }).then(function (response) {
+            var quoteData = JSON.parse(response.responseText);
+            return WinJS.Binding.as(quoteData);
+        });
+    }
+
+    function quoteSave(quote) {
+        if (quote.__new) {
+            return quoteSaveNew(quote);
+        }
+        else {
+            return quoteSaveEdits(quote);
+        }
+    }
+
+    function quoteSaveEdits(quote) {
+        var rawquote = quote;
+        if (quote.backingData) {
+            rawquote = quote.backingData;
+        }
+        return WinJS.xhr({
+            type: 'put',
+            url: baseAddress + "/quotes/" + encodeURIComponent(quote.quoteId),
+            headers: rest_headers,
+            data: JSON.stringify(rawquote),
+        }).then(function (response) {
+            return WinJS.Promise.wrap(quote);
+        }, function (response) {
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function quoteSaveNew(quote) {
+        var rawquote = quote;
+        if (quote.backingData) {
+            rawquote = quote.backingData;
+        }
+        return WinJS.xhr({
+            type: 'post',
+            url: baseAddress + "/quotes",
+            headers: rest_headers,
+            data: JSON.stringify(rawquote),
+        }).then(function (response) {
+            if (response.status == 201) {
+                quotes.push(quote);
+            }
+            return WinJS.Promise.wrap(quote);
+        }, function (response) {
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function quoteCreate() {
+        var newquote = WinJS.Binding.as({
+            "quoteId": "",
+            "validUntil": Date.today().addMonths(1).toString("M/d/yyyy"),
+            "customerName": "",
+            "dealerName": "",
+            "comments": "",
+            "terms": "60 days",
+            "unitDescription": "",
+            "unitCost": 0,
+            "additionalItems": [],
+            "totalCost": 0,
+            "discount": 0,
+            "height": 2.5,
+            "width": 0,
+            "depth": 0,
+            "unit": "",
+            "purpose": "Refrigerator",
+            "ambientPeak": 30,
+            "ambientAverage": 20,
+            "buildOnSite": true,
+            "city": "",
+            "postalCode": "",
+            "state": ""
+        });
+        newquote.__new = true;
+        return newquote;
+    }
+
+    function catalogFindSku(sku) {
+        var result = null;
+
+        for (var n = 0; n < catalog.length; n++) {
+            if (catalog.getAt(n).skuNumber == sku) {
+                result = catalog.getAt(n);
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    function catalogGet() {
+
+        return WinJS.xhr({ url: baseAddress + "/catalog?unique=" + Date.now(), headers: rest_headers }).then(function (response) {
+            if (response.status == 0) {
+                reporterror("Could not retrieve datalog", "Unfortunately, the server could not be contacted in order to retrieve datalog details.", "");
+                return null;
+            }
+            Data.catalog.splice(0, Data.catalog.length);
+            var theCatalog = JSON.parse(response.responseText);
+            theCatalog.forEach(function processCatalogData(catalogData) {
+                catalog.push(WinJS.Binding.as(catalogData));
+            });
+            return WinJS.Promise.wrap(catalog);
+        }, function (err) {
+            reporterror("Could not retrieve catalog", "Unfortunately, the server could not be contacted in order to retrieve catalog details.", err);
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function catalogDelete(product) {
+        return WinJS.xhr({
+            type: 'delete',
+            url: baseAddress + "/catalog/" + encodeURIComponent(product.skuNumber)
+        }).then(function (response) {
+            if (response.status == 204) {
+                var index = catalog.indexOf(product);
+                if (index > -1) {
+                    catalog.splice(index, 1);
+                }
+            }
+            return WinJS.Promise.wrap(true);
+        }, function (response) {
+            return WinJS.Promise.wrap(false);
+        });
+    }
+
+    function catalogSave(catalog) {
+        if (catalog.__new) {
+            return catalogSaveNew(catalog);
+        }
+        else {
+            return catalogSaveEdits(catalog);
+        }
+    }
+
+    function catalogSaveEdits(product) {
+        var rawProduct = product;
+        if (product.backingData) {
+            rawProduct = product.backingData;
+        }
+        return WinJS.xhr({
+            type: 'put',
+            url: baseAddress + "/catalog/" + encodeURIComponent(product.skuNumber),
+            headers: rest_headers,
+            data: JSON.stringify(rawProduct),
+        }).then(function (response) {
+            return WinJS.Promise.wrap(product);
+        }, function (response) {
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function catalogSaveNew(product) {
+        var rawProduct = product;
+        if (product.backingData) {
+            rawProduct = product.backingData;
+        }
+        return WinJS.xhr({
+            type: 'post',
+            url: baseAddress + "/catalog",
+            headers: rest_headers,
+            data: JSON.stringify(rawProduct),
+        }).then(function (response) {
+            if (response.status == 201) {
+                catalog.push(product);
+            }
+            return WinJS.Promise.wrap(product);
+        }, function (response) {
+            if (response.status == 409) { // already exists (conflict)
+                return catalogSaveEdits(product);
+            }
+            else {
+                return WinJS.Promise.wrap(null);
+            }
+        });
+    }
+
+
+    function catalogCreate() {
+        var newCatalog = WinJS.Binding.as({
+            skuNumber: '',
+            description: '',
+            unit: '',
+            unitPrice: ''
+        });
+        newCatalog.__new = true;
+        return newCatalog;
+    }
+
+    function dealersGet() {
+
+        return WinJS.xhr({ url: baseAddress + "/dealers?unique=" + Date.now(), headers: rest_headers }).then(function (response) {
+            if (response.status == 0) {
+                reporterror("Could not retrieve dealers", "Unfortunately, the server could not be contacted in order to retrieve dealer details.", "");
+                return null;
+            }
+            Data.dealers.splice(0, Data.dealers.length);
+            var theDealers = JSON.parse(response.responseText);
+            theDealers.forEach(function processDealerData(dealerData) {
+                dealers.push(WinJS.Binding.as(dealerData));
+            });
+            return WinJS.Promise.wrap(dealers);
+        }, function (err) {
+            reporterror("Could not retrieve dealers", "Unfortunately, the server could not be contacted in order to retrieve dealer details.", err);
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function dealerDelete(dealer) {
+        return WinJS.xhr({
+            type: 'delete',
+            url: baseAddress + "/dealers/" + encodeURIComponent(dealer.name)
+        }).then(function (response) {
+            if (response.status == 204) {
+                var index = dealers.indexOf(dealer);
+                if (index > -1) {
+                    dealers.splice(index, 1);
+                }
+            }
+            return WinJS.Promise.wrap(true);
+        }, function (response) {
+            return WinJS.Promise.wrap(false);
+        });
+    }
+
+    function dealerSave(dealer) {
+        if (dealer.__new) {
+            return dealerSaveNew(dealer);
+        }
+        else {
+            return dealerSaveEdits(dealer);
+        }
+    }
+
+    function dealerSaveEdits(dealer) {
+        var rawDealer = dealer;
+        if (dealer.backingData) {
+            rawDealer = dealer.backingData;
+        }
+        return WinJS.xhr({
+            type: 'put',
+            url: baseAddress + "/dealers/" + encodeURIComponent(dealer.name),
+            headers: rest_headers,
+            data: JSON.stringify(rawDealer),
+        }).then(function (response) {
+            return WinJS.Promise.wrap(dealer);
+        }, function (response) {
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function dealerSaveNew(dealer) {
+        var rawDealer = dealer;
+        if (dealer.backingData) {
+            rawDealer = dealer.backingData;
+        }
+        return WinJS.xhr({
+            type: 'post',
+            url: baseAddress + "/dealers",
+            headers: rest_headers,
+            data: JSON.stringify(rawDealer),
+        }).then(function (response) {
+            if (response.status == 201) {
+                dealers.push(dealer);
+            }
+            return WinJS.Promise.wrap(dealer);
+        }, function (response) {
+            return WinJS.Promise.wrap(null);
+        });
+    }
+
+    function dealerCreate() {
+        var newDealer = WinJS.Binding.as({
+            name: '',
+            contact: '',
+            address: '',
+            email: '',
+            phone: ''
+        });
+        newDealer.__new = true;
+        return newDealer;
+    }
+
+})();

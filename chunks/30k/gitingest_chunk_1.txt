@@ -1,0 +1,3232 @@
+Directory structure:
+└── microsoft-partsunlimitedmrp/
+    ├── README.md
+    ├── CONTRIBUTING.md
+    ├── CreateVMBasic.PNG
+    ├── LICENSE
+    ├── SECURITY.md
+    ├── .travis.yml
+    ├── deploy/
+    │   ├── Build-MRP-App-Manually.md
+    │   ├── deploy_mrp_app.sh
+    │   ├── Install-Build-Dependencies.sh
+    │   ├── install_mrp_dependencies.sh
+    │   ├── MongoRecords.js
+    │   ├── SSH-MRP-Artifacts.ps1
+    │   ├── SSH-MRP-BDD-Security.ps1
+    │   ├── azurestack/
+    │   │   ├── readme.md
+    │   │   ├── customscripts/
+    │   │   │   ├── readme.md
+    │   │   │   ├── install_updates.sh
+    │   │   │   ├── chef/
+    │   │   │   │   ├── readme.md
+    │   │   │   │   └── install_chef.sh
+    │   │   │   ├── jenkins/
+    │   │   │   │   └── install_jenkins_1604.sh
+    │   │   │   ├── linux_extension/
+    │   │   │   │   └── manifest.json
+    │   │   │   └── puppet/
+    │   │   │       └── install_puppet_1604.sh
+    │   │   └── instances/
+    │   │       ├── chef_node/
+    │   │       │   ├── readme.md
+    │   │       │   └── AddChefNode.json
+    │   │       ├── chef_standalone/
+    │   │       │   ├── readme.md
+    │   │       │   └── Chef.ChefServer/
+    │   │       │       ├── Manifest.json
+    │   │       │       ├── UIDefinition.json
+    │   │       │       ├── DeploymentTemplates/
+    │   │       │       │   └── ChefDeploy.json
+    │   │       │       └── strings/
+    │   │       │           └── resources.resjson
+    │   │       ├── chef_workstation/
+    │   │       │   ├── readme.md
+    │   │       │   └── AddChefWorkstation.json
+    │   │       ├── jenkins_mrp/
+    │   │       │   ├── readme.md
+    │   │       │   └── PartsUnlimitedMRP.MRPwithJenkins/
+    │   │       │       ├── Manifest.json
+    │   │       │       ├── UIDefinition.json
+    │   │       │       ├── DeploymentTemplates/
+    │   │       │       │   └── MRPwithJenkinsDeploy.json
+    │   │       │       └── strings/
+    │   │       │           └── resources.resjson
+    │   │       ├── jenkins_standalone/
+    │   │       │   ├── readme.md
+    │   │       │   └── TheJenkinsProject.Jenkins/
+    │   │       │       ├── Manifest.json
+    │   │       │       ├── UIDefinition.json
+    │   │       │       ├── DeploymentTemplates/
+    │   │       │       │   └── JenkinsDeploy.json
+    │   │       │       └── strings/
+    │   │       │           └── resources.resjson
+    │   │       ├── parts_unlimited_mrp_base/
+    │   │       │   ├── readme.md
+    │   │       │   ├── install_mrp_dependencies_1604.sh
+    │   │       │   └── PartsUnlimited.Ubuntu1604/
+    │   │       │       ├── Manifest.json
+    │   │       │       ├── UIDefinition.json
+    │   │       │       ├── DeploymentTemplates/
+    │   │       │       │   └── PartsUnlimitedMRP.json
+    │   │       │       └── strings/
+    │   │       │           └── resources.resjson
+    │   │       ├── parts_unlimited_SSH_mrp_base/
+    │   │       │   ├── readme.md
+    │   │       │   └── PartsUnlimitedSSH.Ubuntu1604/
+    │   │       │       ├── Manifest.json
+    │   │       │       ├── UIDefinition.json
+    │   │       │       ├── DeploymentTemplates/
+    │   │       │       │   └── PartsUnlimitedSSHMRP.json
+    │   │       │       └── strings/
+    │   │       │           └── resources.resjson
+    │   │       ├── puppet_node/
+    │   │       │   ├── readme.md
+    │   │       │   └── AddPuppetNode.json
+    │   │       ├── puppet_standalone/
+    │   │       │   ├── readme.md
+    │   │       │   └── Puppet.PuppetEnterprise/
+    │   │       │       ├── Manifest.json
+    │   │       │       ├── UIDefinition.json
+    │   │       │       ├── DeploymentTemplates/
+    │   │       │       │   └── PuppetDeploy.json
+    │   │       │       └── strings/
+    │   │       │           └── resources.resjson
+    │   │       ├── ubuntu_server_1404_base/
+    │   │       │   ├── readme.md
+    │   │       │   └── Canonical.Ubuntu1404/
+    │   │       │       ├── Manifest.json
+    │   │       │       ├── UIDefinition.json
+    │   │       │       ├── DeploymentTemplates/
+    │   │       │       │   └── UbuntuServer1404.json
+    │   │       │       └── strings/
+    │   │       │           └── resources.resjson
+    │   │       └── ubuntu_server_1604_base/
+    │   │           ├── readme.md
+    │   │           └── Canonical.UbuntuServer.1.0.0/
+    │   │               ├── Manifest.json
+    │   │               ├── UIDefinition.json
+    │   │               ├── DeploymentTemplates/
+    │   │               │   └── UbuntuServer1604.json
+    │   │               └── strings/
+    │   │                   └── resources.resjson
+    │   └── docker/
+    │       ├── BuildAndRun.sh
+    │       ├── StopAndRemove.sh
+    │       ├── Clients/
+    │       │   ├── Dockerfile
+    │       │   └── drop/
+    │       │       └── PUT YOUR WAR FILE HERE
+    │       ├── Database/
+    │       │   ├── Dockerfile
+    │       │   └── drop/
+    │       │       └── MongoRecords.js
+    │       └── Order/
+    │           ├── Dockerfile
+    │           └── drop/
+    │               ├── PUT YOUR JAR FILE HERE
+    │               └── run.sh
+    ├── Labfiles/
+    │   ├── ansible-azure-lab/
+    │   │   ├── ARMtemplate-newVM.json
+    │   │   ├── delete_vm.yml
+    │   │   ├── httpd.yml
+    │   │   ├── index.html
+    │   │   ├── LICENSE
+    │   │   ├── new_ARM_deployment.yml
+    │   │   ├── new_vm_web.yml
+    │   │   └── VERSION
+    │   ├── AZ-400T05-ImplemntgAppInfra/
+    │   │   └── Labfiles/
+    │   │       ├── automate_nginx.sh
+    │   │       ├── ansible/
+    │   │       │   ├── ARMtemplate-newVM.json
+    │   │       │   ├── create_vm.yml
+    │   │       │   ├── cron.yml
+    │   │       │   ├── delete_vm.yml
+    │   │       │   ├── httpd.yml
+    │   │       │   ├── index.html
+    │   │       │   ├── new_ARM_deployment.yml
+    │   │       │   ├── new_vm_web.yml
+    │   │       │   └── nginx.yml
+    │   │       └── M04/
+    │   │           ├── DeployusingChef/
+    │   │           │   └── final/
+    │   │           │       └── default.rb
+    │   │           └── Puppet/
+    │   │               └── final/
+    │   │                   └── init.pp
+    │   ├── DevOps200.1x-PracticesandPrinciples/
+    │   │   ├── Mod03/
+    │   │   │   └── python-ci-example-master/
+    │   │   │       ├── README.md
+    │   │   │       ├── __init__.py
+    │   │   │       ├── requirements.txt
+    │   │   │       ├── .travis.yml
+    │   │   │       └── app/
+    │   │   │           ├── __init__.py
+    │   │   │           ├── src/
+    │   │   │           │   ├── __init__.py
+    │   │   │           │   └── app.py
+    │   │   │           └── tests/
+    │   │   │               ├── __init__.py
+    │   │   │               └── app-test.py
+    │   │   └── Mod04/
+    │   │       └── load_testing_locust-master/
+    │   │           ├── README.md
+    │   │           ├── __init__.py
+    │   │           ├── locustfile.py
+    │   │           └── app/
+    │   │               ├── __init__.py
+    │   │               └── app.py
+    │   └── DevOps200.2x-InfrastructureasCode/
+    │       ├── DeployusingChef/
+    │       │   └── final/
+    │       │       └── default.rb
+    │       └── Puppet/
+    │           └── final/
+    │               └── init.pp
+    └── src/
+        ├── Backend/
+        │   ├── IntegrationService/
+        │   │   ├── gradlew
+        │   │   ├── gradlew.bat
+        │   │   ├── IntegrationService.iml
+        │   │   ├── gradle/
+        │   │   │   └── wrapper/
+        │   │   │       └── gradle-wrapper.properties
+        │   │   └── src/
+        │   │       └── main/
+        │   │           ├── java/
+        │   │           │   └── integration/
+        │   │           │       ├── Constants.java
+        │   │           │       ├── Main.java
+        │   │           │       ├── infrastructure/
+        │   │           │       │   ├── ConfigurationHelpers.java
+        │   │           │       │   └── ConfigurationManager.java
+        │   │           │       ├── models/
+        │   │           │       │   ├── QueueResponse.java
+        │   │           │       │   ├── mrp/
+        │   │           │       │   │   ├── CatalogItem.java
+        │   │           │       │   │   ├── DeliveryAddress.java
+        │   │           │       │   │   ├── Order.java
+        │   │           │       │   │   ├── PhoneInfo.java
+        │   │           │       │   │   ├── Quote.java
+        │   │           │       │   │   ├── QuoteItemInfo.java
+        │   │           │       │   │   ├── ShipmentEventInfo.java
+        │   │           │       │   │   └── ShipmentRecord.java
+        │   │           │       │   └── website/
+        │   │           │       │       ├── OrderItem.java
+        │   │           │       │       ├── OrderMessage.java
+        │   │           │       │       ├── ProductItem.java
+        │   │           │       │       └── ProductMessage.java
+        │   │           │       ├── scheduled/
+        │   │           │       │   ├── CreateOrderProcessTask.java
+        │   │           │       │   └── UpdateProductProcessTask.java
+        │   │           │       └── services/
+        │   │           │           ├── MrpConnectService.java
+        │   │           │           ├── QueueFactory.java
+        │   │           │           └── QueueService.java
+        │   │           └── resources/
+        │   │               └── application.properties
+        │   └── OrderService/
+        │       ├── README
+        │       ├── README.md
+        │       ├── gradlew
+        │       ├── gradlew.bat
+        │       ├── removeBuild.bat
+        │       ├── version.properties
+        │       ├── buildSrc/
+        │       │   └── src/
+        │       │       └── main/
+        │       │           └── groovy/
+        │       │               └── com/
+        │       │                   └── microsoft/
+        │       │                       └── appinsights/
+        │       │                           ├── BuildInformationTask.groovy
+        │       │                           └── CleanBuildInformationTask.groovy
+        │       ├── gradle/
+        │       │   └── wrapper/
+        │       │       └── gradle-wrapper.properties
+        │       ├── scripts/
+        │       │   ├── cat001.json
+        │       │   ├── cat002.json
+        │       │   ├── cat003.json
+        │       │   ├── cat004.json
+        │       │   ├── createorder.sh
+        │       │   ├── dealer1.json
+        │       │   ├── getenv.sh
+        │       │   ├── quote1.json
+        │       │   ├── quote2.json
+        │       │   ├── schema.psql
+        │       │   ├── setup.sh
+        │       │   ├── setupdocker.sh
+        │       │   └── update.sh
+        │       └── src/
+        │           ├── main/
+        │           │   ├── java/
+        │           │   │   └── smpl/
+        │           │   │       └── ordering/
+        │           │   │           ├── AppInsightsFilter.java
+        │           │   │           ├── BadRequestException.java
+        │           │   │           ├── ConflictingRequestException.java
+        │           │   │           ├── MongoDBProperties.java
+        │           │   │           ├── OrderingConfiguration.java
+        │           │   │           ├── OrderingInitializer.java
+        │           │   │           ├── OrderingServiceProperties.java
+        │           │   │           ├── PostgresqlProperties.java
+        │           │   │           ├── PropertyHelper.java
+        │           │   │           ├── SimpleCORSFilter.java
+        │           │   │           ├── TestPath.java
+        │           │   │           ├── Utility.java
+        │           │   │           ├── controllers/
+        │           │   │           │   ├── CatalogController.java
+        │           │   │           │   ├── DealerController.java
+        │           │   │           │   ├── OrderController.java
+        │           │   │           │   ├── PingController.java
+        │           │   │           │   ├── QuoteController.java
+        │           │   │           │   └── ShipmentController.java
+        │           │   │           ├── models/
+        │           │   │           │   ├── CatalogItem.java
+        │           │   │           │   ├── DealerInfo.java
+        │           │   │           │   ├── Delivery.java
+        │           │   │           │   ├── DeliveryAddress.java
+        │           │   │           │   ├── Order.java
+        │           │   │           │   ├── OrderEventInfo.java
+        │           │   │           │   ├── OrderStatus.java
+        │           │   │           │   ├── OrderUpdateInfo.java
+        │           │   │           │   ├── PhoneInfo.java
+        │           │   │           │   ├── Quote.java
+        │           │   │           │   ├── QuoteItemInfo.java
+        │           │   │           │   ├── ShipmentEventInfo.java
+        │           │   │           │   └── ShipmentRecord.java
+        │           │   │           └── repositories/
+        │           │   │               ├── CatalogItemsRepository.java
+        │           │   │               ├── DealersRepository.java
+        │           │   │               ├── OrderRepository.java
+        │           │   │               ├── QuoteRepository.java
+        │           │   │               ├── RepositoryFactory.java
+        │           │   │               ├── ShipmentRepository.java
+        │           │   │               ├── mock/
+        │           │   │               │   ├── MockCatalogItemsRepository.java
+        │           │   │               │   ├── MockDealersRepository.java
+        │           │   │               │   ├── MockOrderRepository.java
+        │           │   │               │   ├── MockQuoteRepository.java
+        │           │   │               │   └── MockShipmentRepository.java
+        │           │   │               └── mongodb/
+        │           │   │                   ├── MongoCatalogItemsRepository.java
+        │           │   │                   ├── MongoDealersRepository.java
+        │           │   │                   ├── MongoOperationsWithRetry.java
+        │           │   │                   ├── MongoOrderRepository.java
+        │           │   │                   ├── MongoQuoteRepository.java
+        │           │   │                   ├── MongoShipmentRepository.java
+        │           │   │                   └── models/
+        │           │   │                       ├── CatalogItem.java
+        │           │   │                       ├── Dealer.java
+        │           │   │                       ├── OrderDetails.java
+        │           │   │                       ├── QuoteDetails.java
+        │           │   │                       └── ShipmentDetails.java
+        │           │   └── resources/
+        │           │       ├── application.properties
+        │           │       ├── ApplicationInsights.xml
+        │           │       └── buildinfo.properties
+        │           └── test/
+        │               ├── java/
+        │               │   └── smpl/
+        │               │       └── ordering/
+        │               │           ├── ConfigurationRule.java
+        │               │           ├── TestOrderingConfiguration.java
+        │               │           ├── UtilityTest.java
+        │               │           ├── controllers/
+        │               │           │   ├── CatalogControllerTest.java
+        │               │           │   ├── DealerControllerTest.java
+        │               │           │   ├── OrderControllerTest.java
+        │               │           │   ├── QuoteControllerTest.java
+        │               │           │   └── ShipmentControllerTest.java
+        │               │           └── repositories/
+        │               │               ├── CatalogItemsRepositoryTest.java
+        │               │               ├── DealersRepositoryTest.java
+        │               │               ├── OrderRepositoryTest.java
+        │               │               ├── QuoteRepositoryTest.java
+        │               │               ├── ShipmentRepositoryTest.java
+        │               │               ├── mock/
+        │               │               │   └── test/
+        │               │               │       ├── MockCatalogItemsRepositoryTest.java
+        │               │               │       ├── MockDealersRepositoryTest.java
+        │               │               │       ├── MockOrderRepositoryTest.java
+        │               │               │       ├── MockQuoteRepositoryTest.java
+        │               │               │       └── MockShipmentRepositoryTest.java
+        │               │               └── mongodb/
+        │               │                   └── test/
+        │               │                       ├── IntegrationTests.java
+        │               │                       ├── MongoCatalogItemsRepositoryTest.java
+        │               │                       ├── MongoDealersRepositoryTest.java
+        │               │                       ├── MongoOrderRepositoryTest.java
+        │               │                       ├── MongoQuoteRepositoryTest.java
+        │               │                       └── MongoShipmentRepositoryTest.java
+        │               └── resources/
+        │                   └── application.properties
+        └── Clients/
+            ├── README.md
+            ├── gradlew
+            ├── gradlew.bat
+            ├── removeBuild.bat
+            ├── gradle/
+            │   └── wrapper/
+            │       └── gradle-wrapper.properties
+            └── Web/
+                ├── default.html
+                ├── index.html
+                ├── controls/
+                │   └── edittools/
+                │       ├── edittools.css
+                │       ├── edittools.html
+                │       └── edittools.js
+                ├── css/
+                │   └── default.css
+                ├── js/
+                │   ├── data.js
+                │   ├── date.js
+                │   ├── default.js
+                │   ├── navigator.js
+                │   └── serverconfig.js
+                └── pages/
+                    ├── catalog/
+                    │   ├── catalog.css
+                    │   ├── catalog.html
+                    │   └── catalog.js
+                    ├── dealers/
+                    │   ├── dealers.css
+                    │   ├── dealers.html
+                    │   └── dealers.js
+                    ├── deliveries/
+                    │   ├── deliveries.css
+                    │   ├── deliveries.html
+                    │   └── deliveries.js
+                    ├── extras/
+                    │   ├── extras.css
+                    │   ├── extras.html
+                    │   └── extras.js
+                    ├── main/
+                    │   ├── main.css
+                    │   ├── main.html
+                    │   ├── main.js
+                    │   └── main_files/
+                    │       └── main.js
+                    ├── orderevents/
+                    │   ├── orderevents.css
+                    │   ├── orderevents.html
+                    │   └── orderevents.js
+                    ├── orders/
+                    │   ├── orders.css
+                    │   ├── orders.html
+                    │   └── orders.js
+                    └── quotes/
+                        ├── quotes.css
+                        ├── quotes.html
+                        └── quotes.js
+
+================================================
+FILE: README.md
+================================================
+﻿# Parts Unlimited MRP #
+
+Parts Unlimited MRP is a fictional outsourced Manufacturing Resource Planning (MRP) application for training purposes based on the description in chapters 31-35 of The Phoenix Projectby Gene Kim, Kevin Behr and George Spafford. © 2013 IT Revolution Press LLC, Portland, OR. Resemblance to “Project Unicorn” in the novel is intentional; resemblance to any real company is purely coincidental.
+
+The application uses entirely open source software including Linux, Java, Apache, and MongoDB which creates a web front end, an order service, and an integration service. 
+
+The master branch of this repo contains the PartsUnlimtedMRP application, and deployment and configuration files of that sample app. This sample app and configuration files are then used in the labs appearing on the github pages site <a href="http://microsoft.github.io/PartsUnlimitedMRP" target="_blank"><span style="color: #0066cc;" color="#0066cc">http://microsoft.github.io/PartsUnlimitedMRP</span></a>. A shortend url is available in the form of <a href="http://aka.ms/pumrplabs" target="_blank"><span style="color: #0066cc;" color="#0066cc">http://aka.ms/pumrplabs</span></a>
+
+Any updates or changes to the application or labfiles can be made be merging changes into this **master** branch, but lab steps and graphics are sourced from the **gh-pages** branch. Updates to lab page configuration, the lab steps or graphics can be done through the <a href="https://github.com/Microsoft/PartsUnlimitedMRP/tree/gh-pages" target="_blank"><span style="color: #0066cc;" color="#0066cc">https://github.com/Microsoft/PartsUnlimitedMRP/tree/gh-pages</span></a> branch of this repo.
+
+To get started, please proceed to the page <a href="http://microsoft.github.io/PartsUnlimitedMRP" target="_blank"><span style="color: #0066cc;" color="#0066cc">http://microsoft.github.io/PartsUnlimitedMRP</span></a>
+
+
+
+## PartsUnlimited MRP  - Key Features
+- Front end service - runs Apache Tomcat and talks to order service
+- Order and Integration service - runs Java and calls MongoDB
+- Integration service - present to integrate with Parts Unlimited Website
+- Includes a Dockerfile and sample publishing profile to publish to a Docker container
+- Includes Azure RM JSON templates and PowerShell automation scripts to easily build and provision your environment
+
+For the labs based around the PartsUnlimited .NET application see the page <a href="http://microsoft.github.io/PartsUnlimited" target="_blank"><span style="color: #0066cc;" color="#0066cc">http://microsoft.github.io/PartsUnlimited</span></a>. It will show you how to use Visual Studio Team Services with a .NET application and attempts to use exclusively Microsoft products, tools and services, or 3rd party and open source products integrating with Microsoft Products and services.
+
+## Microsoft Professional Program (MPP) for DevOps
+
+These labs are used as part of the **Microsoft Professional Program (MPP) with DevOps** series of online courses. The successful completion of the courses and capstone project, that together make up the   **MPP for DevOps**, results in the granting of the **Microsoft MPP for DevOps** credential. For more information on the **Microsoft Professional Program (MPP) for DevOps** program see the pages <a href="https://academy.microsoft.com/en-us/professional-program/tracks/devops/ " target="_blank"><span style="color: #0066cc;" color="#0066cc">https://academy.microsoft.com/en-us/professional-program/tracks/devops/ </span></a> and <a href="https://www.edx.org/microsoft-professional-program-devops " target="_blank"><span style="color: #0066cc;" color="#0066cc">https://www.edx.org/microsoft-professional-program-devops</span></a> 
+
+
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+
+
+================================================
+FILE: CONTRIBUTING.md
+================================================
+﻿# How to contribute
+
+One of the easiest ways to contribute is to participate in discussions and discuss issues. You can also contribute by submitting pull requests with code changes.
+
+## General feedback, discussions, bugs, feature requests?
+Please start a discussion or log a new issue on the [Home repo issue tracker](https://github.com/Microsoft/PartsUnlimited/issues).
+
+## Filing issues
+When filing issues, please consider using this sample [bug filing template](https://github.com/aspnet/Home/wiki/Functional-bug-template) from the ASP.Net team.
+The best way to get your bug fixed is to be as detailed as you can be about the problem.
+Providing steps to reproduce the problem is ideal.
+Here are questions you can answer before you file a bug to make sure you're not missing any important information.
+
+1. Did you read the [documentation](https://github.com/Microsoft/PartsUnlimited/tree/master/docs)?
+2. Did you include the snippet of broken code in the issue?
+3. What are the *EXACT* steps to reproduce this problem?
+4. What package versions are you using (you can see these in the `project.json` file)?
+5. What operating system are you using?
+6. What version of Visual Studio are you using?
+
+GitHub supports [markdown](http://github.github.com/github-flavored-markdown/), so when filing bugs make sure you check the formatting before clicking submit.
+
+## Contributing code and content
+If you don't know what a pull request is read this article: https://help.github.com/articles/using-pull-requests.
+You might also read these two blogs posts on contributing code: [Open Source Contribution Etiquette](http://tirania.org/blog/archive/2010/Dec-31.html) by Miguel de Icaza and [Don't "Push" Your Pull Requests](http://www.igvita.com/2011/12/19/dont-push-your-pull-requests/) by Ilya Grigorik.
+
+**Commit/Pull Request Format**
+
+```
+Summary of the changes (Less than 80 chars)
+ - Detail 1
+ - Detail 2
+
+#bugnumber (in this specific format)
+```
+
+
+This project has adopted the [Microsoft Open Source Code of
+Conduct](https://opensource.microsoft.com/codeofconduct/).
+For more information see the [Code of Conduct
+FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
+contact [opencode@microsoft.com](mailto:opencode@microsoft.com)
+with any additional questions or comments.
+
+
+
+================================================
+FILE: CreateVMBasic.PNG
+================================================
+[Binary file]
+
+
+================================================
+FILE: LICENSE
+================================================
+Parts Unlimited MRP
+Copyright (c) Microsoft Corporation
+All rights reserved. 
+MIT License
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the ""Software""), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+
+================================================
+FILE: SECURITY.md
+================================================
+<!-- BEGIN MICROSOFT SECURITY.MD V0.0.8 BLOCK -->
+
+## Security
+
+Microsoft takes the security of our software products and services seriously, which includes all source code repositories managed through our GitHub organizations, which include [Microsoft](https://github.com/microsoft), [Azure](https://github.com/Azure), [DotNet](https://github.com/dotnet), [AspNet](https://github.com/aspnet), [Xamarin](https://github.com/xamarin), and [our GitHub organizations](https://opensource.microsoft.com/).
+
+If you believe you have found a security vulnerability in any Microsoft-owned repository that meets [Microsoft's definition of a security vulnerability](https://aka.ms/opensource/security/definition), please report it to us as described below.
+
+## Reporting Security Issues
+
+**Please do not report security vulnerabilities through public GitHub issues.**
+
+Instead, please report them to the Microsoft Security Response Center (MSRC) at [https://msrc.microsoft.com/create-report](https://aka.ms/opensource/security/create-report).
+
+If you prefer to submit without logging in, send email to [secure@microsoft.com](mailto:secure@microsoft.com).  If possible, encrypt your message with our PGP key; please download it from the [Microsoft Security Response Center PGP Key page](https://aka.ms/opensource/security/pgpkey).
+
+You should receive a response within 24 hours. If for some reason you do not, please follow up via email to ensure we received your original message. Additional information can be found at [microsoft.com/msrc](https://aka.ms/opensource/security/msrc). 
+
+Please include the requested information listed below (as much as you can provide) to help us better understand the nature and scope of the possible issue:
+
+  * Type of issue (e.g. buffer overflow, SQL injection, cross-site scripting, etc.)
+  * Full paths of source file(s) related to the manifestation of the issue
+  * The location of the affected source code (tag/branch/commit or direct URL)
+  * Any special configuration required to reproduce the issue
+  * Step-by-step instructions to reproduce the issue
+  * Proof-of-concept or exploit code (if possible)
+  * Impact of the issue, including how an attacker might exploit the issue
+
+This information will help us triage your report more quickly.
+
+If you are reporting for a bug bounty, more complete reports can contribute to a higher bounty award. Please visit our [Microsoft Bug Bounty Program](https://aka.ms/opensource/security/bounty) page for more details about our active programs.
+
+## Preferred Languages
+
+We prefer all communications to be in English.
+
+## Policy
+
+Microsoft follows the principle of [Coordinated Vulnerability Disclosure](https://aka.ms/opensource/security/cvd).
+
+<!-- END MICROSOFT SECURITY.MD BLOCK -->
+
+
+
+================================================
+FILE: .travis.yml
+================================================
+language: java
+jdk: oraclejdk8
+before_script:
+  - chmod +x  $TRAVIS_BUILD_DIR/src/Backend/IntegrationService/gradlew
+  - chmod +x  $TRAVIS_BUILD_DIR/src/Backend/OrderService/gradlew
+  - chmod +x  $TRAVIS_BUILD_DIR/src/Clients/gradlew
+script: 
+  - cd  $TRAVIS_BUILD_DIR/src/Backend/IntegrationService
+  - ./gradlew build
+  - cd  $TRAVIS_BUILD_DIR/src/Backend/OrderService
+  - ./gradlew build test
+  - cd  $TRAVIS_BUILD_DIR/src/Clients
+  - ./gradlew build
+
+
+================================================
+FILE: deploy/Build-MRP-App-Manually.md
+================================================
+#Build MRP App for Linux#
+As part of the Continous Integration Hands-on Labs, you will be building the MRP application using Visual Studio Team Services.
+
+In case you want to build the MRP app manually, you may use the following steps:
+
+To be able to run through this walkthrough there is a dependency on Java 8 SDK and JRE8. These can be found at the link below:
+http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html
+
+There are steps below for Ubuntu and Debian package manager to install the JDK & JRE.
+
+##Build the MRP Solution 
+In order to build the MRP solution we will need to install some more dependencies. 
+1.  To build the project, navigate to the OrderService folder with cmd/PowerShell console and initiate the build by calling the gradlew file with the parameter of the build.gradle file.
+
+`PS> .\gradlew build`
+
+Once run you can find the compiled jar file under the “build/libs” folder.
+
+##Create a Linux VM 
+Create a Linux VM in Azure and signin onto it.
+
+## Install git client ##
+
+On Ubuntu and the Debian package manager
+
+```
+sudo apt-get update
+sudo apt-get install git
+```
+
+##Clone the repository##
+
+From your home path or wherever you wish to store the bits:
+```
+git clone https://github.com/Microsoft/PartsUnlimitedMRP.git
+```
+
+##Install Dependencies
+1.  With your `ssh` console now open we need to add the following dependencies:
+ - Java 8 SDK
+ - Java 8 JRE
+ - MongoDB
+2. Enter the following command to install the dependencies above. This is for Ubuntu 14.10+
+```
+sudo apt-get install openjdk-8-jdk openjdk-8-jre mongodb
+```
+For Ubuntu 14.04:
+```
+sudo add-apt-repository ppa:openjdk-r/ppa
+sudo apt-get update
+sudo apt-get install openjdk-8-jdk openjdk-8-jre mongodb
+```
+3.  To setup Java type the following commands to set your environment variables.
+```
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export PATH=$PATH:/usr/lib/jvm/java-8-openjdk-amd64/bin
+```
+4.  To check your Java 8 installation, type “java -version”
+NOTE: if you are still referencing an older version of Java that was installed as part of your machine you can update this using the following command:
+
+`sudo update-alternatives --config java`
+You will be presented with a list of Java installations. Type the number you wish to set as your java default.
+
+##Setup MONGODB
+1.  Open the mongo command line tools by typing the following command:
+`/usr/bin/mongo`
+
+2.  Select the ordering database to create it.
+`> use ordering`
+
+3. Add an object to the catalog collection
+```
+> x = {"skuNumber" : "ACC-001", "description" : "Shelving", "unit" : "meters", "unitPrice" : 10.5 }
+> db.catalog.insert(x)
+```
+4.  Check the object was created 
+`> db.catalog.find()`
+
+you should see something like:
+```
+{ "_id" : ObjectId("5568a7aefa7a8f99400cbd1e"), "skuNumber" : "ACC-001", "description" : "Shelving", "unit" : "meters", "unitPrice" : 10.5 }
+
+```
+
+5. Now there is data in the database you can check it with the following command 
+`> show dbs`
+Which should show something similar to:
+```
+local   0.078125GB
+ordering        0.203125GB
+```
+
+6.  Copy the commands from Appendix A to insert sample data into the database 
+
+
+##Build Backend - `OrderService`##
+
+1. Move from your home directory into the `src` directory (this assumes you used defaults during `git clone`) 
+```
+cd ~/PartsUnlimitedMRP/src/Backend/OrderService
+```
+2. Now, run the `./gradlew` shell script 
+```
+chmod +x gradlew
+./gradlew build
+```
+
+This will pull down [gradle](http://gradle.org/) components then build the solution...
+
+At this point you should see a message from `gradle` indicating success:
+```
+BUILD SUCCESSFUL
+Total time: 3 mins 22.654 secs
+```
+Build output is located in:
+```
+cd ~/PartsUnlimitedMRP/src/Backend/OrderService/build/libs/
+```
+A single `JAR` file `ordering-service-0.1.0.jar`
+
+##Build Backend - `IntegrationService`##
+1. Move from your home directory into the `src` directory (this assumes you used defaults during `git clone`) 
+```
+cd ~/PartsUnlimitedMRP/src/Backend/IntegrationService
+```
+2. Now, run the `./gradlew` shell script
+```
+chmod +x gradlew
+./gradlew build
+```
+
+This will pull down [gradle](http://gradle.org/) components and then build the solution...
+
+At this point you should see a message from `gradle` indicating success:
+```
+BUILD SUCCESSFUL
+
+Total time: 45.762 secs
+```
+Build output is located in:
+```
+cd ~/PartsUnlimitedMRP/src/Backend/IntegrationService/build/libs/
+```
+A single `JAR` file `integration-service-0.1.0.jar`
+
+
+
+## Build Frontend - `Clients`##
+The Web Front end is a static site that is built into a single WAR file.
+1. Move from your home directory into the `src` directory (this assumes you used defaults during `git clone`) 
+```
+cd ~/PartsUnlimitedMRP/src/Clients
+```
+2. Now, run the `./gradlew` shell script
+```
+chmod +x gradlew
+./gradlew build
+```
+This will pull down [gradle](http://gradle.org/) components and then build the solution...
+
+At this point you should see a message from `gradle` indicating success:
+```
+BUILD SUCCESSFUL
+
+Total time: 2..456 secs
+```
+Build output is located in:
+```
+cd ~/PartsUnlimitedMRP/src/Clients/build/libs/
+```
+A single `WAR` file `mrp.war`
+
+
+
+================================================
+FILE: deploy/deploy_mrp_app.sh
+================================================
+# Create deployment directory
+sudo mkdir -p /var/lib/partsunlimited
+
+# Kill java to stop current website
+sudo pkill -9 'java'
+
+# Remove old artifacts
+sudo rm -f /var/lib/partsunlimited/MongoRecords.js*
+sudo rm -f /var/lib/partsunlimited/mrp.war*
+sudo rm -f /var/lib/partsunlimited/ordering-service-0.1.0.jar*
+
+# Copy files from deployment package
+sudo find ../ -iname '*.?ar' -exec cp -t /var/lib/partsunlimited {} +;
+sudo find . -iname 'MongoRecords.js' -exec cp -t /var/lib/partsunlimited {} +;
+
+# Add the records to ordering database on MongoDB
+sudo mongo ordering /var/lib/partsunlimited/MongoRecords.js
+
+# Change Tomcat listening port from 8080 to 9080
+sudo sed -i s/8080/9080/g /etc/tomcat7/server.xml
+
+# Remove existing MRP directory and copy WAR file to Tomcat directory for auto-deployment
+sudo rm -rf /var/lib/tomcat7/webapps/mrp
+sudo cp /var/lib/partsunlimited/mrp.war /var/lib/tomcat7/webapps
+
+# Restart Tomcat
+sudo /etc/init.d/tomcat7 restart
+
+# Run Ordering Service app
+sudo java -jar /var/lib/partsunlimited/ordering-service-0.1.0.jar &>/dev/null &
+
+echo "MRP application successfully deployed. Go to http://<YourDNSname>:9080/mrp"
+
+
+================================================
+FILE: deploy/Install-Build-Dependencies.sh
+================================================
+# Update current packages
+sudo apt-get update
+
+# Install Gradle, Java, and MongoDB
+sudo apt-get install gradle
+sudo apt-get install openjdk-8-jdk openjdk-8-jre mongodb
+
+# Install Node and npm
+curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -
+sudo apt-get install -y nodejs
+sudo apt-get install npm -y
+
+# Set environment variables for Java
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export PATH=$PATH:/usr/lib/jvm/java-8-openjdk-amd64/bin
+
+
+================================================
+FILE: deploy/install_mrp_dependencies.sh
+================================================
+# Create deployment directory
+sudo mkdir /var/lib/partsunlimited
+
+# Kill java to stop current website
+sudo pkill -9 'java'
+
+# Remove old artifacts
+sudo rm -f /var/lib/partsunlimited/MongoRecords.js*
+sudo rm -f /var/lib/partsunlimited/mrp.war*
+sudo rm -f /var/lib/partsunlimited/ordering-service-0.1.0.jar*
+
+# Copy files from deployment package
+sudo find ../ -iname '*.?ar' -exec cp -t /var/lib/partsunlimited {} +;
+sudo find . -iname 'MongoRecords.js' -exec cp -t /var/lib/partsunlimited {} +;
+
+# Add the records to ordering database on MongoDB
+sudo mongo ordering /var/lib/partsunlimited/MongoRecords.js
+
+# Change Tomcat listening port from 8080 to 9080
+sudo sed -i s/8080/9080/g /etc/tomcat7/server.xml
+
+# Remove existing MRP directory and copy WAR file to Tomcat directory for auto-deployment
+sudo rm -rf /var/lib/tomcat7/webapps/mrp
+sudo cp /var/lib/partsunlimited/mrp.war /var/lib/tomcat7/webapps
+
+# Restart Tomcat
+sudo /etc/init.d/tomcat7 restart
+
+# Run Ordering Service app
+sudo java -jar /var/lib/partsunlimited/ordering-service-0.1.0.jar &>/dev/null &
+
+echo "MRP application successfully deployed. Go to http://<YourDNSname>:9080/mrp"
+
+
+================================================
+FILE: deploy/MongoRecords.js
+================================================
+var conn;
+while (conn === undefined)
+{
+    try
+    {
+        conn = new Mongo("localhost:27017");
+    }
+    catch (e)
+    {
+        print(e);
+    }
+
+    sleep(100);
+}
+
+db = conn.getDB("ordering");
+db.catalog.insert(
+[
+  {"skuNumber" : "LIG-0001", "description" : "Helogen Headlights (2 Pack)", "price" : 38.99, "inventory" : 10, "leadTime" : 3},
+  {"skuNumber" : "LIG-0002", "description" : "Bugeye Headlights (2 Pack)", "price" : 48.99, "inventory" : 7, "leadTime" : 3},
+  {"skuNumber" : "LIG-0003", "description" : "Turn Signal Light Bulb", "price" : 6.49, "inventory" : 18, "leadTime" : 3},
+  {"skuNumber" : "WHE-0001", "description" : "Matte Finish Rim", "price" : 75.99, "inventory" : 4, "leadTime" : 5},
+  {"skuNumber" : "WHE-0002", "description" : "Blue Performance Alloy Rim", "price" : 88.99, "inventory" : 8, "leadTime" : 5},
+  {"skuNumber" : "WHE-0003", "description" : "High Performance Rim", "price" : 99.99, "inventory" : 3, "leadTime" : 5},
+  {"skuNumber" : "WHE-0004", "description" : "Wheel Tire Combo", "price" : 72.49, "inventory" : 0, "leadTime" : 4},
+  {"skuNumber" : "WHE-0005", "description" : "Chrome Rim Tire Combo", "price" : 129.99, "inventory" : 1, "leadTime" : 4},
+  {"skuNumber" : "WHE-0006", "description" : "Wheel Tire Combo (4 Pack)", "price" : 219.99, "inventory" : 3, "leadTime" : 6},
+  {"skuNumber" : "BRA-0001", "description" : "Disk and Pad Combo", "price" : 25.99, "inventory" : 0, "leadTime" : 6},
+  {"skuNumber" : "BRA-0002", "description" : "Brake Rotor", "price" : 18.99, "inventory" : 4, "leadTime" : 4},
+  {"skuNumber" : "BRA-0003", "description" : "Brake Disk and Calipers", "price" : 43.99, "inventory" : 2, "leadTime" : 8},
+  {"skuNumber" : "BAT-0001", "description" : "12-Volt Calcium Battery", "price" : 129.99, "inventory" : 9, "leadTime" : 8},
+  {"skuNumber" : "BAT-0002", "description" : "Spiral Coil Battery", "price" : 154.99, "inventory" : 3, "leadTime" : 10},
+  {"skuNumber" : "BAT-0003", "description" : "Jumper Leads", "price" : 16.99, "inventory" : 6, "leadTime" : 3},
+  {"skuNumber" : "OIL-0001", "description" : "Filter Set", "price" : 28.99, "inventory" : 3, "leadTime" : 4},
+  {"skuNumber" : "OIL-0002", "description" : "Oil and Filter Combo", "price" : 34.49, "inventory" : 5, "leadTime" : 4},
+  {"skuNumber" : "OIL-0003", "description" : "Synthetic Engine Oil", "price" : 39.99, "inventory" : 11, "leadTime" : 4}
+])
+
+db.dealers.insert({ "name" : "Terry Adams", "address" : "17760 Northeast 67th Court, Redmond, WA 98052", "email" : "terry@adams.com", "phone" : "425-885-6217" })
+
+db.quotes.insert([{
+"quoteId" : "0",
+"validUntil" : "2015-05-01T00:00:00+0000",
+"customerName" : "Walter Harp",
+"dealerName" : "Terry Adams",
+"city" : "Seattle",
+"totalCost" : "51.97",
+"discount" : "0.0",
+"state" : "WA",
+"postalCode" : "98023",
+"quoteItems" : [
+    {"skuNumber":"LIG-0001", "amount":1 },
+    {"skuNumber":"LIG-0003", "amount":2 }]
+},
+{
+"quoteId" : "1",
+"validUntil" : "2015-01-01T00:00:00+0000",
+"customerName" : "Jerry Morrison",
+"dealerName" : "Terry Adams",
+"city" : "Seattle",
+"totalCost" : "25.99",
+"state" : "WA",
+"postalCode" : "98089",
+"quoteItems" : [
+  { "skuNumber" : "BRA-0001", "amount" : 1}
+]
+},
+{
+"quoteId" : "2",
+"validUntil" : "2015-02-01T00:00:00+0000",
+"customerName" : "Harrison Hall",
+"dealerName" : "Terry Adams",
+"city" : "Seattle",
+"totalCost" : "600.90",
+"discount" : "0.0",
+"state" : "WA",
+"postalCode" : "98027",
+"quoteItems" : [
+  { "skuNumber" : "WHE-0002", "amount" : 4},
+  { "skuNumber" : "BRA-0003", "amount" : 4},
+  { "skuNumber" : "OIL-0001", "amount" : 1},
+  { "skuNumber" : "OIL-0001", "amount" : 1}
+]
+}
+])
+
+db.orders.insert([{
+"orderId" : "0",
+"quoteId" : "0",
+"orderDate" : "2015-03-02T20:43:37+0000",
+"status" : "Created",
+"events" : []
+},
+{"orderId" : "1",
+"quoteId" : "2",
+"orderDate" : "2015-03-02T20:43:37+0000",
+"status" : "DeliveryConfirmed",
+"events" : []
+}])
+
+db.shipments.insert([{
+"orderId" : "0",
+"contactName" : "Walter Harp",
+"primaryContactPhone" : {
+  "phoneNumber" : "435-783-2378",
+  "kind" : "Mobile"
+},
+"deliveryAddress" : {
+  "street" : "34 Sheridan Street",
+  "city" : "Seattle",
+  "state" : "WA",
+  "postalCode" : "98023",
+  "specialInstructions" : ""
+},
+"events" : []
+},
+{
+"orderId" : "2",
+"contactName" : "Harrison Hall",
+"primaryContactPhone" : {
+  "phoneNumber" : "435-712-7234",
+  "kind" : "Mobile"
+},
+"deliveryAddress" : {
+  "street" : "84 Queen Street",
+  "city" : "Seattle",
+  "state" : "WA",
+  "postalCode" : "98027",
+  "specialInstructions" : "Leave around by the back door."
+},
+"events" : []
+}])
+
+
+
+================================================
+FILE: deploy/SSH-MRP-Artifacts.ps1
+================================================
+[CmdletBinding()]
+Param(
+    [Parameter(Mandatory=$True)] [string] $sshTarget,
+	[Parameter(Mandatory=$True)] [string] $sshUser,
+    [Parameter(Mandatory=$True)] [string] $sshPassword
+)
+
+$ErrorActionPreference = "Stop"
+
+
+# Get plink and psftp
+$psftpExeUrl="https://the.earth.li/~sgtatham/putty/latest/x86/psftp.exe"
+$plinkExeUrl="https://the.earth.li/~sgtatham/putty/latest/x86/plink.exe"
+
+if (-not (Test-Path psftp.exe)) {
+    wget $psftpExeUrl -OutFile psftp.exe
+}
+if (-not (Test-Path plink.exe)) {
+    wget $plinkExeUrl -OutFile plink.exe
+}
+
+# Set deploy directory on target server
+$deployDirectory = "/tmp/mrpdeploy_" + [System.Guid]::NewGuid().toString()
+$buildName =  "_" + $($env:BUILD_DEFINITIONNAME)
+# Save sftp command text to file
+$sftpFile = "sftp.txt"
+$sftpContent = @'
+mkdir ROOT_DEPLOY_DIRECTORY
+cd ROOT_DEPLOY_DIRECTORY
+mkdir deploy
+cd deploy
+put ./ARTIFACT_DIRECTORY/deploy/MongoRecords.js
+put ./ARTIFACT_DIRECTORY/deploy/deploy_mrp_app.sh
+chmod 755 deploy_mrp_app.sh
+cd ..
+mkdir drop
+cd drop
+put -r ./ARTIFACT_DIRECTORY/drop/Backend/IntegrationService/build/libs/
+put -r ./ARTIFACT_DIRECTORY/drop/Backend/OrderService/build/libs/
+put -r ./ARTIFACT_DIRECTORY/drop/Clients/build/libs/
+chmod 755 ./*
+'@
+$sftpContent = $sftpContent.Replace('ROOT_DEPLOY_DIRECTORY',$deployDirectory)
+$sftpContent = $sftpContent.Replace('ARTIFACT_DIRECTORY',$buildName)
+Set-Content -Path $sftpFile -Value $sftpContent
+
+
+# Save plink command text to file
+$plinkFile = "plink.txt"
+$plinkContent = @'
+cd ROOT_DEPLOY_DIRECTORY/deploy
+dos2unix deploy_mrp_app.sh
+sudo bash ./deploy_mrp_app.sh
+'@
+$plinkContent = $plinkContent.Replace('ROOT_DEPLOY_DIRECTORY',$deployDirectory)
+Set-Content -Path $plinkFile -Value $plinkContent
+
+# Copy files and execute MRP deployment shell script
+echo n | & .\psftp.exe $sshUser@$sshTarget -pw $sshPassword -b $sftpFile 
+echo n | & .\plink.exe $sshUser@$sshTarget -pw $sshPassword -m $plinkFile
+
+
+
+================================================
+FILE: deploy/SSH-MRP-BDD-Security.ps1
+================================================
+[CmdletBinding()]
+Param(
+    [Parameter(Mandatory=$True)] [string] $sshTarget,
+	[Parameter(Mandatory=$True)] [string] $sshUser,
+    [Parameter(Mandatory=$True)] [string] $sshPassword,
+    [Parameter(Mandatory=$True)] [string] $sshKey
+)
+
+$ErrorActionPreference = "Stop"
+
+# Get plink and pscp
+$pscpExeUrl="https://the.earth.li/~sgtatham/putty/latest/x86/pscp.exe"
+$plinkExeUrl="https://the.earth.li/~sgtatham/putty/latest/x86/plink.exe"
+
+if (-not (Test-Path pscp.exe)) {
+    wget $pscpExeUrl -OutFile pscp.exe
+}
+if (-not (Test-Path plink.exe)) {
+    wget $plinkExeUrl -OutFile plink.exe
+}
+
+# Run tests
+$plinkFile = "plink.txt"
+$plinkContent = @'
+cd bdd-security/
+rm -rf build/reports/
+rm -rf build/test-results/
+./gradlew -Dcucumber.options="--tags @app_scan --tags ~@skip"
+'@
+Set-Content -Path $plinkFile -Value $plinkContent
+& ./plink.exe $sshUser@$sshTarget -batch -hostkey $sshKey -pw $sshPassword -m $plinkFile
+
+# Copy test results back to agent.
+$currentExecutionLocation = (Get-Location).Path
+& ./pscp.exe -batch -hostkey $sshKey -pw $sshPassword $sshUser@${sshTarget}:bdd-security/build/reports/junit/all_tests.xml `"$currentExecutionLocation`"
+
+
+
+================================================
+FILE: deploy/azurestack/readme.md
+================================================
+# What is Azure Stack?
+
+Microsoft Azure Stack is a new hybrid cloud platform product that enables you to deliver Azure services from your own datacenter.
+
+Azure Stack gives you the power of cloud services, yet enables IT to maintain control of your datacenter for true hybrid cloud agility. You decide where to keep your data and applications—in your own datacenter or with a hosting service provider. Easily access public cloud resources to scale at busy times, for dev-test, or whenever you need them.
+
+## Deliver Azure services to your datacenter
+
+Azure Stack enabled you to transform on-premises datacenter resources into cloud services for maximum agility. Run Azure IaaS services—including Virtual Machines, Blob/Table storage, and Docker-integrated Linux containers—for applications like SQL Server or SharePoint. Empower developers to write cloud-first applications using on-premises deployments of Azure PaaS services such as App Service. Make your application counterparts productive by enabling the same self-service experience as Azure.
+
+You can learn more about Azure Stack on the dedicated [Azure Stack website](https://azure.microsoft.com/en-us/overview/azure-stack/) and see some cool videos on the [Azure Stack Channel on Channel 9](https://channel9.msdn.com/Blogs/azurestack)
+
+It's also a great platform to learn about DevOps, and what better way to learn about DevOps, than through utilizing the Parts Unlimited MRP solution.
+
+# Parts Unlimited MRP
+
+Parts Unlimited MRP is a fictional outsourced Manufacturing Resource Planning (MRP) application for training purposes based on the description in chapters 31-35 of The Phoenix Projectby Gene Kim, Kevin Behr and George Spafford. © 2013 IT Revolution Press LLC, Portland, OR. Resemblance to “Project Unicorn” in the novel is intentional; resemblance to any real company is purely coincidental.
+
+The application uses entirely open source software including Linux, Java, Apache, and MongoDB which creates a web front end, an order service, and an integration service. Click here for the related [Parts Unlimited Website application](http://github.com/microsoft/partsunlimited).
+
+To read and learn more about this project, please visit the [documentation website](https://aka.ms/pumrplabs).
+
+## Key Features
+- Front end service - runs Apache Tomcat and talks to order service
+- Order and Integration service - runs Java and calls MongoDB
+- Integration service - present to integrate with Parts Unlimited Website
+- Includes a Dockerfile and sample publishing profile to publish to a Docker container
+- Includes Azure RM JSON templates and PowerShell automation scripts to easily build and provision your environment
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+
+# Getting Started with DevOps on Azure Stack
+
+Just like for the Parts Unlimited MRP on Azure documentation, this detailed series of documents will walk you through various deployments and configurations, along with usage of a number of core DevOps tools such as Chef, Puppet, Jenkins and more, all on Azure Stack.
+
+Interested? Head on over to the [getting started page](/deploy/azurestack/docs/readme.md) to start kicking the tires.
+
+
+
+================================================
+FILE: deploy/azurestack/customscripts/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/customscripts/install_updates.sh
+================================================
+#!/bin/bash
+apt-get update
+apt-get upgrade -y
+
+
+
+================================================
+FILE: deploy/azurestack/customscripts/chef/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/customscripts/chef/install_chef.sh
+================================================
+#!/bin/bash
+
+# Validate input parameters
+if [[ !("$#" -eq 3) ]]; 
+    then echo "Parameters missing for Chef Server 12 configuration." >&2
+    exit 1
+fi
+
+# Get parameters
+chef_fqdn=$1
+chef_user=$2
+chef_password=$3
+
+sudo hostname ${chef_fqdn}
+
+# Download & Install Chef Server 12
+cd ~
+wget https://packages.chef.io/files/stable/chef-server/12.15.7/ubuntu/16.04/chef-server-core_12.15.7-1_amd64.deb
+sudo dpkg -i chef-server-core_*.deb
+
+# Start Configuration
+sudo chef-server-ctl reconfigure
+
+# Configure user and organization
+sleep 5
+
+# Create user
+sudo chef-server-ctl user-create ${chef_user} ${chef_user} LabUser ${chef_user}@partsunlimited.local ${chef_password} --filename /home/${chef_user}/${chef_user}.pem
+
+# Create organization
+sudo chef-server-ctl org-create partsunlimited 'Parts Unlimited, Inc.' --association_user ${chef_user} --filename /home/${chef_user}/partsunlimited-validator.pem
+
+# Add the management GUI
+sudo chef-server-ctl install chef-manage
+sudo chef-server-ctl reconfigure
+sudo chef-manage-ctl reconfigure --accept-license
+
+#Add reporting
+sudo chef-server-ctl install opscode-reporting
+sudo chef-server-ctl reconfigure
+sudo opscode-reporting-ctl reconfigure --accept-license
+
+
+
+================================================
+FILE: deploy/azurestack/customscripts/jenkins/install_jenkins_1604.sh
+================================================
+#!/bin/bash
+
+# Install Jenkins Dependencies
+add-apt-repository ppa:openjdk-r/ppa
+apt-get update
+apt-get upgrade -y
+apt-get install openjdk-7-jdk -y
+apt-get install openjdk-7-jre -y
+apt-get install wget -y
+
+# Set Java environment variables
+export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64
+export PATH=$PATH:/usr/lib/jvm/java-7-openjdk-amd64/bin
+
+# Install Jenkins
+wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | sudo apt-key add -
+sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
+apt-get update
+apt-get install jenkins -y
+
+
+
+================================================
+FILE: deploy/azurestack/customscripts/linux_extension/manifest.json
+================================================
+{
+    "publisher":  "Microsoft.OSTCExtensions",
+    "Type":  "LinuxDiagnostic",
+    "Version":  "2.3.9009",
+    "GuestArtifact":  {
+                          "ExtensionHandlerFilePath":  "Microsoft.OSTCExtensions.LinuxDiagnostic_2.3.9009.zip",
+                          "OsType":  "Linux",
+                          "ComputeRole":  "N/A",
+                          "VMScaleSetEnabled":  false,
+                          "SupportsMultipleExtensions":  false
+                      }
+}
+
+
+
+================================================
+FILE: deploy/azurestack/customscripts/puppet/install_puppet_1604.sh
+================================================
+#!/bin/bash
+
+# Update OS
+apt-get update
+# apt-get upgrade -y
+
+# Validate input parameters
+if [[ !("$#" -eq 2) ]]; 
+    then echo "Parameters missing for puppet enterprise configuration." >&2
+    exit 1
+fi
+
+# Get parameters
+pe_version=$1
+console_pw=$2
+
+# Configure for Puppet Enterprise version
+case $pe_version in
+    2017.2.1)
+        pe_url=https://pm.puppetlabs.com/puppet-enterprise/2017.2.1/puppet-enterprise-2017.2.1-ubuntu-16.04-amd64.tar.gz
+        ;;
+    *)
+        pe_url=https://pm.puppetlabs.com/puppet-enterprise/2017.2.1/puppet-enterprise-2017.2.1-ubuntu-16.04-amd64.tar.gz
+        ;;
+esac
+
+# Set up variables
+pe_tar=${pe_url##*/}
+pe_folder=${pe_tar%%.tar.gz}
+
+# Get installation package
+cd /tmp; wget -q ${pe_url}
+
+# Unpack installation package
+tar -xf ${pe_tar}
+cd ${pe_folder}
+
+# Create configuration file
+sed '/console_admin_password/c \
+   "console_admin_password":"'$console_pw'"' conf.d/pe.conf > conf.d/azure-pe.conf
+
+# Start the installation
+./puppet-enterprise-installer -c conf.d/azure-pe.conf
+sudo ./puppet-enterprise-installer -c conf.d/azure-pe.conf
+
+exit 0
+
+
+
+================================================
+FILE: deploy/azurestack/instances/chef_node/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/instances/chef_node/AddChefNode.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminUsername": {
+            "defaultValue": "localadmin",
+            "minLength": 1,
+            "type": "string",
+            "metadata": {
+                "description": "User name for the additional node."
+            }
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Administrator password for the additional node."
+            }
+        },
+        "dnsNameForPublicIP": {
+            "minLength": 1,
+            "type": "string",
+            "metadata": {
+                "description": "Globally unique DNS Name for the Public IP used to access the MRP Virtual Machine."
+            }
+        }
+    },
+    "variables": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "imageSku": "16.04.3-LTS",
+        "osDiskName": "[tolower(concat(parameters('dnsNameForPublicIP'), 'osdisk'))]",
+        "nicName": "[tolower(concat(parameters('dnsNameForPublicIP'), 'Nic'))]",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetName": "Subnet",
+        "subnetPrefix": "10.0.0.0/24",
+        "storageName": "[tolower(concat(parameters('dnsNameForPublicIP'), 'sa'))]",
+        "storageType": "Standard_LRS",
+        "publicIPAddressType": "Dynamic",
+        "vhdStorageContainerName": "vhds",
+        "nsgName": "[tolower(concat(parameters('dnsNameForPublicIP'), 'NSG'))]",
+        "vmSize": "Standard_A2",
+        "vmName": "[toLower(parameters('dnsNameForPublicIP'))]",
+        "existingVirtualNetworkName": "chefVNET",
+        "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', variables('existingVirtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', variables('subnetName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[toLower(variables('storageName'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "accountType": "[variables('storageType')]"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('nsgName')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "SSH",
+                        "properties": {
+                            "description": "SSH port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "MRP",
+                        "properties": {
+                            "description": "MRP port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "9080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "OrderingSvc",
+                        "properties": {
+                            "description": "OrderingService port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "8080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1200,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[tolower(concat(parameters('dnsNameForPublicIP'), 'publicIP'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[parameters('dnsNameForPublicIP')]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('existingVirtualNetworkName')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('nicName')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', tolower(concat(parameters('dnsNameForPublicIP'), 'publicIP')))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', tolower(concat(parameters('dnsNameForPublicIP'), 'publicIP')))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('existingVirtualNetworkName'))]",
+                "[variables('nsgName')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('vmName')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('vmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('vmName')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('imagePublisher')]",
+                        "offer": "[variables('imageOffer')]",
+                        "sku": "[variables('imageSKU')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "[variables('osDiskName')]",
+                        "vhd": {
+                            "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob, variables('vhdStorageContainerName'),'/',variables('osDiskName'),'.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('vmName'),'/LinuxCustomScriptExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.5",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "commandToExecute": "ifconfig"
+                }
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('vmName'),'/LinuxVMAccessExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "VMAccessForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {},
+                "protectedSettings": {
+                    "username": "[parameters('adminUsername')]",
+                    "password": "[parameters('adminPassword')]"
+                }
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'),'/extensions/LinuxCustomScriptExtension')]"
+            ]
+        }
+    ],
+    "outputs": {}
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/chef_standalone/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/instances/chef_standalone/Chef.ChefServer/Manifest.json
+================================================
+{   "$schema": "https://gallery.azure.com/schemas/2014-09-01/manifest.json#",
+    "name": "ChefServer",
+    "publisher": "Chef",
+    "version": "1.0.0",
+    "displayName": "ms-resource:displayName",
+    "publisherDisplayName": "ms-resource:publisherDisplayName",
+    "publisherLegalName": "ms-resource:publisherDisplayName",
+    "summary": "ms-resource:summary",
+    "longSummary": "ms-resource:longSummary",
+    "description": "ms-resource:description",
+    "longDescription": "ms-resource:description",
+    "links": [
+        { "displayName": "ms-resource:documentationLink", "uri": "https://www.chef.io/" },
+        { "displayName": "ms-resource:documentationLink2", "uri": "https://docs.chef.io/" }
+    ],
+    "artifacts": [
+        {
+            "name": "ChefDeploy",
+            "type": "Template",
+            "path": "DeploymentTemplates\\ChefDeploy.json",
+            "isDefault": true
+        }
+    ],
+    "icons": {
+        "small": "Icons\\Small.png",
+        "medium": "Icons\\Medium.png",
+        "large": "Icons\\Large.png",
+        "wide": "Icons\\Wide.png",
+        "hero": "Icons\\Hero.png"
+    },
+    "categories": [
+      "Compute"
+    ],
+    "uiDefinition": {
+        "path": "UIDefinition.json"
+    }
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/chef_standalone/Chef.ChefServer/UIDefinition.json
+================================================
+{
+    "$schema": "https://gallery.azure.com/schemas/2015-02-12/UIDefinition.json#",
+    "createDefinition": {
+        "createBlade": {
+            "name": "DeployFromTemplateBlade",
+            "extension": "HubsExtension"
+        }
+    }
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/chef_standalone/Chef.ChefServer/DeploymentTemplates/ChefDeploy.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "chefAdminUsername": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "User name for the Chef Server."
+            },
+            "defaultValue": "chefadmin"
+        },
+        "chefAdminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Password for the Chef Server."
+            }
+        },
+        "chefDnsNameForPublicIP": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "Globally unique DNS Name for the Public IP used to access the Chef Server."
+            }
+        }
+    },
+    "variables": {
+        "chefImagePublisher": "Canonical",
+        "chefImageOffer": "UbuntuServer",
+        "chefImageSku": "16.04.3-LTS",
+        "chefOSDiskName": "chefOsdisk",
+        "chefNicName": "chefNic",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetName": "Subnet",
+        "subnetPrefix": "10.0.0.0/24",
+        "storageName": "[concat('vhdstorage', uniqueString(resourceGroup().id))]",
+        "storageType": "Standard_LRS",
+        "publicIPAddressType": "Dynamic",
+        "vhdStorageContainerName": "vhds",
+        "chefNsgName": "chefNSG",
+        "chefVmSize": "Standard_A3",
+        "chefVmName": "[toLower(parameters('chefDnsNameForPublicIP'))]",
+        "virtualNetworkName": "chefVNET",
+        "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', variables('subnetName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[toLower(variables('storageName'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "StorageAccount"
+            },
+            "properties": {
+                "accountType": "[variables('storageType')]"
+            }
+        },
+         {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('chefNsgName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "NSG-chef"
+            },
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "SSH",
+                        "properties": {
+                            "description": "SSH port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "HTTP",
+                        "properties": {
+                            "description": "HTTP port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "80",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "HTTPS",
+                        "properties": {
+                            "description": "HTTPS port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "443",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1200,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "https8443",
+                        "properties": {
+                            "description": "https8443",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "8443",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1300,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[parameters('chefDnsNameForPublicIP')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "PublicIPAddress-Chef"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[parameters('chefDnsNameForPublicIP')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('virtualNetworkName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VirtualNetwork"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+       
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('chefNicName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "NIC-Chef"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', parameters('chefDnsNameForPublicIP'))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
+                "[concat('Microsoft.Network/networkSecurityGroups/', variables('chefNSGName'))]"
+            ],
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('chefNSGName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('chefDnsNameForPublicIP'))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('chefVmName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VM-Chef"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('chefNicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('chefVmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('chefVmName')]",
+                    "adminUsername": "[parameters('chefAdminUsername')]",
+                    "adminPassword": "[parameters('chefAdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('chefImagePublisher')]",
+                        "offer": "[variables('chefImageOffer')]",
+                        "sku": "[variables('chefImageSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "osdisk",
+                        "vhd": {
+                            "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob, variables('vhdStorageContainerName'),'/',variables('chefOSDiskName'),'.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('chefNicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('chefVmName'),'/CustomScriptForLinux')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('chefVmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.3",
+                "autoUpgradeMinorVersion": "true",
+
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/deploy/azurestack/customscripts/chef/install_chef.sh"
+                    ]
+                },
+                "protectedSettings": {
+                    "commandToExecute": "[concat('bash install_chef.sh ', concat(parameters('chefDnsNameForPublicIP'),'.',resourceGroup().location,'.cloudapp.azurestack.external'), ' ', parameters('chefAdminUsername'), ' ', parameters('chefAdminPassword'))]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('chefVmName'),'/LinuxVMAccessExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('chefVmName'),'/extensions/CustomScriptForLinux')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "VMAccessForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {},
+                "protectedSettings": {
+                    "username": "[parameters('chefAdminUsername')]",
+                    "password": "[parameters('chefAdminPassword')]"
+                }
+            }
+        }
+    ]
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/chef_standalone/Chef.ChefServer/strings/resources.resjson
+================================================
+{
+  "displayName": "Chef Server",
+  "publisherDisplayName": "Chef",
+  "summary": "Chef Server 12 on Ubuntu 16.04-LTS VM, pre-configured and ready to run on Azure Stack",
+  "longSummary": "Chef Server 12 on Ubuntu 16.04-LTS VM, pre-configured and ready to run on Azure Stack",
+  "description": "<p>Whether you have five or five thousand servers, Chef lets you manage them all by turning infrastructure into code. Infrastructure described as code is flexible, versionable, human-readable, and testable.</p><p>Whether your infrastructure is in the cloud, on-premises or in a hybrid environment, you can easily and quickly adapt to your business’s changing needs with Chef</p><p>The Chef Server acts as a central repository for cookbooks as well as for information about every node it manages. Chef cookbooks contain code that describes the desired state of your infrastructure</p><p>For more information, review the links below.</p><p><b>Please Note</b> - This image is not officially provided by, or supported by Chef and is provided solely for use with the Parts Unlimited MRP Hands-on-Labs. All logos and images are property of Chef</p>",
+  "documentationLink": "Chef",
+  "documentationLink2": "Chef Documentation"
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/chef_workstation/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/instances/chef_workstation/AddChefWorkstation.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminUsername": {
+            "defaultValue": "localadmin",
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+            "description": "User name for the Chef Workstation Virtual Machine."
+            }
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "minLength": 8,
+            "metadata": {
+            "description": "Password for the Chef Workstation Virtual Machine."
+            }
+        },
+        "dnsNameForPublicIP": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 15,
+            "metadata": {
+                "description": "Globally unique DNS Name for the Public IP used to access the Chef Workstation Virtual Machine."
+            }
+        }
+    },
+    "variables": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2012-R2-Datacenter",
+        "osDiskName": "[tolower(concat(parameters('dnsNameForPublicIP'), 'osdisk'))]",
+        "nicName": "[tolower(concat(parameters('dnsNameForPublicIP'), 'Nic'))]",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetName": "Subnet",
+        "subnetPrefix": "10.0.0.0/24",
+        "storageName": "[tolower(concat(parameters('dnsNameForPublicIP'), 'sa'))]",
+        "storageType": "Standard_LRS",
+        "publicIPAddressType": "Dynamic",
+        "vhdStorageContainerName": "vhds",
+        "nsgName": "[tolower(concat(parameters('dnsNameForPublicIP'), 'NSG'))]",
+        "vmSize": "Standard_A2",
+        "vmName": "[toLower(parameters('dnsNameForPublicIP'))]",
+        "existingVirtualNetworkName": "chefVNET",
+        "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', variables('existingVirtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', variables('subnetName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[toLower(variables('storageName'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "accountType": "[variables('storageType')]"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('nsgName')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "RDP",
+                        "properties": {
+                            "description": "RDP port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "3389",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[tolower(concat(parameters('dnsNameForPublicIP'), 'publicIP'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[parameters('dnsNameForPublicIP')]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('existingVirtualNetworkName')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('nicName')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', tolower(concat(parameters('dnsNameForPublicIP'), 'publicIP')))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', tolower(concat(parameters('dnsNameForPublicIP'), 'publicIP')))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('existingVirtualNetworkName'))]",
+                "[variables('nsgName')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('vmName')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('vmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('vmName')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('imagePublisher')]",
+                        "offer": "[variables('imageOffer')]",
+                        "sku": "[variables('imageSKU')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "[variables('osDiskName')]",
+                        "vhd": {
+                            "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob, variables('vhdStorageContainerName'),'/',variables('osDiskName'),'.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('vmName'),'/chefworkstationconfig')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Compute",
+                "type": "CustomScriptExtension",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/docs/HOL_Deploying-Using-Chef/env/Configure-Chef-Workstation.ps1"
+                    ],
+                    "commandToExecute": "powershell -File Configure-Chef-Workstation.ps1"
+                },
+                "protectedSettings": {}
+            }
+        }
+    ],
+    "outputs": {}
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/jenkins_mrp/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/instances/jenkins_mrp/PartsUnlimitedMRP.MRPwithJenkins/Manifest.json
+================================================
+{   "$schema": "https://gallery.azure.com/schemas/2014-09-01/manifest.json#",
+    "name": "MRPwithJenkins",
+    "publisher": "PartsUnlimitedMRP",
+    "version": "1.0.0",
+    "displayName": "ms-resource:displayName",
+    "publisherDisplayName": "ms-resource:publisherDisplayName",
+    "publisherLegalName": "ms-resource:publisherDisplayName",
+    "summary": "ms-resource:summary",
+    "longSummary": "ms-resource:longSummary",
+    "description": "ms-resource:description",
+    "longDescription": "ms-resource:description",
+    "links": [
+        { "displayName": "ms-resource:documentationLink", "uri": "https://jenkins.io/index.html" },
+        { "displayName": "ms-resource:documentationLink2", "uri": "https://jenkins.io/doc/" },
+        { "displayName": "ms-resource:documentationLink3", "uri": "https://microsoft.github.io/PartsUnlimitedMRP/" },
+        { "displayName": "ms-resource:documentationLink4", "uri": "https://channel9.msdn.com/Series/Parts-Unlimited-MRP-Labs" }
+    ],
+    "artifacts": [
+        {
+            "name": "MRPwithJenkinsDeploy",
+            "type": "Template",
+            "path": "DeploymentTemplates\\MRPwithJenkinsDeploy.json",
+            "isDefault": true
+        }
+    ],
+    "icons": {
+        "small": "Icons\\Small.png",
+        "medium": "Icons\\Medium.png",
+        "large": "Icons\\Large.png",
+        "wide": "Icons\\Wide.png",
+        "hero": "Icons\\Hero.png"
+    },
+    "categories": [
+      "Compute"
+    ],
+    "uiDefinition": {
+        "path": "UIDefinition.json"
+    }
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/jenkins_mrp/PartsUnlimitedMRP.MRPwithJenkins/UIDefinition.json
+================================================
+{
+    "$schema": "https://gallery.azure.com/schemas/2015-02-12/UIDefinition.json#",
+    "createDefinition": {
+        "createBlade": {
+            "name": "DeployFromTemplateBlade",
+            "extension": "HubsExtension"
+        }
+    }
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/jenkins_mrp/PartsUnlimitedMRP.MRPwithJenkins/DeploymentTemplates/MRPwithJenkinsDeploy.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "jenkinsAdminUsername": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "User name for the Jenkins Master Virtual Machine."
+            },
+            "defaultValue": "jenkinsadmin"
+        },
+        "jenkinsAdminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Password for the Jenkins Master Virtual Machine."
+            }
+        },
+        "jenkinsDnsNameForPublicIP": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "Globally unique DNS Name for the Public IP used to access the Jenkins Master Virtual Machine."
+            }
+        },
+        "mrpAdminUsername": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "User name for the MRP Virtual Machine."
+            },
+            "defaultValue": "mrpadmin"
+        },
+        "mrpAdminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Password for the MRP Virtual Machine."
+            }
+        },
+        "mrpDnsNameForPublicIP": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "Globally unique DNS Name for the Public IP used to access the MRP Virtual Machine."
+            }
+        }
+    },
+    "variables": {
+        "jenkinsImagePublisher": "Canonical",
+        "jenkinsImageOffer": "UbuntuServer",
+        "jenkinsImageSku": "1404-LTS",
+        "mrpImagePublisher": "Canonical",
+        "mrpImageOffer": "UbuntuServer",
+        "mrpImageSku": "1404-LTS",
+        "mrpOSDiskName": "mrpOsdisk",
+        "jenkinsOSDiskName": "jenkinsMasterOsdisk",
+        "jenkinsNicName": "jenkinsNic",
+        "mrpNicName": "mrpNic",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetName": "Subnet",
+        "subnetPrefix": "10.0.0.0/24",
+        "storageType": "Standard_LRS",
+        "publicIPAddressType": "Dynamic",
+        "vhdStorageContainerName": "vhds",
+        "jenkinsNsgName": "jenkinsNSG",
+        "mrpNsgName": "mrpNSG",
+        "jenkinsVmSize": "Standard_A3",
+        "mrpVmSize": "Standard_A2",
+        "jenkinsVmName": "[toLower(parameters('jenkinsDnsNameForPublicIP'))]",
+        "mrpVmName": "[toLower(parameters('mrpDnsNameForPublicIP'))]",
+        "virtualNetworkName": "jenkinsMRPvNET",
+        "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', variables('subnetName'))]",
+        "storageName": "[concat('vhdstorage', uniqueString(resourceGroup().id))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[variables('storageName')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "StorageAccount"
+            },
+            "properties": {
+                "accountType": "[variables('storageType')]"
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[parameters('jenkinsDnsNameForPublicIP')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "PublicIPAddress-jenkins"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[parameters('jenkinsDnsNameForPublicIP')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[parameters('mrpDnsNameForPublicIP')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "PublicIPAddress-mrp"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[parameters('mrpDnsNameForPublicIP')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('virtualNetworkName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VirtualNetwork"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('jenkinsNsgName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "NSG-jenkins"
+            },
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "SSH",
+                        "properties": {
+                            "description": "SSH port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "Jenkins",
+                        "properties": {
+                            "description": "Jenkins port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "8080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1100,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('mrpNsgName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "NSG-mrp"
+            },
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "SSH",
+                        "properties": {
+                            "description": "SSH port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "MRP",
+                        "properties": {
+                            "description": "MRP port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "9080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "OrderingSvc",
+                        "properties": {
+                            "description": "OrderingService port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "8080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1200,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('jenkinsNicName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "NIC-Jenkins"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', parameters('jenkinsDnsNameForPublicIP'))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
+                "[concat('Microsoft.Network/networkSecurityGroups/', variables('jenkinsNSGName'))]"
+            ],
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('jenkinsNSGName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('jenkinsDnsNameForPublicIP'))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('mrpNicName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "NIC-MRP"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', parameters('mrpDnsNameForPublicIP'))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
+                "[concat('Microsoft.Network/networkSecurityGroups/', variables('mrpNSGName'))]"
+            ],
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('mrpNSGName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('mrpDnsNameForPublicIP'))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('jenkinsVmName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VM-Jenkins"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('jenkinsNicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('jenkinsVmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('jenkinsVmName')]",
+                    "adminUsername": "[parameters('jenkinsAdminUsername')]",
+                    "adminPassword": "[parameters('jenkinsAdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('jenkinsImagePublisher')]",
+                        "offer": "[variables('jenkinsImageOffer')]",
+                        "sku": "[variables('jenkinsImageSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "osdisk",
+                        "vhd": {
+                            "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob, variables('vhdStorageContainerName'),'/',variables('jenkinsOSDiskName'),'.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('jenkinsNicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob]"
+                    }
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('mrpVmName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VM-MRP"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('mrpNicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('mrpVmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('mrpVmName')]",
+                    "adminUsername": "[parameters('mrpAdminUsername')]",
+                    "adminPassword": "[parameters('mrpAdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('mrpImagePublisher')]",
+                        "offer": "[variables('mrpImageOffer')]",
+                        "sku": "[variables('mrpImageSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "osdisk",
+                        "vhd": {
+                            "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob, variables('vhdStorageContainerName'),'/',variables('mrpOSDiskName'),'.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('mrpNicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('mrpVmName'),'/mrpsetup')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('mrpVmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.3",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/deploy/azurestack/customscripts/install_updates.sh"
+                    ],
+                    "commandToExecute": "bash install_updates.sh"
+                },
+                "protectedSettings": {}
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('mrpVmName'),'/LinuxVMAccessExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('mrpVmName'),'/extensions/mrpsetup')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "VMAccessForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {},
+                "protectedSettings": {
+                    "username": "[parameters('mrpAdminUsername')]",
+                    "password": "[parameters('mrpAdminPassword')]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('jenkinsVmName'),'/LinuxVMAccessExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('jenkinsVmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "VMAccessForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {},
+                "protectedSettings": {
+                    "username": "[parameters('jenkinsAdminUsername')]",
+                    "password": "[parameters('jenkinsAdminPassword')]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('jenkinsVmName'),'/jenkinsinstall')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('jenkinsVmName'),'/extensions/LinuxVMAccessExtension')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/deploy/azurestack/customscripts/jenkins/install_jenkins_1404.sh"
+                    ],
+                    "commandToExecute": "bash install_jenkins_1404.sh"
+                },
+                "protectedSettings": {}
+            }
+        }
+    ],
+    "outputs": {}
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/jenkins_mrp/PartsUnlimitedMRP.MRPwithJenkins/strings/resources.resjson
+================================================
+{
+  "displayName": "Parts Unlimited MRP with Jenkins",
+  "publisherDisplayName": "Parts Unlimited MRP",
+  "summary": "Parts Unlimited MRP and Jenkins on Ubuntu 14.04-LTS VMs for use with DevOps Hands-on-Labs.",
+  "longSummary": "Parts Unlimited MRP and Jenkins on Ubuntu 14.04-LTS VMs for use with DevOps Hands-on-Labs.",
+  "description": "<p>Jenkins is a leading open source automation server. Jenkins provides hundreds of plugins to support building, deploying and automating any project.</p><p>This VM contains the latest version of Jenkins, along with the MRP VM, both running on Ubuntu 14.04-LTS, configured as a single deployment, and will allow you to get started learning and understanding how to use Jenkins to deploy the Parts Unlimited MRP app.</p><p>For more information, review the links below.</p>",
+  "documentationLink": "Jenkins Homepage",
+  "documentationLink2": "Jenkins Documentation",
+  "documentationLink3": "Parts Unlimited MRP Documentation",
+  "documentationLink4": "Parts Unlimited MRP Channel 9 Videos"
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/jenkins_standalone/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/instances/jenkins_standalone/TheJenkinsProject.Jenkins/Manifest.json
+================================================
+{   "$schema": "https://gallery.azure.com/schemas/2014-09-01/manifest.json#",
+    "name": "Jenkins",
+    "publisher": "TheJenkinsProject",
+    "version": "1.0.0",
+    "displayName": "ms-resource:displayName",
+    "publisherDisplayName": "ms-resource:publisherDisplayName",
+    "publisherLegalName": "ms-resource:publisherDisplayName",
+    "summary": "ms-resource:summary",
+    "longSummary": "ms-resource:longSummary",
+    "description": "ms-resource:description",
+    "longDescription": "ms-resource:description",
+    "links": [
+        { "displayName": "ms-resource:documentationLink", "uri": "https://jenkins.io/index.html" },
+        { "displayName": "ms-resource:documentationLink2", "uri": "https://jenkins.io/doc/" }
+    ],
+    "artifacts": [
+        {
+            "name": "JenkinsDeploy",
+            "type": "Template",
+            "path": "DeploymentTemplates\\JenkinsDeploy.json",
+            "isDefault": true
+        }
+    ],
+    "icons": {
+        "small": "Icons\\Small.png",
+        "medium": "Icons\\Medium.png",
+        "large": "Icons\\Large.png",
+        "wide": "Icons\\Wide.png",
+        "hero": "Icons\\Hero.png"
+    },
+    "categories": [
+      "Compute"
+    ],
+    "uiDefinition": {
+        "path": "UIDefinition.json"
+    }
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/jenkins_standalone/TheJenkinsProject.Jenkins/UIDefinition.json
+================================================
+{
+    "$schema": "https://gallery.azure.com/schemas/2015-02-12/UIDefinition.json#",
+    "createDefinition": {
+        "createBlade": {
+            "name": "DeployFromTemplateBlade",
+            "extension": "HubsExtension"
+        }
+    }
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/jenkins_standalone/TheJenkinsProject.Jenkins/DeploymentTemplates/JenkinsDeploy.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "jenkinsAdminUsername": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "User name for the Jenkins Master Virtual Machine."
+            },
+            "defaultValue": "jenkinsadmin"
+        },
+        "jenkinsAdminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Password for the Jenkins Master Virtual Machine."
+            }
+        },
+        "jenkinsDnsNameForPublicIP": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "Globally unique DNS Name for the Public IP used to access the Jenkins Master Virtual Machine."
+            }
+        }
+    },
+    "variables": {
+        "jenkinsImagePublisher": "Canonical",
+        "jenkinsImageOffer": "UbuntuServer",
+        "jenkinsImageSku": "16.04.3-LTS",
+        "jenkinsOSDiskName": "jenkinsOsdisk",
+        "jenkinsNicName": "jenkinsNic",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetName": "Subnet",
+        "subnetPrefix": "10.0.0.0/24",
+        "storageName": "[concat('vhdstorage', uniqueString(resourceGroup().id))]",
+        "storageType": "Standard_LRS",
+        "publicIPAddressType": "Dynamic",
+        "vhdStorageContainerName": "vhds",
+        "jenkinsNsgName": "jenkinsNSG",
+        "jenkinsVmSize": "Standard_A3",
+        "jenkinsVmName": "[toLower(parameters('jenkinsDnsNameForPublicIP'))]",
+        "virtualNetworkName": "jenkinsVNET",
+        "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', variables('subnetName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[toLower(variables('storageName'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "StorageAccount"
+            },
+            "properties": {
+                "accountType": "[variables('storageType')]"
+            }
+        },
+         {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('jenkinsNsgName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "NSG-Jenkins"
+            },
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "SSH",
+                        "properties": {
+                            "description": "SSH port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "Jenkins",
+                        "properties": {
+                            "description": "Jenkins port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "8080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1100,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[parameters('jenkinsDnsNameForPublicIP')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "PublicIPAddress-Jenkins"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[parameters('jenkinsDnsNameForPublicIP')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('virtualNetworkName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VirtualNetwork"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+       
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('jenkinsNicName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "NIC-Jenkins"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', parameters('jenkinsDnsNameForPublicIP'))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
+                "[concat('Microsoft.Network/networkSecurityGroups/', variables('jenkinsNSGName'))]"
+            ],
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('jenkinsNSGName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('jenkinsDnsNameForPublicIP'))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('jenkinsVmName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VM-Jenkins"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('jenkinsNicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('jenkinsVmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('jenkinsVmName')]",
+                    "adminUsername": "[parameters('jenkinsAdminUsername')]",
+                    "adminPassword": "[parameters('jenkinsAdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('jenkinsImagePublisher')]",
+                        "offer": "[variables('jenkinsImageOffer')]",
+                        "sku": "[variables('jenkinsImageSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "osdisk",
+                        "vhd": {
+                            "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob, variables('vhdStorageContainerName'),'/',variables('jenkinsOSDiskName'),'.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('jenkinsNicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('jenkinsVmName'),'/CustomScriptForLinux')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('jenkinsVmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.3",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/deploy/azurestack/customscripts/jenkins/install_jenkins_1604.sh"
+                    ],
+                    "commandToExecute": "bash install_jenkins_1604.sh"
+                },
+                "protectedSettings": {}
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('jenkinsVmName'),'/LinuxVMAccessExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('jenkinsVmName'),'/extensions/CustomScriptForLinux')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "VMAccessForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {},
+                "protectedSettings": {
+                    "username": "[parameters('jenkinsAdminUsername')]",
+                    "password": "[parameters('jenkinsAdminPassword')]"
+                }
+            }
+        }
+    ],
+    "outputs": {}
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/jenkins_standalone/TheJenkinsProject.Jenkins/strings/resources.resjson
+================================================
+{
+  "displayName": "Jenkins",
+  "publisherDisplayName": "The Jenkins Project",
+  "summary": "Jenkins on Ubuntu 16.04-LTS VM, pre-configured and ready to run on Azure Stack",
+  "longSummary": "Jenkins on Ubuntu 16.04-LTS VM, pre-configured and ready to run on Azure Stack",
+  "description": "<p>The leading open source automation server, Jenkins provides hundreds of plugins to support building, deploying and automating any project.</p><p>This VM contains the latest version of Jenkins, running on Ubuntu 16.04-LTS, configured as a single, standalone installation and will allow you to get started learning and understanding key Jenkins tasks.</p><p>For more information, review the links below.</p><p><b>Please Note</b> - This image is not officially provided by, or supported by Cloudbees or the Jenkins Community and is provided solely for use with the Parts Unlimited MRP Hands-on-Labs.</p>",
+  "documentationLink": "The Jenkins Project",
+  "documentationLink2": "Jenkins Documentation"
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/parts_unlimited_mrp_base/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/instances/parts_unlimited_mrp_base/install_mrp_dependencies_1604.sh
+================================================
+#!/bin/bash
+
+# Install PartsUnlimitedMRP dependencies
+apt-get update
+apt-get upgrade -y
+add-apt-repository ppa:openjdk-r/ppa -y
+apt-get update
+apt-get install openjdk-8-jdk -y
+apt-get install openjdk-8-jre -y
+apt-get install mongodb -y
+apt-get install tomcat7 -y
+apt-get install wget -y
+
+# Set Java environment variables
+sed -i '$ a JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64' /etc/default/tomcat7
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export PATH=$PATH:/usr/lib/jvm/java-8-openjdk-amd64/bin
+
+# Restart tomcat7
+service tomcat7 restart
+
+
+
+================================================
+FILE: deploy/azurestack/instances/parts_unlimited_mrp_base/PartsUnlimited.Ubuntu1604/Manifest.json
+================================================
+{   "$schema": "https://gallery.azure.com/schemas/2014-09-01/manifest.json#",
+    "name": "MRP",
+    "publisher": "PartsUnlimited",
+    "version": "1.0.0",
+    "displayName": "ms-resource:displayName",
+    "publisherDisplayName": "ms-resource:publisherDisplayName",
+    "publisherLegalName": "ms-resource:publisherDisplayName",
+    "summary": "ms-resource:summary",
+    "longSummary": "ms-resource:longSummary",
+    "description": "ms-resource:description",
+    "longDescription": "ms-resource:description",
+    "links": [
+        { "displayName": "ms-resource:documentationLink", "uri": "https://microsoft.github.io/PartsUnlimitedMRP/" },
+        { "displayName": "ms-resource:documentationLink2", "uri": "https://channel9.msdn.com/Series/Parts-Unlimited-MRP-Labs" }
+    ],
+    "artifacts": [
+        {
+            "name": "PartsUnlimitedMRP",
+            "type": "Template",
+            "path": "DeploymentTemplates\\PartsUnlimitedMRP.json",
+            "isDefault": true
+        }
+    ],
+    "icons": {
+        "small": "Icons\\Small.png",
+        "medium": "Icons\\Medium.png",
+        "large": "Icons\\Large.png",
+        "wide": "Icons\\Wide.png",
+        "hero": "Icons\\Hero.png"
+    },
+    "categories": [
+      "Compute"
+    ],
+    "uiDefinition": {
+        "path": "UIDefinition.json"
+    }
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/parts_unlimited_mrp_base/PartsUnlimited.Ubuntu1604/UIDefinition.json
+================================================
+{
+    "$schema": "https://gallery.azure.com/schemas/2015-02-12/UIDefinition.json#",
+    "createDefinition": {
+        "createBlade": {
+            "name": "DeployFromTemplateBlade",
+            "extension": "HubsExtension"
+        }
+    }
+}

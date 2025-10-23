@@ -1,0 +1,3522 @@
+
+
+
+
+================================================
+FILE: deploy/azurestack/instances/parts_unlimited_mrp_base/PartsUnlimited.Ubuntu1604/DeploymentTemplates/PartsUnlimitedMRP.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "mrpAdminUsername": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "User name for the MRP Virtual Machine."
+            },
+            "defaultValue": "mrpadmin"
+        },
+        "mrpAdminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Administrator password for the MRP Virtual Machine."
+            }
+        },
+        "mrpDnsNameForPublicIP": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "Globally unique DNS Name for the Public IP used to access the MRP Virtual Machine."
+            }
+        }
+    },
+    "variables": {
+        "mrpImagePublisher": "Canonical",
+        "mrpImageOffer": "UbuntuServer",
+        "mrpImageSku": "16.04.3-LTS",
+        "mrpOSDiskName": "mrpOsdisk",
+        "mrpNicName": "mrpNic",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetName": "Subnet",
+        "subnetPrefix": "10.0.0.0/24",
+        "storageName": "[concat('vhdstorage', uniqueString(resourceGroup().id))]",
+        "storageType": "Standard_LRS",
+        "publicIPAddressType": "Dynamic",
+        "vhdStorageContainerName": "vhds",
+        "mrpNsgName": "mrpNSG",
+        "mrpVmSize": "Standard_A2",
+        "mrpVmName": "[toLower(parameters('mrpDnsNameForPublicIP'))]",
+        "virtualNetworkName": "mrpVNET",
+        "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', variables('subnetName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[toLower(variables('storageName'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "accountType": "[variables('storageType')]"
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('mrpNsgName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "SSH",
+                        "properties": {
+                            "description": "SSH port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "MRP",
+                        "properties": {
+                            "description": "MRP port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "9080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "OrderingSvc",
+                        "properties": {
+                            "description": "OrderingService port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "8080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1200,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[parameters('mrpDnsNameForPublicIP')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[parameters('mrpDnsNameForPublicIP')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('virtualNetworkName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('mrpNicName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', parameters('mrpDnsNameForPublicIP'))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
+                "[variables('mrpNsgName')]"
+            ],
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('mrpNsgName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',parameters('mrpDnsNameForPublicIP'))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('mrpVmName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('mrpNicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('mrpVmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('mrpVmName')]",
+                    "adminUsername": "[parameters('mrpAdminUsername')]",
+                    "adminPassword": "[parameters('mrpAdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('mrpImagePublisher')]",
+                        "offer": "[variables('mrpImageOffer')]",
+                        "sku": "[variables('mrpImageSKU')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "[concat(resourceGroup().name, 'osdisk')]",
+                        "vhd": {
+                            "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob, variables('vhdStorageContainerName'),'/',variables('mrpOSDiskName'),'.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('mrpNicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('mrpVmName'),'/LinuxCustomScriptExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('mrpVmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/deploy/azurestack/customscripts/install_updates.sh"
+                    ],
+                    "commandToExecute": "bash install_updates.sh"
+                },
+                "protectedSettings": {}
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('mrpVmName'),'/LinuxVMAccessExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('mrpVmName'),'/extensions/LinuxCustomScriptExtension')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "VMAccessForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {},
+                "protectedSettings": {
+                    "username": "[parameters('mrpAdminUsername')]",
+                    "password": "[parameters('mrpAdminPassword')]"
+                }
+            }
+        }
+    ],
+    "outputs": {}
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/parts_unlimited_mrp_base/PartsUnlimited.Ubuntu1604/strings/resources.resjson
+================================================
+﻿{
+  "displayName": "Parts Unlimited MRP",
+  "publisherDisplayName": "Parts Unlimited",
+  "summary": "Parts Unlimited MRP Virtual Machine for use with DevOps Hands-on-Labs.",
+  "longSummary": "Parts Unlimited MRP Virtual Machine for use with DevOps Hands-on-Labs.",
+  "description": "<p>Parts Unlimited MRP is a fictional outsourced Manufacturing Resource Planning (MRP) application for training purposes based on the description in chapters 31-35 of The Phoenix Projectby Gene Kim, Kevin Behr and George Spafford. © 2013 IT Revolution Press LLC, Portland, OR. Resemblance to “Project Unicorn” in the novel is intentional; resemblance to any real company is purely coincidental. </p><p>The application uses entirely open source software including Linux, Java, Apache, and MongoDB which creates a web front end, an order service, and an integration service</p><p>For more information, review the links below.",
+  "documentationLink": "Documentation",
+  "documentationLink2": "Channel 9 Videos"
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/parts_unlimited_SSH_mrp_base/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/instances/parts_unlimited_SSH_mrp_base/PartsUnlimitedSSH.Ubuntu1604/Manifest.json
+================================================
+{   "$schema": "https://gallery.azure.com/schemas/2014-09-01/manifest.json#",
+    "name": "MRPSSH",
+    "publisher": "PartsUnlimited",
+    "version": "1.0.0",
+    "displayName": "ms-resource:displayName",
+    "publisherDisplayName": "ms-resource:publisherDisplayName",
+    "publisherLegalName": "ms-resource:publisherDisplayName",
+    "summary": "ms-resource:summary",
+    "longSummary": "ms-resource:longSummary",
+    "description": "ms-resource:description",
+    "longDescription": "ms-resource:description",
+    "links": [
+        { "displayName": "ms-resource:documentationLink", "uri": "https://microsoft.github.io/PartsUnlimitedMRP/" },
+        { "displayName": "ms-resource:documentationLink2", "uri": "https://channel9.msdn.com/Series/Parts-Unlimited-MRP-Labs" }
+    ],
+    "artifacts": [
+        {
+            "name": "PartsUnlimitedSSHMRP",
+            "type": "Template",
+            "path": "DeploymentTemplates\\PartsUnlimitedSSHMRP.json",
+            "isDefault": true
+        }
+    ],
+    "icons": {
+        "small": "Icons\\Small.png",
+        "medium": "Icons\\Medium.png",
+        "large": "Icons\\Large.png",
+        "wide": "Icons\\Wide.png",
+        "hero": "Icons\\Hero.png"
+    },
+    "categories": [
+      "Compute"
+    ],
+    "uiDefinition": {
+        "path": "UIDefinition.json"
+    }
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/parts_unlimited_SSH_mrp_base/PartsUnlimitedSSH.Ubuntu1604/UIDefinition.json
+================================================
+{
+    "$schema": "https://gallery.azure.com/schemas/2015-02-12/UIDefinition.json#",
+    "createDefinition": {
+        "createBlade": {
+            "name": "DeployFromTemplateBlade",
+            "extension": "HubsExtension"
+        }
+    }
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/parts_unlimited_SSH_mrp_base/PartsUnlimitedSSH.Ubuntu1604/DeploymentTemplates/PartsUnlimitedSSHMRP.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "mrpAdminUsername": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "User name for the MRP Virtual Machine."
+            },
+            "defaultValue": "mrpadmin"
+        },
+        "adminPublicKey": {
+            "type": "string",
+            "metadata": {
+                "description": "SSH rsa public key file as a string"
+            }
+        },
+        "mrpDnsNameForPublicIP": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "Globally unique DNS Name for the Public IP used to access the MRP Virtual Machine."
+            }
+        }
+    },
+    "variables": {
+        "mrpImagePublisher": "Canonical",
+        "mrpImageOffer": "UbuntuServer",
+        "mrpImageSku": "16.04.3-LTS",
+        "mrpOSDiskName": "mrpOsdisk",
+        "mrpNicName": "mrpNic",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetName": "Subnet",
+        "subnetPrefix": "10.0.0.0/24",
+        "storageName": "[concat('vhdstorage', uniqueString(resourceGroup().id))]",
+        "storageType": "Standard_LRS",
+        "publicIPAddressType": "Dynamic",
+        "vhdStorageContainerName": "vhds",
+        "mrpNsgName": "mrpNSG",
+        "mrpVmSize": "Standard_A2",
+        "mrpVmName": "[toLower(parameters('mrpDnsNameForPublicIP'))]",
+        "sshKeyPath": "[concat('/home/',parameters('mrpAdminUsername'),'/.ssh/authorized_keys')]",
+        "virtualNetworkName": "mrpVNET",
+        "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', variables('subnetName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[toLower(variables('storageName'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "StorageAccount"
+            },
+            "properties": {
+                "accountType": "[variables('storageType')]"
+            }
+        },
+         {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('mrpNsgName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "NSG-mrp"
+            },
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "SSH",
+                        "properties": {
+                            "description": "SSH port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "MRP",
+                        "properties": {
+                            "description": "MRP port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "9080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "OrderingSvc",
+                        "properties": {
+                            "description": "OrderingService port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "8080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1200,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[parameters('mrpDnsNameForPublicIP')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "PublicIPAddress-mrp"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[parameters('mrpDnsNameForPublicIP')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('virtualNetworkName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VirtualNetwork"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+       
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('mrpNicName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "NIC-mrp"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', parameters('mrpDnsNameForPublicIP'))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
+                "[concat('Microsoft.Network/networkSecurityGroups/', variables('mrpNSGName'))]"
+            ],
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('mrpNSGName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('mrpDnsNameForPublicIP'))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('mrpVmName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VM-mrp"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('mrpNicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('mrpVmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('mrpVmName')]",
+                    "adminUsername": "[parameters('mrpAdminUsername')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": "true",
+                        "ssh": {
+                            "publicKeys": [
+                                {
+                                    "path": "[variables('sshKeyPath')]",
+                                    "keyData": "[parameters('adminPublicKey')]"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('mrpImagePublisher')]",
+                        "offer": "[variables('mrpImageOffer')]",
+                        "sku": "[variables('mrpImageSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "osdisk",
+                        "vhd": {
+                            "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob, variables('vhdStorageContainerName'),'/',variables('mrpOSDiskName'),'.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('mrpNicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('mrpVmName'),'/mrpsetup')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('mrpVmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.3",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/deploy/azurestack/instances/parts_unlimited_mrp_base/install_mrp_dependencies_1604.sh"
+                    ],
+                    "commandToExecute": "bash install_mrp_dependencies_1604.sh"
+                },
+                "protectedSettings": {}
+            }
+        }
+    ],
+    "outputs": {}
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/parts_unlimited_SSH_mrp_base/PartsUnlimitedSSH.Ubuntu1604/strings/resources.resjson
+================================================
+﻿{
+  "displayName": "Parts Unlimited MRP with SSH",
+  "publisherDisplayName": "Parts Unlimited",
+  "summary": "Parts Unlimited MRP Virtual Machine with SSH for use with DevOps Hands-on-Labs.",
+  "longSummary": "Parts Unlimited MRP Virtual Machine with SSH for use with DevOps Hands-on-Labs.",
+  "description": "<p>Parts Unlimited MRP is a fictional outsourced Manufacturing Resource Planning (MRP) application for training purposes based on the description in chapters 31-35 of The Phoenix Projectby Gene Kim, Kevin Behr and George Spafford. © 2013 IT Revolution Press LLC, Portland, OR. Resemblance to “Project Unicorn” in the novel is intentional; resemblance to any real company is purely coincidental. </p><p>The application uses entirely open source software including Linux, Java, Apache, and MongoDB which creates a web front end, an order service, and an integration service</p><p>For more information, review the links below.",
+  "documentationLink": "Documentation",
+  "documentationLink2": "Channel 9 Videos"
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/puppet_node/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/instances/puppet_node/AddPuppetNode.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminUsername": {
+            "defaultValue": "localadmin",
+            "minLength": 1,
+            "type": "string",
+            "metadata": {
+                "description": "User name for the additional node."
+            }
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Administrator password for the additional node."
+            }
+        },
+        "dnsNameForPublicIP": {
+            "minLength": 1,
+            "type": "string",
+            "metadata": {
+                "description": "Globally unique DNS Name for the Public IP used to access the MRP Virtual Machine."
+            }
+        }
+    },
+    "variables": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "imageSku": "16.04.3-LTS",
+        "osDiskName": "[tolower(concat(parameters('dnsNameForPublicIP'), 'osdisk'))]",
+        "nicName": "[tolower(concat(parameters('dnsNameForPublicIP'), 'Nic'))]",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetName": "Subnet",
+        "subnetPrefix": "10.0.0.0/24",
+        "storageName": "[tolower(concat(parameters('dnsNameForPublicIP'), 'sa'))]",
+        "storageType": "Standard_LRS",
+        "publicIPAddressType": "Dynamic",
+        "vhdStorageContainerName": "vhds",
+        "nsgName": "[tolower(concat(parameters('dnsNameForPublicIP'), 'NSG'))]",
+        "vmSize": "Standard_A2",
+        "vmName": "[toLower(parameters('dnsNameForPublicIP'))]",
+        "existingVirtualNetworkName": "puppetVNET",
+        "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', variables('existingVirtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', variables('subnetName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[toLower(variables('storageName'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "accountType": "[variables('storageType')]"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('nsgName')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "SSH",
+                        "properties": {
+                            "description": "SSH port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "MRP",
+                        "properties": {
+                            "description": "MRP port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "9080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "OrderingSvc",
+                        "properties": {
+                            "description": "OrderingService port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "8080",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1200,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[tolower(concat(parameters('dnsNameForPublicIP'), 'publicIP'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[parameters('dnsNameForPublicIP')]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('existingVirtualNetworkName')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('nicName')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', tolower(concat(parameters('dnsNameForPublicIP'), 'publicIP')))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', tolower(concat(parameters('dnsNameForPublicIP'), 'publicIP')))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('existingVirtualNetworkName'))]",
+                "[variables('nsgName')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('vmName')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('vmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('vmName')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('imagePublisher')]",
+                        "offer": "[variables('imageOffer')]",
+                        "sku": "[variables('imageSKU')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "[variables('osDiskName')]",
+                        "vhd": {
+                            "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob, variables('vhdStorageContainerName'),'/',variables('osDiskName'),'.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('vmName'),'/LinuxCustomScriptExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.5",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "commandToExecute": "ifconfig"
+                }
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('vmName'),'/LinuxVMAccessExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "VMAccessForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {},
+                "protectedSettings": {
+                    "username": "[parameters('adminUsername')]",
+                    "password": "[parameters('adminPassword')]"
+                }
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'),'/extensions/LinuxCustomScriptExtension')]"
+            ]
+        }
+    ],
+    "outputs": {}
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/puppet_standalone/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/instances/puppet_standalone/Puppet.PuppetEnterprise/Manifest.json
+================================================
+{   "$schema": "https://gallery.azure.com/schemas/2014-09-01/manifest.json#",
+    "name": "PuppetEnterprise",
+    "publisher": "Puppet",
+    "version": "1.0.0",
+    "displayName": "ms-resource:displayName",
+    "publisherDisplayName": "ms-resource:publisherDisplayName",
+    "publisherLegalName": "ms-resource:publisherDisplayName",
+    "summary": "ms-resource:summary",
+    "longSummary": "ms-resource:longSummary",
+    "description": "ms-resource:description",
+    "longDescription": "ms-resource:description",
+    "links": [
+        { "displayName": "ms-resource:documentationLink", "uri": "https://puppet.com/" },
+        { "displayName": "ms-resource:documentationLink2", "uri": "https://docs.puppet.com/puppet/" }
+    ],
+    "artifacts": [
+        {
+            "name": "PuppetDeploy",
+            "type": "Template",
+            "path": "DeploymentTemplates\\PuppetDeploy.json",
+            "isDefault": true
+        }
+    ],
+    "icons": {
+        "small": "Icons\\Small.png",
+        "medium": "Icons\\Medium.png",
+        "large": "Icons\\Large.png",
+        "wide": "Icons\\Wide.png",
+        "hero": "Icons\\Hero.png"
+    },
+    "categories": [
+      "Compute"
+    ],
+    "uiDefinition": {
+        "path": "UIDefinition.json"
+    }
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/puppet_standalone/Puppet.PuppetEnterprise/UIDefinition.json
+================================================
+{
+    "$schema": "https://gallery.azure.com/schemas/2015-02-12/UIDefinition.json#",
+    "createDefinition": {
+        "createBlade": {
+            "name": "DeployFromTemplateBlade",
+            "extension": "HubsExtension"
+        }
+    }
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/puppet_standalone/Puppet.PuppetEnterprise/DeploymentTemplates/PuppetDeploy.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "pmAdminUsername": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "User name for the Puppet Master Virtual Machine."
+            },
+            "defaultValue": "puppetadmin"
+        },
+        "pmAdminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Password for the Puppet Master Virtual Machine."
+            }
+        },
+        "pmDnsNameForPublicIP": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "Globally unique DNS Name for the Public IP used to access the Puppet Master Virtual Machine."
+            }
+        },
+        "pmConsolePassword": {
+            "type": "securestring",
+            "metadata": {
+            "description": "Password for the Puppet Master console admin account."
+            }
+        }
+    },
+    "variables": {
+        "pmImagePublisher": "Canonical",
+        "pmImageOffer": "UbuntuServer",
+        "pmImageSku": "16.04.3-LTS",
+        "pmVersion": "2017.2.1",
+        "pmOSDiskName": "puppetOsdisk",
+        "pmNicName": "puppetNic",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetName": "Subnet",
+        "subnetPrefix": "10.0.0.0/24",
+        "storageName": "[concat('vhdstorage', uniqueString(resourceGroup().id))]",
+        "storageType": "Standard_LRS",
+        "publicIPAddressType": "Dynamic",
+        "vhdStorageContainerName": "vhds",
+        "pmNsgName": "pmNSG",
+        "pmVmSize": "Standard_A3",
+        "pmVmName": "[toLower(parameters('pmDnsNameForPublicIP'))]",
+        "virtualNetworkName": "puppetVNET",
+        "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', variables('subnetName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[toLower(variables('storageName'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "StorageAccount"
+            },
+            "properties": {
+                "accountType": "[variables('storageType')]"
+            }
+        },
+         {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('pmNsgName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "NSG-Puppet"
+            },
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "SSH",
+                        "properties": {
+                            "description": "SSH port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "HTTPS",
+                        "properties": {
+                            "description": "HTTPS port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "443",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "Puppet",
+                        "properties": {
+                            "description": "Puppet port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "8140",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1200,
+                            "direction": "Inbound"
+                        }
+                    },
+                        {
+                        "name": "MCollective",
+                        "properties": {
+                            "description": "MCollective port",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "61613",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1300,
+                            "direction": "Inbound"
+                            }
+                        }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[parameters('pmDnsNameForPublicIP')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "PublicIPAddress-Puppet"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[parameters('pmDnsNameForPublicIP')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('virtualNetworkName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VirtualNetwork"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+       
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('pmNicName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "NIC-Puppet"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', parameters('pmDnsNameForPublicIP'))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
+                "[concat('Microsoft.Network/networkSecurityGroups/', variables('pmNSGName'))]"
+            ],
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('pmNSGName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('pmDnsNameForPublicIP'))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('pmVmName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VM-Puppet"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('pmNicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('pmVmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('pmVmName')]",
+                    "adminUsername": "[parameters('pmAdminUsername')]",
+                    "adminPassword": "[parameters('pmAdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('pmImagePublisher')]",
+                        "offer": "[variables('pmImageOffer')]",
+                        "sku": "[variables('pmImageSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "osdisk",
+                        "vhd": {
+                            "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob, variables('vhdStorageContainerName'),'/',variables('pmOSDiskName'),'.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('pmNicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', variables('storageName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('pmVmName'),'/CustomScriptForLinux')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('pmVmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.3",
+                "autoUpgradeMinorVersion": "true",
+
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/deploy/azurestack/customscripts/puppet/install_puppet_1604.sh"
+                    ]
+                },
+                "protectedSettings": {
+                    "commandToExecute": "[concat('bash install_puppet_1604.sh ', variables('pmVersion'), ' ', parameters('pmConsolePassword'))]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('pmVmName'),'/LinuxVMAccessExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('pmVmName'),'/extensions/CustomScriptForLinux')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "VMAccessForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {},
+                "protectedSettings": {
+                    "username": "[parameters('pmAdminUsername')]",
+                    "password": "[parameters('pmAdminPassword')]"
+                }
+            }
+        }
+    ]
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/puppet_standalone/Puppet.PuppetEnterprise/strings/resources.resjson
+================================================
+{
+  "displayName": "Puppet Enterprise",
+  "publisherDisplayName": "Puppet",
+  "summary": "Puppet Enterprise on Ubuntu 16.04-LTS VM, pre-configured and ready to run on Azure Stack",
+  "longSummary": "Puppet Enterprise on Ubuntu 16.04-LTS VM, pre-configured and ready to run on Azure Stack",
+  "description": "<p>Puppet Enterprise lets you automate the entire lifecycle of your Azure infrastructure, simply, scalably, and securely, from initial provisioning through application deployment.</p><p>After you set up your Puppet Master, you can start automating common tasks, such as provisioning VMs, deploying an IIS site, and configuring a SQL server database.</p><p>For more information, review the links below.</p><p><b>Please Note</b> - This image is not officially provided by, or supported by Puppet and is provided solely for use with the Parts Unlimited MRP Hands-on-Labs. All logos and images are property of Puppet</p>",
+  "documentationLink": "Puppet Enterprise",
+  "documentationLink2": "Puppet Documentation"
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/ubuntu_server_1404_base/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/instances/ubuntu_server_1404_base/Canonical.Ubuntu1404/Manifest.json
+================================================
+{   "$schema": "https://gallery.azure.com/schemas/2014-09-01/manifest.json#",
+    "name": "UbuntuServer",
+    "publisher": "Canonical",
+    "version": "1.0.0",
+    "displayName": "ms-resource:displayName",
+    "publisherDisplayName": "ms-resource:publisherDisplayName",
+    "publisherLegalName": "ms-resource:publisherDisplayName",
+    "summary": "ms-resource:summary",
+    "longSummary": "ms-resource:longSummary",
+    "description": "ms-resource:description",
+    "longDescription": "ms-resource:description",
+    "links": [
+        { "displayName": "ms-resource:documentationLink", "uri": "https://help.ubuntu.com/14.04/serverguide/index.html" }
+    ],
+    "artifacts": [
+        {
+            "name": "UbuntuServer1404",
+            "type": "Template",
+            "path": "DeploymentTemplates\\UbuntuServer1404.json",
+            "isDefault": true
+        }
+    ],
+    "icons": {
+        "small": "Icons\\Small.png",
+        "medium": "Icons\\Medium.png",
+        "large": "Icons\\Large.png",
+        "wide": "Icons\\Wide.png",
+        "hero": "Icons\\Hero.png"
+    },
+    "categories": [
+      "Compute"
+    ],
+    "uiDefinition": {
+        "path": "UIDefinition.json"
+    }
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/ubuntu_server_1404_base/Canonical.Ubuntu1404/UIDefinition.json
+================================================
+{
+    "$schema": "https://gallery.azure.com/schemas/2015-02-12/UIDefinition.json#",
+    "createDefinition": {
+        "createBlade": {
+            "name": "DeployFromTemplateBlade",
+            "extension": "HubsExtension"
+        }
+    }
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/ubuntu_server_1404_base/Canonical.Ubuntu1404/DeploymentTemplates/UbuntuServer1404.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminUsername": {
+            "type": "string",
+            "metadata": {
+                "description": "Username for the Virtual Machine."
+            },
+            "defaultValue": "localadmin"
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Administrator password used when provisioning virtual machines"
+            }
+        }
+    },
+    "variables": {
+        "dnsNameForPublicIP": "[resourceGroup().name]",
+        "location": "[resourceGroup().location]",
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "UbuntuSKU": "1404-LTS",
+        "OSDiskName": "[tolower(concat(resourceGroup().name, 'osdisk'))]",
+        "nicName": "[tolower(concat(resourceGroup().name, 'vNic'))]",
+        "addressPrefix": "10.0.0.0/24",
+        "subnetName": "[tolower(concat(resourceGroup().name, 'subnet'))]",
+        "subnetPrefix": "10.0.0.0/24",
+        "storageAccountName": "[concat(resourceGroup().name, 'sa')]",
+        "storageAccountType": "Standard_LRS",
+        "publicIPAddressName": "[tolower(concat(resourceGroup().name, 'publicIP'))]",
+        "publicIPAddressType": "Dynamic",
+        "vmStorageAccountContainerName": "vhds",
+        "vmName": "[resourceGroup().name]",
+        "vmSize": "Standard_A2",
+        "virtualNetworkName": "[tolower(concat(resourceGroup().name, 'vNet'))]",
+        "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetID'),'/subnets/',variables('subnetName'))]",
+        "networkSecurityGroupName": "[tolower(concat(resourceGroup().name, 'nsg'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[toLower(variables('storageAccountName'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[variables('location')]",
+            "properties": {
+                "accountType": "[variables('storageAccountType')]"
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('networkSecurityGroupName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "ssh",
+                        "properties": {
+                            "description": "Allow SSH",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 200,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[variables('publicIPAddressName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('dnsNameForPublicIP')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('virtualNetworkName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('nicName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
+                "[variables('networkSecurityGroupName')]"
+            ],
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('vmName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('vmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('vmName')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('imagePublisher')]",
+                        "offer": "[variables('imageOffer')]",
+                        "sku": "[variables('UbuntuSKU')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "[concat(resourceGroup().name, 'osdisk')]",
+                        "vhd": {
+                            "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob, variables('vmStorageAccountContainerName'),'/',variables('OSDiskName'),'.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('vmName'),'/LinuxCustomScriptExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.3",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/deploy/azurestack/customscripts/install_updates.sh"
+                    ],
+                    "commandToExecute": "bash install_updates.sh"
+                },
+                "protectedSettings": {}
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('vmName'),'/LinuxDockerExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'),'/extensions/LinuxCustomScriptExtension')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "DockerExtension",
+                "typeHandlerVersion": "1.2",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {}
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('vmName'),'/LinuxVMAccessExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'),'/extensions/LinuxDockerExtension')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "VMAccessForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {},
+                "protectedSettings": {
+                    "username": "[parameters('adminUsername')]",
+                    "password": "[parameters('adminPassword')]"
+                }
+            }
+        }
+    ],
+    "outputs": {}
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/ubuntu_server_1404_base/Canonical.Ubuntu1404/strings/resources.resjson
+================================================
+{
+  "displayName": "Ubuntu Server 14.04-LTS",
+  "publisherDisplayName": "Canonical",
+  "summary": "Ubuntu Server delivers the best value scale-out performance available.",
+  "longSummary": "Ubuntu Server delivers the best value scale-out performance available.",
+  "description": "<p>Ubuntu Server is the world's most popular Linux for cloud environments.</p><p>Updates and patches for Ubuntu 14.04 LTS will be available until 2019-04-17.</p><p>Ubuntu Server is the perfect virtual machine (VM) platform for all workloads from web applications to NoSQL databases and Hadoop.</p><p><b>Please Note</b> - This image is not officially provided by, or supported by Canonical and is provided solely for use with the Parts Unlimited MRP Hands-on-Labs. All logos and images are property of Canonical.</p>",
+  "documentationLink": "Documentation"
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/ubuntu_server_1604_base/readme.md
+================================================
+
+
+
+
+================================================
+FILE: deploy/azurestack/instances/ubuntu_server_1604_base/Canonical.UbuntuServer.1.0.0/Manifest.json
+================================================
+{   "$schema": "https://gallery.azure.com/schemas/2014-09-01/manifest.json#",
+    "name": "UbuntuServer",
+    "publisher": "Canonical",
+    "version": "1.0.0",
+    "displayName": "ms-resource:displayName",
+    "publisherDisplayName": "ms-resource:publisherDisplayName",
+    "publisherLegalName": "ms-resource:publisherDisplayName",
+    "summary": "ms-resource:summary",
+    "longSummary": "ms-resource:longSummary",
+    "description": "ms-resource:description",
+    "longDescription": "ms-resource:description",
+    "links": [
+        { "displayName": "ms-resource:documentationLink", "uri": "https://help.ubuntu.com/lts/serverguide/index.html" }
+    ],
+    "artifacts": [
+        {
+            "name": "UbuntuServer1604",
+            "type": "Template",
+            "path": "DeploymentTemplates\\UbuntuServer1604.json",
+            "isDefault": true
+        }
+    ],
+    "icons": {
+        "small": "Icons\\Small.png",
+        "medium": "Icons\\Medium.png",
+        "large": "Icons\\Large.png",
+        "wide": "Icons\\Wide.png",
+        "hero": "Icons\\Hero.png"
+    },
+    "categories": [
+      "Compute"
+    ],
+    "uiDefinition": {
+        "path": "UIDefinition.json"
+    }
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/ubuntu_server_1604_base/Canonical.UbuntuServer.1.0.0/UIDefinition.json
+================================================
+{
+    "$schema": "https://gallery.azure.com/schemas/2015-02-12/UIDefinition.json#",
+    "createDefinition": {
+        "createBlade": {
+            "name": "DeployFromTemplateBlade",
+            "extension": "HubsExtension"
+        }
+    }
+}
+
+
+
+================================================
+FILE: deploy/azurestack/instances/ubuntu_server_1604_base/Canonical.UbuntuServer.1.0.0/DeploymentTemplates/UbuntuServer1604.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminUsername": {
+            "type": "string",
+            "metadata": {
+                "description": "Username for the Virtual Machine."
+            },
+            "defaultValue": "localadmin"
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Administrator password used when provisioning virtual machines"
+            }
+        }
+    },
+    "variables": {
+        "dnsNameForPublicIP": "[resourceGroup().name]",
+        "location": "[resourceGroup().location]",
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "UbuntuSKU": "16.04.3-LTS",
+        "OSDiskName": "[tolower(concat(resourceGroup().name, 'osdisk'))]",
+        "nicName": "[tolower(concat(resourceGroup().name, 'vNic'))]",
+        "addressPrefix": "10.0.0.0/24",
+        "subnetName": "[tolower(concat(resourceGroup().name, 'subnet'))]",
+        "subnetPrefix": "10.0.0.0/24",
+        "storageAccountName": "[concat(resourceGroup().name, 'sa')]",
+        "storageAccountType": "Standard_LRS",
+        "publicIPAddressName": "[tolower(concat(resourceGroup().name, 'publicIP'))]",
+        "publicIPAddressType": "Dynamic",
+        "vmStorageAccountContainerName": "vhds",
+        "vmName": "[resourceGroup().name]",
+        "vmSize": "Standard_A2",
+        "virtualNetworkName": "[tolower(concat(resourceGroup().name, 'vNet'))]",
+        "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetID'),'/subnets/',variables('subnetName'))]",
+        "networkSecurityGroupName": "[tolower(concat(resourceGroup().name, 'nsg'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[toLower(variables('storageAccountName'))]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[variables('location')]",
+            "properties": {
+                "accountType": "[variables('storageAccountType')]"
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('networkSecurityGroupName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "ssh",
+                        "properties": {
+                            "description": "Allow SSH",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 200,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[variables('publicIPAddressName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('dnsNameForPublicIP')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('virtualNetworkName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-05-01-preview",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('nicName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]",
+                "[variables('networkSecurityGroupName')]"
+            ],
+            "properties": {
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]"
+                            },
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('vmName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('vmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('vmName')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('imagePublisher')]",
+                        "offer": "[variables('imageOffer')]",
+                        "sku": "[variables('UbuntuSKU')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "[concat(resourceGroup().name, 'osdisk')]",
+                        "vhd": {
+                            "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob, variables('vmStorageAccountContainerName'),'/',variables('OSDiskName'),'.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('vmName'),'/LinuxCustomScriptExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.3",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/deploy/azurestack/customscripts/install_updates.sh"
+                    ],
+                    "commandToExecute": "bash install_updates.sh"
+                },
+                "protectedSettings": {}
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('vmName'),'/LinuxDockerExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'),'/extensions/LinuxCustomScriptExtension')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "DockerExtension",
+                "typeHandlerVersion": "1.2",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {}
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('vmName'),'/LinuxVMAccessExtension')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'),'/extensions/LinuxDockerExtension')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "VMAccessForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": "true",
+                "settings": {},
+                "protectedSettings": {
+                    "username": "[parameters('adminUsername')]",
+                    "password": "[parameters('adminPassword')]"
+                }
+            }
+        }
+    ],
+    "outputs": {}
+}
+
+
+================================================
+FILE: deploy/azurestack/instances/ubuntu_server_1604_base/Canonical.UbuntuServer.1.0.0/strings/resources.resjson
+================================================
+{
+  "displayName": "Ubuntu Server 16.04-LTS",
+  "publisherDisplayName": "Canonical",
+  "summary": "Ubuntu Server delivers the best value scale-out performance available.",
+  "longSummary": "Ubuntu Server delivers the best value scale-out performance available.",
+  "description": "<p>Ubuntu Server is the world's most popular Linux for cloud environments. Updates and patches for Ubuntu 16.04 will be available until April 2021.</p><p>Ubuntu Server is the perfect virtual machine (VM) platform for all workloads from web applications to NoSQL databases and Hadoop.</p><p><b>Please Note</b> - This image is not officially provided by, or supported by Canonical and is provided solely for use with the Parts Unlimited MRP Hands-on-Labs. All logos and images are property of Canonical</p>",
+  "documentationLink": "Documentation"
+}
+
+
+================================================
+FILE: deploy/docker/BuildAndRun.sh
+================================================
+#!/bin/bash
+
+#Build your docker images manually on the server
+docker build -t mypartsunlimitedmrp/db ./Database
+docker build -t mypartsunlimitedmrp/order ./Order
+docker build -t mypartsunlimitedmrp/web ./Clients
+
+#Run your docker images manually on the server
+docker run -it -d --name db -p 27017:27017 -p 28017:28017 mypartsunlimitedmrp/db 
+docker run -it -d --name order -p 8080:8080 --link db:mongo mypartsunlimitedmrp/order
+docker run -it -d --name web -p 80:8080 mypartsunlimitedmrp/web
+
+#Feed the database
+docker exec db mongo ordering /tmp/MongoRecords.js
+
+
+================================================
+FILE: deploy/docker/StopAndRemove.sh
+================================================
+#!/bin/bash
+
+#Stop your docker container and remove it manually on the server
+docker rm db --force
+docker rm order --force
+docker rm web --force
+
+#Remove the images manually on the server
+docker rmi mypartsunlimitedmrp/db
+docker rmi mypartsunlimitedmrp/order
+docker rmi mypartsunlimitedmrp/web
+
+
+================================================
+FILE: deploy/docker/Clients/Dockerfile
+================================================
+FROM tomcat:7-jre8
+
+MAINTAINER juliens@microsoft.com
+
+COPY drop/* /usr/local/tomcat/webapps/
+
+EXPOSE 8080
+
+ENTRYPOINT catalina.sh run
+
+
+
+================================================
+FILE: deploy/docker/Clients/drop/PUT YOUR WAR FILE HERE
+================================================
+[Empty file]
+
+
+================================================
+FILE: deploy/docker/Database/Dockerfile
+================================================
+FROM mongo
+
+MAINTAINER juliens@microsoft.com
+
+COPY drop/* /tmp/
+
+CMD ["mongod", "--smallfiles", "--rest"]
+
+
+================================================
+FILE: deploy/docker/Database/drop/MongoRecords.js
+================================================
+var conn;
+while (conn === undefined)
+{
+    try
+    {
+        conn = new Mongo("localhost:27017");
+    }
+    catch (e)
+    {
+        print(e);
+    }
+
+    sleep(100);
+}
+
+db = conn.getDB("ordering");
+db.catalog.insert(
+[
+  {"skuNumber" : "LIG-0001", "description" : "Helogen Headlights (2 Pack)", "price" : 38.99, "inventory" : 10, "leadTime" : 3},
+  {"skuNumber" : "LIG-0002", "description" : "Bugeye Headlights (2 Pack)", "price" : 48.99, "inventory" : 7, "leadTime" : 3},
+  {"skuNumber" : "LIG-0003", "description" : "Turn Signal Light Bulb", "price" : 6.49, "inventory" : 18, "leadTime" : 3},
+  {"skuNumber" : "WHE-0001", "description" : "Matte Finish Rim", "price" : 75.99, "inventory" : 4, "leadTime" : 5},
+  {"skuNumber" : "WHE-0002", "description" : "Blue Performance Alloy Rim", "price" : 88.99, "inventory" : 8, "leadTime" : 5},
+  {"skuNumber" : "WHE-0003", "description" : "High Performance Rim", "price" : 99.99, "inventory" : 3, "leadTime" : 5},
+  {"skuNumber" : "WHE-0004", "description" : "Wheel Tire Combo", "price" : 72.49, "inventory" : 0, "leadTime" : 4},
+  {"skuNumber" : "WHE-0005", "description" : "Chrome Rim Tire Combo", "price" : 129.99, "inventory" : 1, "leadTime" : 4},
+  {"skuNumber" : "WHE-0006", "description" : "Wheel Tire Combo (4 Pack)", "price" : 219.99, "inventory" : 3, "leadTime" : 6},
+  {"skuNumber" : "BRA-0001", "description" : "Disk and Pad Combo", "price" : 25.99, "inventory" : 0, "leadTime" : 6},
+  {"skuNumber" : "BRA-0002", "description" : "Brake Rotor", "price" : 18.99, "inventory" : 4, "leadTime" : 4},
+  {"skuNumber" : "BRA-0003", "description" : "Brake Disk and Calipers", "price" : 43.99, "inventory" : 2, "leadTime" : 8},
+  {"skuNumber" : "BAT-0001", "description" : "12-Volt Calcium Battery", "price" : 129.99, "inventory" : 9, "leadTime" : 8},
+  {"skuNumber" : "BAT-0002", "description" : "Spiral Coil Battery", "price" : 154.99, "inventory" : 3, "leadTime" : 10},
+  {"skuNumber" : "BAT-0003", "description" : "Jumper Leads", "price" : 16.99, "inventory" : 6, "leadTime" : 3},
+  {"skuNumber" : "OIL-0001", "description" : "Filter Set", "price" : 28.99, "inventory" : 3, "leadTime" : 4},
+  {"skuNumber" : "OIL-0002", "description" : "Oil and Filter Combo", "price" : 34.49, "inventory" : 5, "leadTime" : 4},
+  {"skuNumber" : "OIL-0003", "description" : "Synthetic Engine Oil", "price" : 39.99, "inventory" : 11, "leadTime" : 4}
+])
+
+db.dealers.insert({ "name" : "Terry Adams", "address" : "17760 Northeast 67th Court, Redmond, WA 98052", "email" : "terry@adams.com", "phone" : "425-885-6217" })
+
+db.quotes.insert([{
+"quoteId" : "0",
+"validUntil" : "2015-05-01T00:00:00+0000",
+"customerName" : "Walter Harp",
+"dealerName" : "Terry Adams",
+"city" : "Seattle",
+"totalCost" : "51.97",
+"discount" : "0.0",
+"state" : "WA",
+"postalCode" : "98023",
+"quoteItems" : [
+    {"skuNumber":"LIG-0001", "amount":1 },
+    {"skuNumber":"LIG-0003", "amount":2 }]
+},
+{
+"quoteId" : "1",
+"validUntil" : "2015-01-01T00:00:00+0000",
+"customerName" : "Jerry Morrison",
+"dealerName" : "Terry Adams",
+"city" : "Seattle",
+"totalCost" : "25.99",
+"state" : "WA",
+"postalCode" : "98089",
+"quoteItems" : [
+  { "skuNumber" : "BRA-0001", "amount" : 1}
+]
+},
+{
+"quoteId" : "2",
+"validUntil" : "2015-02-01T00:00:00+0000",
+"customerName" : "Harrison Hall",
+"dealerName" : "Terry Adams",
+"city" : "Seattle",
+"totalCost" : "600.90",
+"discount" : "0.0",
+"state" : "WA",
+"postalCode" : "98027",
+"quoteItems" : [
+  { "skuNumber" : "WHE-0002", "amount" : 4},
+  { "skuNumber" : "BRA-0003", "amount" : 4},
+  { "skuNumber" : "OIL-0001", "amount" : 1},
+  { "skuNumber" : "OIL-0001", "amount" : 1}
+]
+}
+])
+
+db.orders.insert([{
+"orderId" : "0",
+"quoteId" : "0",
+"orderDate" : "2015-03-02T20:43:37+0000",
+"status" : "Created",
+"events" : []
+},
+{"orderId" : "1",
+"quoteId" : "2",
+"orderDate" : "2015-03-02T20:43:37+0000",
+"status" : "DeliveryConfirmed",
+"events" : []
+}])
+
+db.shipments.insert([{
+"orderId" : "0",
+"contactName" : "Walter Harp",
+"primaryContactPhone" : {
+  "phoneNumber" : "435-783-2378",
+  "kind" : "Mobile"
+},
+"deliveryAddress" : {
+  "street" : "34 Sheridan Street",
+  "city" : "Seattle",
+  "state" : "WA",
+  "postalCode" : "98023",
+  "specialInstructions" : ""
+},
+"events" : []
+},
+{
+"orderId" : "2",
+"contactName" : "Harrison Hall",
+"primaryContactPhone" : {
+  "phoneNumber" : "435-712-7234",
+  "kind" : "Mobile"
+},
+"deliveryAddress" : {
+  "street" : "84 Queen Street",
+  "city" : "Seattle",
+  "state" : "WA",
+  "postalCode" : "98027",
+  "specialInstructions" : "Leave around by the back door."
+},
+"events" : []
+}])
+
+
+
+================================================
+FILE: deploy/docker/Order/Dockerfile
+================================================
+FROM openjdk:8-jre
+
+MAINTAINER juliens@microsoft.com
+
+RUN mkdir -p /usr/local/app
+
+WORKDIR /usr/local/app
+
+COPY drop/* /usr/local/app/
+
+EXPOSE 8080
+
+ENTRYPOINT sh run.sh
+
+
+
+================================================
+FILE: deploy/docker/Order/drop/PUT YOUR JAR FILE HERE
+================================================
+[Empty file]
+
+
+================================================
+FILE: deploy/docker/Order/drop/run.sh
+================================================
+#!/bin/bash
+
+while ! curl http://mongo:27017/
+do
+  echo "$(date) - still trying"
+  sleep 1
+done
+echo "$(date) - connected successfully"
+
+java -jar ordering-*.jar
+
+
+
+================================================
+FILE: Labfiles/ansible-azure-lab/ARMtemplate-newVM.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "variables": {},
+    "resources": [
+		{
+			"comments": "Availability set",
+			"type": "Microsoft.Compute/availabilitySets",
+			"name": "myAvSet",
+			"apiVersion": "2017-03-30",
+			"location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Aligned"
+            },
+            "properties": {
+                "platformUpdateDomainCount": 5,
+                "platformFaultDomainCount": 2
+            }
+		},
+        {
+            "comments": "Create a NSG",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "myNsg",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "default-allow-SSH",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            },
+            "resources": [],
+            "dependsOn": []
+        },
+        {
+            "comments": "Create Network Interface Card, associated to the NSG and to the SLB",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "myNic",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "myNic",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', 'myVnet'), '/subnets/', 'subnet1')]"
+                            },
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'mySlb'), '/backendAddressPools/', 'myBackendConfig')]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableIPForwarding": false,
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'myNsg')]"
+                }
+            },
+            "resources": [],
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'myVnet')]",
+                "[resourceId('Microsoft.Network/loadBalancers', 'mySlb')]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'myNsg')]"
+            ]
+        },
+        {
+            "comments": "Create vnet with 2 subnets",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "myVnet",
+            "apiVersion": "2016-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "10.123.0.0/16"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "subnet1",
+                        "properties": {
+                            "addressPrefix": "10.123.1.0/24"
+                        }
+                    },
+                    {
+                        "name": "subnet2",
+                        "properties": {
+                            "addressPrefix": "10.123.2.0/24"
+                        }
+                    }
+                ]
+            },
+            "resources": [],
+            "dependsOn": []
+        },
+        {
+            "comments": "Deploy VM",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "mySecondVM",
+            "apiVersion": "2017-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', 'myAvSet')]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "Standard_A0"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "OpenLogic",
+                        "offer": "CentOS",
+                        "sku": "7.3",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "osType": "Linux",
+                        "caching": "ReadWrite",
+                        "name": "myOsDisk",
+                        "createOption": "FromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        }
+                    },
+                    "dataDisks": []
+                },
+                "osProfile": {
+                    "computerName": "mySecondVm",
+                    "adminUsername": "lab-user",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false
+                    },
+                    "secrets": [],
+    				"adminPassword": "Microsoft123!"				
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', 'myNic')]"
+                        }
+                    ]
+                }
+            },
+            "resources": [],
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', 'myNic')]",
+                "[resourceId('Microsoft.Compute/availabilitySets', 'myAvSet')]"
+            ]
+        },
+        {
+            "comments": "Internal Load Balancer",
+            "type": "Microsoft.Network/loadBalancers",
+            "name": "mySlb",
+            "apiVersion": "2016-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "myFrontendConfig",
+                        "properties": {
+                            "privateIPAddress": "10.123.1.100",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', 'myVnet'), '/subnets/', 'subnet1')]"
+                            }
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "myBackendConfig"
+                    }
+                ],
+                "loadBalancingRules": [
+                    {
+                        "name": "SSHrule",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[concat( resourceId('Microsoft.Network/loadBalancers', 'mySlb'), '/frontendIPConfigurations/', 'myFrontendConfig')]"
+                            },
+                            "frontendPort": 22,
+                            "backendPort": 22,
+                            "enableFloatingIP": false,
+                            "idleTimeoutInMinutes": 4,
+                            "protocol": "Tcp",
+                            "loadDistribution": "Default",
+                            "backendAddressPool": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'mySlb'), '/backendAddressPools/', 'myBackendConfig')]"
+                            },
+                            "probe": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'mySlb'), '/probes/', 'myProbe')]"
+                            }
+                        }
+                    }
+                ],
+                "probes": [
+                    {
+                        "name": "myProbe",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "port": 22,
+                            "intervalInSeconds": 15,
+                            "numberOfProbes": 2
+                        }
+                    }
+                ],
+                "inboundNatRules": [],
+                "outboundNatRules": [],
+                "inboundNatPools": []
+            },
+            "resources": [],
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'myVnet')]"
+            ]
+        }
+   ]
+}
+
+
+================================================
+FILE: Labfiles/ansible-azure-lab/delete_vm.yml
+================================================
+# The following variables must be specified:
+# - vmname
+# - resgrp
+- name: Remove Virtual Machine and associated objects
+  hosts: localhost
+  connection: local
+  gather_facts: no 
+  tasks:
+  - name: Remove VM and all resources
+    azure_rm_virtualmachine:
+      resource_group: '{{ resgrp }}'
+      name: '{{ vmname }}'
+      state: absent
+      # ignore_errors: yes
+      remove_on_absent:
+        - network_interfaces
+        - virtual_storage
+        - public_ips
+  - name: Remove storage account
+    azure_rm_storageaccount: 
+      resource_group: '{{ resgrp }}'
+      name:  '{{ vmname }}'
+      state: absent
+      # ignore_errors: yes
+
+
+
+================================================
+FILE: Labfiles/ansible-azure-lab/httpd.yml
+================================================
+- name: Install Apache Web Server 
+  hosts: '{{ vmname }}'
+  gather_facts: no
+  tasks:
+  - name: Ensure apache is at the latest version
+    yum: name=httpd state=latest
+    become: true
+  - name: Change permissions of /var/www/html
+    file: path=/var/www/html mode=0777
+    become: true
+  - name: Download index.html
+    get_url:
+      url: https://raw.githubusercontent.com/erjosito/ansible-azure-lab/master/index.html
+      dest: /var/www/html/index.html
+      mode: 0644
+  - name: Ensure apache is running (and enable it at boot)
+    service: name=httpd state=started enabled=yes
+    become: true
+
+
+
+
+
+================================================
+FILE: Labfiles/ansible-azure-lab/index.html
+================================================
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Hello World</title>
+    </head>
+    <body>
+        <h1>Hello World</h1>
+        <p>
+            <br>This is a test page
+            <br>This is a test page
+            <br>This is a test page
+        </p>
+    </body>
+</html>
+
+
+================================================
+FILE: Labfiles/ansible-azure-lab/LICENSE
+================================================
+MIT License
+
+Copyright (c) 2016 OSS Labs
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+
+================================================
+FILE: Labfiles/ansible-azure-lab/new_ARM_deployment.yml
+================================================
+- name: CREATE ARM Deployment PLAYBOOK
+  hosts: localhost
+  connection: local
+  gather_facts: False
+  vars:
+    # Variables 'resgrp' and 'location' need to be provided at command line with arg --extra-vars
+    templateLink: 'https://raw.githubusercontent.com/erjosito/ansible-azure-lab/master/ARMtemplate-newVM.json'
+    # No parameters required for this template
+    #paramsLink: ''
+   
+  tasks:
+  - name: Deploy ARM template
+    azure_rm_deployment:
+        state: present
+        resource_group_name: '{{ resgrp }}'
+        # location seems to be not optional
+        location: '{{ location }}'
+        template_link: '{{ templateLink }}'
+        #parameters_link: '{{ paramsLink }}'
+
+
+
+================================================
+FILE: Labfiles/ansible-azure-lab/new_vm_web.yml
+================================================
+- name: CREATE VM PLAYBOOK
+  hosts: localhost
+  connection: local
+  gather_facts: False
+  vars:
+    # Variables 'vnet', 'subnet', 'vmname' and 'resgrp' need to be provided at command line with arg --extra-vars
+    dnsname: '{{ vmname }}.westeurope.cloudapp.azure.com'
+    # The DNS name might not be right depending on your region!!
+    ip: "{{ lookup ('dig', '{{ dnsname }}') }}"
+   
+  tasks:
+  - debug: msg="Public DNS name {{ dnsname }} resolved to IP {{ ip }}. "
+# The following check is disabled so that the playbook does not stop upon existence of DNS name. Otherwise
+# it cannot be re-run after VM creation
+#  - name: Check if DNS is taken
+#    fail: msg="That DNS name seems to be already taken"
+#    when: ip != 'NXDOMAIN'
+  - name: Create storage account
+    azure_rm_storageaccount:
+      resource_group: '{{ resgrp }}'
+      name: '{{ vmname }}'
+      account_type: Standard_LRS
+  - name: Create security group that allows SSH and HTTP
+    azure_rm_securitygroup: 
+      resource_group: '{{ resgrp }}'
+      name: '{{ vmname }}'
+      rules: 
+        - name: SSH 
+          protocol: Tcp 
+          destination_port_range: 22  
+          access: Allow  
+          priority: 101 
+          direction: Inbound
+        - name: WEB
+          protocol: Tcp 
+          destination_port_range: 80  
+          access: Allow  
+          priority: 102 
+          direction: Inbound
+  - name: Create public IP address
+    azure_rm_publicipaddress: 
+      resource_group: '{{ resgrp }}'
+      allocation_method: Static 
+      name: '{{ vmname }}'
+      domain_name_label: '{{ vmname }}'
+  - name: Create NIC
+    azure_rm_networkinterface:
+      resource_group: '{{ resgrp }}'
+      name: '{{ vmname }}'
+      virtual_network: '{{ vnet }}'
+      subnet: '{{ subnet }}'
+      public_ip_name: '{{ vmname }}'
+      security_group: '{{ vmname }}'
+  - name: Create VM
+    azure_rm_virtualmachine:
+      resource_group: '{{ resgrp }}'
+      name: '{{ vmname }}'
+      storage_account: '{{ vmname }}'
+      storage_container: '{{ vmname }}'
+      storage_blob: '{{ vmname }}.vhd'
+      network_interfaces: '{{ vmname }}'
+      vm_size: Standard_A0
+      admin_username: lab-user
+      ssh_password_enabled: False
+      ssh_public_keys: 
+        - path: /home/lab-user/.ssh/authorized_keys
+          key_data: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDn4i0NkH4uFL7B87MJBW0TyQcsk99vQNlHyZLJyRielhU2kxy73K4ecOEcYQPu0B58KbQfHM2EooaHbZIDAaZK8K62yaYz5eV7YBMr5TdN9Tw5u1GGT5LrWsOYoHcQtcSnTRbBSWZDFIx5eJWebBxdDh61LbEftyOLg16xsLRIqp6SeAtJANTWNSMCEH96qn4+12eoW8bYQ7flVyR7uyE+7NDKmMaHk0zWUQe0wluHyUnfj15g1tfRvwXyUEMLMagyFrhRh0n/wNBnV8XrX74OjqCseJfh3YnuLxhy4hAmw0di699Q3jTB3xJ8b7yg2NvoAF+lzSkQtiArTjEBVKuv lab-user@ansibleMaster'
+      image:
+        offer: CentOS
+        publisher: OpenLogic
+        sku: '7.2'
+        version: latest
+
+
+
+================================================
+FILE: Labfiles/ansible-azure-lab/VERSION
+================================================
+v0.2
+
+
+
+================================================
+FILE: Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/automate_nginx.sh
+================================================
+#!/bin/bash
+
+# The MIT License (MIT)
+#
+# Copyright (c) 2015 Microsoft Azure
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+apt-get update -y && apt-get upgrade -y
+apt-get install -y nginx
+echo "Hello World from my VM Scale set" $HOSTNAME "!" | sudo tee -a /var/www/html/index.html
+
+
+================================================
+FILE: Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/ARMtemplate-newVM.json
+================================================
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "variables": {},
+    "resources": [
+		{
+			"comments": "Availability set",
+			"type": "Microsoft.Compute/availabilitySets",
+			"name": "myAvSet",
+			"apiVersion": "2017-03-30",
+			"location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Aligned"
+            },
+            "properties": {
+                "platformUpdateDomainCount": 5,
+                "platformFaultDomainCount": 2
+            }
+		},
+        {
+            "comments": "Create a NSG",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "myNsg",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "default-allow-SSH",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            },
+            "resources": [],
+            "dependsOn": []
+        },
+        {
+            "comments": "Create Network Interface Card, associated to the NSG and to the SLB",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "myNic",
+            "apiVersion": "2017-06-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "myNic",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', 'myVnet'), '/subnets/', 'subnet1')]"
+                            },
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'mySlb'), '/backendAddressPools/', 'myBackendConfig')]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableIPForwarding": false,
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'myNsg')]"
+                }
+            },
+            "resources": [],
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'myVnet')]",
+                "[resourceId('Microsoft.Network/loadBalancers', 'mySlb')]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'myNsg')]"
+            ]
+        },
+        {
+            "comments": "Create vnet with 2 subnets",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "myVnet",
+            "apiVersion": "2016-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "10.123.0.0/16"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "subnet1",
+                        "properties": {
+                            "addressPrefix": "10.123.1.0/24"
+                        }
+                    },
+                    {
+                        "name": "subnet2",
+                        "properties": {
+                            "addressPrefix": "10.123.2.0/24"
+                        }
+                    }
+                ]
+            },
+            "resources": [],
+            "dependsOn": []
+        },
+        {
+            "comments": "Deploy VM",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "mySecondVM",
+            "apiVersion": "2017-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', 'myAvSet')]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "Standard_A0"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "OpenLogic",
+                        "offer": "CentOS",
+                        "sku": "7.3",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "osType": "Linux",
+                        "caching": "ReadWrite",
+                        "name": "myOsDisk",
+                        "createOption": "FromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        }
+                    },
+                    "dataDisks": []
+                },
+                "osProfile": {
+                    "computerName": "mySecondVm",
+                    "adminUsername": "lab-user",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false
+                    },
+                    "secrets": [],
+    				"adminPassword": "Microsoft123!"				
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', 'myNic')]"
+                        }
+                    ]
+                }
+            },
+            "resources": [],
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', 'myNic')]",
+                "[resourceId('Microsoft.Compute/availabilitySets', 'myAvSet')]"
+            ]
+        },
+        {
+            "comments": "Internal Load Balancer",
+            "type": "Microsoft.Network/loadBalancers",
+            "name": "mySlb",
+            "apiVersion": "2016-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "myFrontendConfig",
+                        "properties": {
+                            "privateIPAddress": "10.123.1.100",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', 'myVnet'), '/subnets/', 'subnet1')]"
+                            }
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "myBackendConfig"
+                    }
+                ],
+                "loadBalancingRules": [
+                    {
+                        "name": "SSHrule",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[concat( resourceId('Microsoft.Network/loadBalancers', 'mySlb'), '/frontendIPConfigurations/', 'myFrontendConfig')]"
+                            },
+                            "frontendPort": 22,
+                            "backendPort": 22,
+                            "enableFloatingIP": false,
+                            "idleTimeoutInMinutes": 4,
+                            "protocol": "Tcp",
+                            "loadDistribution": "Default",
+                            "backendAddressPool": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'mySlb'), '/backendAddressPools/', 'myBackendConfig')]"
+                            },
+                            "probe": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'mySlb'), '/probes/', 'myProbe')]"
+                            }
+                        }
+                    }
+                ],
+                "probes": [
+                    {
+                        "name": "myProbe",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "port": 22,
+                            "intervalInSeconds": 15,
+                            "numberOfProbes": 2
+                        }
+                    }
+                ],
+                "inboundNatRules": [],
+                "outboundNatRules": [],
+                "inboundNatPools": []
+            },
+            "resources": [],
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'myVnet')]"
+            ]
+        }
+   ]
+}
+
+
+================================================
+FILE: Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/create_vm.yml
+================================================
+- name: Create Azure Ubuntu Web VM
+  hosts: localhost
+  connection: local
+  tasks:
+  - name: Create resource group
+    azure_rm_resourcegroup:
+      name: ubuntuwebvmrg
+      location: eastus
+  - name: Create virtual network
+    azure_rm_virtualnetwork:
+      resource_group: ubuntuwebvmrg
+      name: ubuntuvnet
+      address_prefixes: "10.0.0.0/16"
+  - name: Add subnet
+    azure_rm_subnet:
+      resource_group: ubuntuwebvmrg
+      name: ubuntusubnet
+      address_prefix: "10.0.1.0/24"
+      virtual_network: ubuntuvnet
+  - name: Create public IP address
+    azure_rm_publicipaddress:
+      resource_group: ubuntuwebvmrg
+      allocation_method: Static
+      name: ubuntuPublicIP
+    register: output_ip_address
+  - name: Dump public IP for VM which will be created
+    debug:
+      msg: "The public IP is {{ output_ip_address.state.ip_address }}."
+  - name: Create Network Security Group that allows SSH and HTTP
+    azure_rm_securitygroup:
+      resource_group: ubuntuwebvmrg
+      name: ubuntuNetworkSecurityGroup
+      rules:
+        - name: SSH
+          protocol: Tcp
+          destination_port_range: 22
+          access: Allow
+          priority: 101
+          direction: Inbound
+        - name: HTTP
+          protocol: Tcp 
+          destination_port_range: 80  
+          access: Allow  
+          priority: 102 
+          direction: Inbound
+        - name: HTTPS
+          protocol: Tcp 
+          destination_port_range: 443 
+          access: Allow  
+          priority: 103 
+          direction: Inbound
+        - name: RDP
+          protocol: Tcp 
+          destination_port_range: 443 
+          access: Allow  
+          priority: 104
+          direction: Inbound
+  - name: Create virtual network interface card
+    azure_rm_networkinterface:
+      resource_group: ubuntuwebvmrg
+      name: ubuntuNIC
+      virtual_network: ubuntuvnet
+      subnet: ubuntusubnet
+      public_ip_name: ubuntuPublicIP
+      security_group: ubuntuNetworkSecurityGroup
+  - name: Create VM
+    azure_rm_virtualmachine:
+      resource_group: ubuntuwebvmrg
+      name: ubuntuwebvm1
+      vm_size: Standard_DS1_v2
+      admin_username: azureuser
+      admin_password: Password0134!
+      ssh_password_enabled: false
+      ssh_public_keys: 
+        - path: /home/azureuser/.ssh/authorized_keys
+          key_data: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDn4i0NkH4uFL7B87MJBW0TyQcsk99vQNlHyZLJyRielhU2kxy73K4ecOEcYQPu0B58KbQfHM2EooaHbZIDAaZK8K62yaYz5eV7YBMr5TdN9Tw5u1GGT5LrWsOYoHcQtcSnTRbBSWZDFIx5eJWebBxdDh61LbEftyOLg16xsLRIqp6SeAtJANTWNSMCEH96qn4+12eoW8bYQ7flVyR7uyE+7NDKmMaHk0zWUQe0wluHyUnfj15g1tfRvwXyUEMLMagyFrhRh0n/wNBnV8XrX74OjqCseJfh3YnuLxhy4hAmw0di699Q3jTB3xJ8b7yg2NvoAF+lzSkQtiArTjEBVKuv'
+      network_interfaces: ubuntuNIC
+      image:
+        offer: UbuntuServer
+        publisher: Canonical
+        sku: 18.04-LTS
+        version: latest
+
+
+================================================
+FILE: Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/cron.yml
+================================================
+
+- name: Create Cron Job for Web Server configuration
+  hosts: localhost
+  connection: local
+  tasks:
+  - name: Cron Job web server configuration
+    cron:
+     name: "httpd yml configuration"
+     minute: "*"
+     hour: "*"
+     job: '/usr/bin/ansible-playbook -i /home/azureuser/ansible/contrib/inventory/azure_rm.py /home/azureuser/PartsUnlimitedMRP/Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/httpd.yml --extra-vars "vmname=< your-vm-name >"'
+
+  #- name: 'Ensure an old job is no longer present. Removes any job that is prefixed by "#Ansible: an old job" from the crontab'
+   # cron:
+    # name: "an old job"
+    # state: absent
+
+  #- name: Creates an entry like "PATH=/opt/bin" on top of crontab
+    #cron:
+     #name: PATH
+     #env: yes
+     #value: /opt/bin
+
+  #- name: Creates an entry like "APP_HOME=/srv/app" and insert it after PATH declaration
+    #cron:
+     #name: APP_HOME
+     #env: yes
+     #value: /srv/app
+     #insertafter: PATH
+
+
+
+================================================
+FILE: Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/delete_vm.yml
+================================================
+# The following variables must be specified:
+# - vmname
+# - resgrp
+- name: Remove Virtual Machine and associated objects
+  hosts: localhost
+  connection: local
+  gather_facts: no 
+  tasks:
+  - name: Remove VM and all resources
+    azure_rm_virtualmachine:
+      resource_group: '{{ resgrp }}'
+      name: '{{ vmname }}'
+      state: absent
+      # ignore_errors: yes
+      remove_on_absent:
+        - network_interfaces
+        - virtual_storage
+        - public_ips
+  - name: Remove storage account
+    azure_rm_storageaccount: 
+      resource_group: '{{ resgrp }}'
+      name:  '{{ vmname }}'
+      state: absent
+      # ignore_errors: yes
+
+
+
+================================================
+FILE: Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/httpd.yml
+================================================
+- name: Install Apache Web Server 
+  hosts: '{{ vmname }}'
+  gather_facts: no
+  tasks:
+  - name: Ensure apache is at the latest version
+    yum: name=httpd state=latest
+    become: true
+  - name: Change permissions of /var/www/html
+    file: path=/var/www/html mode=0777
+    become: true
+  - name: Download index.html
+    get_url:
+      url: https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/index.html
+      dest: /var/www/html/index.html
+      mode: 0644
+  - name: Ensure apache is running (and enable it at boot)
+    service: name=httpd state=started enabled=yes
+    become: true
+
+
+
+
+
+================================================
+FILE: Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/index.html
+================================================
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Hello World</title>
+    </head>
+    <body>
+        <h1>Hello World</h1>
+        <p>
+            <br>This is a test page
+            <br>This is a test page
+            <br>This is a test page
+        </p>
+    </body>
+</html>
+
+
+================================================
+FILE: Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/new_ARM_deployment.yml
+================================================
+- name: CREATE ARM Deployment PLAYBOOK
+  hosts: localhost
+  connection: local
+  gather_facts: False
+  vars:
+    # Variables 'resgrp' and 'location' need to be provided at command line with arg --extra-vars
+    templateLink: 'https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/ARMtemplate-newVM.json'
+    # No parameters required for this template
+    #paramsLink: ''
+   
+  tasks:
+  - name: Deploy ARM template
+    azure_rm_deployment:
+        state: present
+        resource_group_name: '{{ resgrp }}'
+        # location seems to be not optional
+        location: '{{ location }}'
+        template_link: '{{ templateLink }}'
+        #parameters_link: '{{ paramsLink }}'
+
+
+
+================================================
+FILE: Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/new_vm_web.yml
+================================================
+- name: CREATE VM PLAYBOOK
+  hosts: localhost
+  connection: local
+  gather_facts: False
+  vars:
+    # Variables 'vnet', 'subnet', 'vmname' and 'resgrp' need to be provided at command line with arg --extra-vars
+    dnsname: '{{ vmname }}.westeurope.cloudapp.azure.com'
+    # The DNS name might not be right depending on your region!!
+    ip: "{{ lookup ('dig', '{{ dnsname }}') }}"
+   
+  tasks:
+  - debug: msg="Public DNS name {{ dnsname }} resolved to IP {{ ip }}. "
+# The following check is disabled so that the playbook does not stop upon existence of DNS name. Otherwise
+# it cannot be re-run after VM creation
+#  - name: Check if DNS is taken
+#    fail: msg="That DNS name seems to be already taken"
+#    when: ip != 'NXDOMAIN'
+  - name: Create storage account
+    azure_rm_storageaccount:
+      resource_group: '{{ resgrp }}'
+      name: '{{ vmname }}'
+      account_type: Standard_LRS
+  - name: Create security group that allows SSH and HTTP
+    azure_rm_securitygroup: 
+      resource_group: '{{ resgrp }}'
+      name: '{{ vmname }}'
+      rules: 
+        - name: SSH 
+          protocol: Tcp 
+          destination_port_range: 22  
+          access: Allow  
+          priority: 101 
+          direction: Inbound
+        - name: WEB
+          protocol: Tcp 
+          destination_port_range: 80  
+          access: Allow  
+          priority: 102 
+          direction: Inbound
+  - name: Create public IP address
+    azure_rm_publicipaddress: 
+      resource_group: '{{ resgrp }}'
+      allocation_method: Static 
+      name: '{{ vmname }}'
+      domain_name_label: '{{ vmname }}'
+  - name: Create NIC
+    azure_rm_networkinterface:
+      resource_group: '{{ resgrp }}'
+      name: '{{ vmname }}'
+      virtual_network: '{{ vnet }}'
+      subnet: '{{ subnet }}'
+      public_ip_name: '{{ vmname }}'
+      security_group: '{{ vmname }}'
+  - name: Create VM
+    azure_rm_virtualmachine:
+      resource_group: '{{ resgrp }}'
+      name: '{{ vmname }}'
+      storage_account: '{{ vmname }}'
+      storage_container: '{{ vmname }}'
+      storage_blob: '{{ vmname }}.vhd'
+      network_interfaces: '{{ vmname }}'
+      vm_size: Standard_A0
+      admin_username: azureuser
+      ssh_password_enabled: false
+      ssh_public_keys: 
+        - path: /home/azureuser/.ssh/authorized_keys
+          key_data: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDn4i0NkH4uFL7B87MJBW0TyQcsk99vQNlHyZLJyRielhU2kxy73K4ecOEcYQPu0B58KbQfHM2EooaHbZIDAaZK8K62yaYz5eV7YBMr5TdN9Tw5u1GGT5LrWsOYoHcQtcSnTRbBSWZDFIx5eJWebBxdDh61LbEftyOLg16xsLRIqp6SeAtJANTWNSMCEH96qn4+12eoW8bYQ7flVyR7uyE+7NDKmMaHk0zWUQe0wluHyUnfj15g1tfRvwXyUEMLMagyFrhRh0n/wNBnV8XrX74OjqCseJfh3YnuLxhy4hAmw0di699Q3jTB3xJ8b7yg2NvoAF+lzSkQtiArTjEBVKuv lab-user@ansibleMaster'
+      image:
+        offer: CentOS
+        publisher: OpenLogic
+        sku: '7.2'
+        version: latest
+
+
+
+================================================
+FILE: Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/nginx.yml
+================================================
+- name: Install nginx Web Server 
+  hosts: '{{ vmname }}'
+  gather_facts: no
+  tasks:
+  - name: Ensure nginx is at the latest version
+    apt: name=nginx state=latest
+    become: true
+  - name: Change permissions of /var/www/html
+    file: path=/var/www/html mode=0777
+    become: true
+  - name: Download index.html
+    get_url:
+      url: https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/ansible/index.html
+      dest: /var/www/html/index.html
+      mode: 0644
+  - name: Ensure nginx is running (and enable it at boot)
+    service: name=nginx state=started enabled=yes
+    become: true
+
+
+
+================================================
+FILE: Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/M04/DeployusingChef/final/default.rb
+================================================
+#
+# Cookbook Name:: mrpapp-2
+# Recipe:: default
+#
+# Copyright (c) 2015 The Authors, All Rights Reserved.
+
+# Runs apt-get update
+include_recipe "apt"
+
+# Add the Open JDK apt repo
+apt_repository 'openJDK' do
+    uri 'ppa:openjdk-r/ppa'
+    distribution 'trusty'
+end
+
+# Install JDK and JRE
+apt_package 'openjdk-8-jdk-headless' do
+    action :install
+end
+
+apt_package 'openjdk-8-jre-headless' do
+    action :install
+end
+
+# Set Java environment variables
+ENV['JAVA_HOME'] = "/usr/lib/jvm/java-8-openjdk-amd64"
+ENV['PATH'] = "#{ENV['PATH']}:/usr/lib/jvm/java-8-openjdk-amd64/bin"
+
+# Install MongoDB
+apt_package 'mongodb' do
+    action :install
+end
+
+# Install Tomcat 7
+apt_package 'tomcat7' do
+    action :install
+end
+
+# Load MongoDB data 
+remote_file 'mongodb_data' do
+    source 'https://github.com/Microsoft/PartsUnlimitedMRP/raw/master/deploy/MongoRecords.js'
+    path './MongoRecords.js'
+    action :create
+    notifies :run, "script[mongodb_import]", :immediately
+end
+
+script 'mongodb_import' do
+    interpreter "bash"
+    action :nothing
+    code "mongo ordering MongoRecords.js"
+end
+
+# Set tomcat port 
+script 'tomcat_port' do 
+    interpreter "bash"
+    code "sed -i 's/Connector port=\".*\" protocol=\"HTTP\\/1.1\"$/Connector port=\"#{node['tomcat']['mrp_port']}\" protocol=\"HTTP\\/1.1\"/g' /etc/tomcat7/server.xml"
+    not_if "grep 'Connector port=\"#{node['tomcat']['mrp_port']}\" protocol=\"HTTP/1.1\"$' /etc/tomcat7/server.xml"
+    notifies :restart, "service[tomcat7]", :immediately
+end
+
+# Install the MRP app, restart the Tomcat service if necessary
+remote_file 'mrp_app' do
+    source 'https://github.com/Microsoft/PartsUnlimitedMRP/raw/master/builds/mrp.war'
+    path '/var/lib/tomcat7/webapps/mrp.war'
+    action :create
+    notifies :restart, "service[tomcat7]", :immediately
+end
+
+# Ensure Tomcat is running
+service 'tomcat7' do
+    action :start
+end
+
+remote_file 'ordering_service' do
+    source 'https://github.com/Microsoft/PartsUnlimitedMRP/raw/master/builds/ordering-service-0.1.0.jar'
+    path './ordering-service-0.1.0.jar'
+    action :create
+    notifies :run, "script[stop_ordering_service]", :immediately
+end
+
+# Kill the ordering service
+script 'stop_ordering_service' do
+    interpreter "bash"
+    # Only run when notifed
+    action :nothing
+    code "pkill -f ordering-service"
+    only_if "pgrep -f ordering-service"
+end
+
+# Start the ordering service. 
+script 'start_ordering_service' do
+    interpreter "bash"
+    code "/usr/lib/jvm/java-8-openjdk-amd64/bin/java -jar ordering-service-0.1.0.jar &"
+    not_if "pgrep -f ordering-service"
+end
+
+
+
+================================================
+FILE: Labfiles/AZ-400T05-ImplemntgAppInfra/Labfiles/M04/Puppet/final/init.pp
+================================================
+class mrpapp {
+  class { 'configuremongodb': }
+  class { 'configurejava': }
+  class { 'createuserandgroup': }
+  class { 'configuretomcat': }
+  class { 'deploywar': }
+  class { 'orderingservice': }
+}
+
+class configuremongodb {
+  include wget
+  class { 'mongodb': }->
+
+  wget::fetch { 'mongorecords':
+    source => 'https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/deploy/MongoRecords.js',
+    destination => '/tmp/MongoRecords.js',
+    timeout => 0,
+  }->
+  exec { 'insertrecords':
+    command => 'mongo ordering /tmp/MongoRecords.js',
+    path => '/usr/bin:/usr/sbin',
+    unless => 'test -f /tmp/initcomplete'
+  }->
+  file { '/tmp/initcomplete':
+    ensure => 'present',
+  }
+}
+
+class configurejava {
+  include apt
+  $packages = ['openjdk-8-jdk', 'openjdk-8-jre']
+
+  apt::ppa { 'ppa:openjdk-r/ppa': }->
+  package { $packages:
+     ensure => 'installed',
+  }
+}
+
+
+class createuserandgroup {
+
+group { 'tomcat':
+  ensure => 'present',
+  gid    => '10003',
+ }
+
+user { 'tomcat':
+  ensure           => 'present',
+  gid              => '10003',
+  home             => '/tomcat',
+  password         => '!',
+  password_max_age => '99999',
+  password_min_age => '0',
+  uid              => '1003',
+ }
+
+}
+
+class configuretomcat {
+  class { 'tomcat': }
+  require createuserandgroup
+
+
+ tomcat::instance { 'default':
+  catalina_home => '/var/lib/tomcat7',
+  install_from_source => false,
+  package_name => ['tomcat7','tomcat7-admin'],
+ }->
+
+ tomcat::config::server::tomcat_users {
+ 'tomcat':
+   catalina_base => '/var/lib/tomcat7',
+   element  => 'user',
+   password => 'password',
+   roles => ['manager-gui','manager-jmx','manager-script','manager-status'];
+ 'tomcat7':
+   catalina_base => '/var/lib/tomcat7',
+   element  => 'user',
+   password => 'password',
+   roles => ['manager-gui','manager-jmx','manager-script','manager-status'];
+ }->
+
+ tomcat::config::server::connector { 'tomcat7-http':
+  catalina_base => '/var/lib/tomcat7',
+  port => '9080',
+  protocol => 'HTTP/1.1',
+  connector_ensure => 'present',
+  server_config => '/etc/tomcat7/server.xml',
+ }->
+
+ tomcat::service { 'default':
+  use_jsvc => false,
+  use_init => true,
+  service_name => 'tomcat7',
+ }
+
+}
+
+class deploywar {
+  require configuretomcat
+
+  tomcat::war { 'mrp.war':
+    catalina_base => '/var/lib/tomcat7',
+    war_source => 'https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/builds/mrp.war',
+  }
+
+ file { '/var/lib/tomcat7/webapps/':
+   path => '/var/lib/tomcat7/webapps/',
+   ensure => 'directory',
+   recurse => 'true',
+   mode => '777',
+ }
+
+}
+
+class orderingservice {
+  package { 'openjdk-7-jre':
+    ensure => 'installed',
+  }
+
+  file { '/opt/mrp':
+    ensure => 'directory'
+  }->
+  wget::fetch { 'orderingsvc':
+    source => 'https://raw.githubusercontent.com/Microsoft/PartsUnlimitedMRP/master/builds/ordering-service-0.1.0.jar',
+    destination => '/opt/mrp/ordering-service.jar',
+    cache_dir => '/var/cache/wget',
+    timeout => 0,
+  }->
+  
+  exec { 'stoporderingservice':
+    command => "pkill -f ordering-service",
+    path => '/bin:/usr/bin:/usr/sbin',
+    onlyif => "pgrep -f ordering-service"
+  }->
+
+  exec { 'stoptomcat':
+    command => 'service tomcat7 stop',
+    path => '/bin:/usr/bin:/usr/sbin',
+    onlyif => "test -f /etc/init.d/tomcat7",
+  }->
+  exec { 'orderservice':
+    command => 'java -jar /opt/mrp/ordering-service.jar &',
+    path => '/usr/bin:/usr/sbin:/usr/lib/jvm/java-8-openjdk-amd64/bin',
+  }->
+  exec { 'wait':
+    command => 'sleep 20',
+    path => '/bin',
+    notify => Tomcat::Service['default']
+  }
+}

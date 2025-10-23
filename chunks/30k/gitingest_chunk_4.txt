@@ -1,0 +1,5329 @@
+
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/controllers/DealerController.java
+================================================
+package smpl.ordering.controllers;
+
+import com.microsoft.applicationinsights.TelemetryClient;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import smpl.ordering.OrderingInitializer;
+import smpl.ordering.Utility;
+import smpl.ordering.models.DealerInfo;
+import smpl.ordering.repositories.DealersRepository;
+import smpl.ordering.repositories.RepositoryFactory;
+
+import java.util.List;
+
+@Controller
+@RequestMapping("/dealers")
+public class DealerController
+{
+    /**
+     * Gets a list of available dealers.
+     *
+     * @return An HttpResponse containing a list of dealers.
+     */
+    @RequestMapping(method = RequestMethod.GET)
+    public ResponseEntity getDealers()
+    {
+		//Fix this line in Application Performance Monitoring HOL from 1000 to 1
+		int numMongoDBCalls = 100000; 
+		
+        try
+        {
+			int count = 0; 
+			List<DealerInfo> dealers = getRepository().getDealers();
+			
+			while(count < numMongoDBCalls - 1)
+			{
+				dealers = getRepository().getDealers();
+				count++; 
+			}
+            if (dealers == null || dealers.size() == 0)
+            {
+                return new ResponseEntity<List<DealerInfo>>(HttpStatus.NOT_FOUND);
+            }
+            else
+            {
+                return new ResponseEntity<>(dealers, HttpStatus.OK);
+            }
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Gets a specific dealer by its name.
+     *
+     * @param name The dealer name
+     * @return An HttpResponse containing a list of catalog items.
+     */
+    @RequestMapping(method = RequestMethod.GET, value = "/{name}")
+    public ResponseEntity getDealer(@PathVariable String name)
+    {
+        try
+        {
+            DealerInfo dealer = getRepository().getDealer(name);
+            if (dealer == null)
+            {
+                return new ResponseEntity<DealerInfo>(HttpStatus.NOT_FOUND);
+            }
+            else
+            {
+                return new ResponseEntity<>(dealer, HttpStatus.OK);
+            }
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Adds a dealer contact record
+     *
+     * @param info Information about the dealer
+     * @return An HTTP status code.
+     */
+    @RequestMapping(method = RequestMethod.POST)
+    public ResponseEntity addDealer(@RequestBody DealerInfo info)
+    {
+        String errorMsg = info.validate();
+        if (errorMsg != null)
+        {
+            return new ResponseEntity<>(errorMsg, HttpStatus.BAD_REQUEST);
+        }
+
+        try
+        {
+            DealerInfo dealer = getRepository().getDealer(info.getName());
+            if (dealer != null)
+            {
+                return new ResponseEntity<>("Dealer already exists", HttpStatus.CONFLICT);
+            }
+
+            boolean result = getRepository().upsertDealer(info, null);
+            String applicationPath = OrderingInitializer.getApplicationPath();
+            HttpHeaders responseHeaders = new HttpHeaders();
+            responseHeaders.set("Location", applicationPath + "/dealers/" + info.getName());
+            return new ResponseEntity(responseHeaders, result ? HttpStatus.OK : HttpStatus.CREATED);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Adds a dealer contact record
+     *
+     * @param name The dealer name
+     * @param info Information about the dealer
+     * @return An HTTP status code.
+     */
+    @RequestMapping(method = RequestMethod.PUT, value = "/{name}")
+    public ResponseEntity updateDealer(@PathVariable String name, @RequestBody DealerInfo info)
+    {
+        String errorMsg = info.validate();
+        if (errorMsg != null)
+        {
+            return new ResponseEntity<>(errorMsg, HttpStatus.BAD_REQUEST);
+        }
+
+        try
+        {
+            DealerInfo dealer = getRepository().getDealer(name);
+            if (dealer == null)
+            {
+                return new ResponseEntity<DealerInfo>(HttpStatus.NOT_FOUND);
+            }
+
+            getRepository().upsertDealer(info, null);
+            return new ResponseEntity(HttpStatus.OK);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Remove an catalog item SKU from the catalog.
+     *
+     * @param name The dealer name.
+     * @return An HTTP status code.
+     */
+    @RequestMapping(method = RequestMethod.DELETE, value = "/{name}")
+    public ResponseEntity removeDealer(@PathVariable String name)
+    {
+
+        try
+        {
+            if (getRepository().removeDealer(name, null))
+            {
+                return new ResponseEntity<DealerInfo>(HttpStatus.NO_CONTENT);
+            }
+            else
+            {
+                return new ResponseEntity<DealerInfo>(HttpStatus.NOT_FOUND);
+            }
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private static DealersRepository getRepository()
+    {
+        return RepositoryFactory.getDealersRepository();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/controllers/OrderController.java
+================================================
+package smpl.ordering.controllers;
+
+import com.microsoft.applicationinsights.TelemetryClient;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+import smpl.ordering.BadRequestException;
+import smpl.ordering.ConflictingRequestException;
+import smpl.ordering.OrderingInitializer;
+import smpl.ordering.Utility;
+import smpl.ordering.models.*;
+import smpl.ordering.repositories.OrderRepository;
+import smpl.ordering.repositories.QuoteRepository;
+import smpl.ordering.repositories.RepositoryFactory;
+
+import java.text.DateFormat;
+import java.util.Date;
+import java.util.List;
+
+@Controller
+@RequestMapping("/orders")
+public class OrderController
+{
+    /**
+     * Gets an order identified by its id.
+     *
+     * @param orderId The order id
+     * @return An HttpResponse containing the quote, if found.
+     */
+    @RequestMapping(method = RequestMethod.GET, value = "/{orderId}")
+    public ResponseEntity getOrderById(@PathVariable String orderId)
+    {
+        try
+        {
+            Order o = getOrders().getOrder(orderId);
+            if (o == null)
+            {
+                return new ResponseEntity(HttpStatus.NOT_FOUND);
+            }
+            else
+            {
+                return new ResponseEntity<>(o, HttpStatus.OK);
+            }
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Gets a list of orders for a given dealer.
+     *
+     * @param dealer The dealer name.
+     * @return An HttpResponse containing the quotes, if found.
+     */
+    @RequestMapping(method = RequestMethod.GET)
+    public ResponseEntity getOrdersByDealerName(
+            @RequestParam(value = "dealer", required = false, defaultValue = "") String dealer,
+            @RequestParam(value = "status", required = false, defaultValue = "None") OrderStatus status)
+    {
+        try
+        {
+            List<Order> o;
+            if (dealer.length() == 0) {
+                o = getOrders().getOrdersByStatus(status);
+            }
+            else {
+                o = getOrders().getOrdersByDealerName(dealer, status);
+            }
+            if (o == null || o.size() == 0)
+            {
+                return new ResponseEntity(HttpStatus.NOT_FOUND);
+            }
+            else
+            {
+                return new ResponseEntity<>(o, HttpStatus.OK);
+            }
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Creates a new order.
+     *
+     * @param from The id of the quote from which this order will be created.
+     * @return An HttpResponse containing the quote.
+     */
+    @RequestMapping(method = RequestMethod.POST)
+    public ResponseEntity createOrder(@RequestParam(value = "fromQuote") String from)
+    {
+        try
+        {
+            Quote quote = getQuotes().getQuote(from);
+
+            if (quote != null)
+            {
+                Order order = getOrders().createOrder(from);
+                String applicationPath = OrderingInitializer.getApplicationPath();
+                HttpHeaders responseHeaders = new HttpHeaders();
+                responseHeaders.set("Location", applicationPath + "/orders/" + order.getOrderId());
+                return new ResponseEntity<>(order, responseHeaders, HttpStatus.CREATED);
+            }
+            else
+            {
+                return new ResponseEntity<>("There is no such quote", HttpStatus.BAD_REQUEST);
+            }
+        }
+        catch (ConflictingRequestException bre)
+        {
+            return new ResponseEntity<>(bre.getMessage(), HttpStatus.CONFLICT);
+        }
+        catch (BadRequestException bre)
+        {
+            return new ResponseEntity<>(bre.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Creates a new order.
+     *
+     * @return An HttpResponse containing the quote.
+     */
+    @RequestMapping(method = RequestMethod.POST, value = "/{orderId}/events")
+    public ResponseEntity addEvent(@PathVariable String orderId,
+                                   @RequestBody OrderEventInfo info)
+    {
+        try
+        {
+            Order order = getOrders().getOrder(orderId);
+            if (order != null)
+            {
+                DateFormat df = DateFormat.getDateInstance(DateFormat.SHORT);
+                info.setDate(df.format(new Date()));
+                order.addEvent(info);
+                getOrders().updateOrder(order.getOrderId(), order, null);
+                return new ResponseEntity(HttpStatus.CREATED);
+            }
+            else
+            {
+                return new ResponseEntity<>("There is no such order", HttpStatus.BAD_REQUEST);
+            }
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Updates an order.
+     *
+     * @return An HttpResponse containing the quote.
+     */
+    @RequestMapping(method = RequestMethod.PUT, value = "/{orderId}")
+    public ResponseEntity updateOrder(@PathVariable String orderId,
+                                   @RequestBody Order order)
+    {
+        // Input data validation
+        String errorMsg = order.validate();
+        if (errorMsg != null)
+        {
+            return new ResponseEntity<>(errorMsg, HttpStatus.BAD_REQUEST);
+        }
+
+        try
+        {
+            boolean ok = getOrders().updateOrder(orderId, order, null);
+            return new ResponseEntity(ok ? HttpStatus.OK : HttpStatus.NOT_FOUND);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Creates a new order.
+     *
+     * @return An HttpResponse containing the quote.
+     */
+    @RequestMapping(method = RequestMethod.PUT, value = "/{orderId}/status")
+    public ResponseEntity updateStatus(@PathVariable String orderId,
+                                       @RequestBody OrderUpdateInfo info)
+    {
+        try
+        {
+            if (getOrders().hasOrder(orderId))
+            {
+                DateFormat df = DateFormat.getDateInstance(DateFormat.SHORT);
+                info.getEventInfo().setDate(df.format(new Date()));
+                getOrders().updateOrder(orderId, info, null);
+                return new ResponseEntity(HttpStatus.OK);
+            }
+            else
+            {
+                return new ResponseEntity<>("There is no such order", HttpStatus.BAD_REQUEST);
+            }
+        }
+        catch (BadRequestException bre)
+        {
+            return new ResponseEntity<>(bre.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
+    /**
+     * Removes an existing order from the system.
+     *
+     * @param orderId The order id.
+     * @return An HTTP status code
+     */
+    @RequestMapping(method = RequestMethod.DELETE, value = "/{orderId}")
+    public ResponseEntity deleteOrder(@PathVariable String orderId)
+    {
+        try
+        {
+            boolean ok = getOrders().removeOrder(orderId, null);
+            return new ResponseEntity(ok ? HttpStatus.NO_CONTENT : HttpStatus.NOT_FOUND);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private QuoteRepository getQuotes()
+    {
+        return RepositoryFactory.getQuoteRepository();
+    }
+
+    private OrderRepository getOrders()
+    {
+        return RepositoryFactory.getOrderRepository();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/controllers/PingController.java
+================================================
+package smpl.ordering.controllers;
+
+import com.microsoft.applicationinsights.TelemetryClient;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import smpl.ordering.OrderingServiceProperties;
+import smpl.ordering.PropertyHelper;
+import smpl.ordering.Utility;
+
+import java.util.Properties;
+
+@Controller
+@RequestMapping("/ping")
+public class PingController
+{
+    @Autowired
+    private OrderingServiceProperties orderingServiceProperties;
+
+    @RequestMapping(method = RequestMethod.HEAD)
+    public ResponseEntity ping()
+    {
+        return new ResponseEntity(HttpStatus.OK);
+    }
+
+    @RequestMapping(method = RequestMethod.GET)
+    public ResponseEntity getStatus() throws Exception
+    {
+        try
+        {
+            if (orderingServiceProperties != null)
+            {
+                String message =
+                        String.format("%s\n%s\n",
+                                orderingServiceProperties.getPingMessage(),
+                                orderingServiceProperties.getValidationMessage());
+
+                if ( props == null)
+                {
+                    props = PropertyHelper.getPropValues("buildinfo.properties");
+                }
+
+                if (props != null && props.containsKey("build.number"))
+                {
+                    message += "Build number:    " + props.getProperty("build.number") + "\n";
+                }
+                if (props != null && props.containsKey("build.timestamp"))
+                {
+                    message += "Build timestamp: " + props.getProperty("build.timestamp") + "\n";
+                }
+
+                return new ResponseEntity<>(message, HttpStatus.OK);
+            }
+            else
+            {
+                return new ResponseEntity(HttpStatus.OK);
+            }
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private Properties props;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/controllers/QuoteController.java
+================================================
+package smpl.ordering.controllers;
+
+import com.microsoft.applicationinsights.TelemetryClient;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+import smpl.ordering.BadRequestException;
+import smpl.ordering.OrderingInitializer;
+import smpl.ordering.Utility;
+import smpl.ordering.models.Quote;
+import smpl.ordering.repositories.QuoteRepository;
+import smpl.ordering.repositories.RepositoryFactory;
+
+import java.util.List;
+
+@Controller
+@RequestMapping("/quotes")
+public class QuoteController
+{
+    /**
+     * Gets a quote identified by its id.
+     *
+     * @param quoteId The quote id
+     * @return An HttpResponse containing the quote, if found.
+     */
+    @RequestMapping(method = RequestMethod.GET, value = "/{quoteId}")
+    public ResponseEntity getQuoteById(@PathVariable String quoteId)
+    {
+        try
+        {
+            Quote q = getRepository().getQuote(quoteId);
+            if (q == null)
+            {
+                return new ResponseEntity(HttpStatus.NOT_FOUND);
+            }
+            else
+            {
+                return new ResponseEntity<>(q, HttpStatus.OK);
+            }
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Gets a list of quotes where the customer name contains the string 'name'
+     *
+     * @param name A fragment of the customer name field. Case is ignored.
+     * @return An HttpResponse containing the quotes, if found.
+     */
+    @RequestMapping(method = RequestMethod.GET)
+    public ResponseEntity getQuotesByCustomerName(@RequestParam(value = "name") String name)
+    {
+        try
+        {
+            List<Quote> q = getRepository().getQuotesByCustomerName(name);
+            if (q == null || q.size() == 0)
+            {
+                return new ResponseEntity(HttpStatus.NOT_FOUND);
+            }
+            else
+            {
+                return new ResponseEntity<>(q, HttpStatus.OK);
+            }
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Updates an existing quote with the data passed in.
+     *
+     * @param quoteId The quote id.
+     * @param info    The client-generated quote information containing the new data.
+     * @return An HttpResponse containing the quote, if found.
+     */
+    @RequestMapping(method = RequestMethod.PUT, value = "/{quoteId}")
+    public ResponseEntity updateQuote(@PathVariable String quoteId, @RequestBody Quote info)
+    {
+        // Input data validation
+        String errorMsg = info.validate();
+        if (errorMsg != null)
+        {
+            return new ResponseEntity<>(errorMsg, HttpStatus.BAD_REQUEST);
+        }
+
+        try
+        {
+            boolean ok = getRepository().updateQuote(quoteId, info, null);
+            return new ResponseEntity(ok ? HttpStatus.OK : HttpStatus.NOT_FOUND);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Updates a new quote from the data passed in.
+     *
+     * @param info The client-generated quote information containing the new quote data.
+     * @return An HttpResponse containing the quote.
+     */
+    @RequestMapping(method = RequestMethod.POST)
+    public ResponseEntity createQuote(@RequestBody Quote info)
+    {
+        String errorMsg = info.validate();
+        if (errorMsg != null)
+        {
+            return new ResponseEntity<>(errorMsg, HttpStatus.BAD_REQUEST);
+        }
+
+        try
+        {
+            Quote result = getRepository().createQuote(info);
+            if (result != null)
+            {
+                String applicationPath = OrderingInitializer.getApplicationPath();
+                HttpHeaders responseHeaders = new HttpHeaders();
+                responseHeaders.set("Location", applicationPath + "/quotes/" + result.getQuoteId());
+                return new ResponseEntity<>(result, responseHeaders, HttpStatus.CREATED);
+            }
+            else
+            {
+                return new ResponseEntity(HttpStatus.CONFLICT);
+            }
+        }
+        catch (BadRequestException bre)
+        {
+            return new ResponseEntity<>(bre.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Removes an existing quote from the system.
+     *
+     * @param quoteId The quote id.
+     * @return An HTTP status code
+     */
+    @RequestMapping(method = RequestMethod.DELETE, value = "/{quoteId}")
+    public ResponseEntity deleteQuote(@PathVariable String quoteId)
+    {
+        try
+        {
+            boolean ok = getRepository().removeQuote(quoteId, null);
+            return new ResponseEntity(ok ? HttpStatus.NO_CONTENT : HttpStatus.NOT_FOUND);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private QuoteRepository getRepository()
+    {
+        return RepositoryFactory.getQuoteRepository();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/controllers/ShipmentController.java
+================================================
+package smpl.ordering.controllers;
+
+
+import com.microsoft.applicationinsights.TelemetryClient;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+import smpl.ordering.BadRequestException;
+import smpl.ordering.OrderingInitializer;
+import smpl.ordering.Utility;
+import smpl.ordering.models.CatalogItem;
+import smpl.ordering.models.Delivery;
+import smpl.ordering.models.Order;
+import smpl.ordering.models.Quote;
+import smpl.ordering.models.OrderStatus;
+import smpl.ordering.models.ShipmentEventInfo;
+import smpl.ordering.models.ShipmentRecord;
+import smpl.ordering.repositories.RepositoryFactory;
+import smpl.ordering.repositories.ShipmentRepository;
+import smpl.ordering.repositories.OrderRepository;
+import smpl.ordering.repositories.QuoteRepository;
+import java.text.DateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+
+@Controller
+@RequestMapping("/shipments")
+public class ShipmentController
+{
+    /**
+     * Gets a list of existing shipments, regardless of status
+     *
+     * @return An HttpResponse containing a list of shipments.
+     */
+    @RequestMapping(method = RequestMethod.GET)
+    public ResponseEntity getShipments(
+            @RequestParam(value = "status", required = false, defaultValue = "None")
+            OrderStatus status)
+    {
+        try
+        {
+            List<ShipmentRecord> shipments = getShipmentRepository().getShipments(status);
+            if (shipments == null || shipments.size() == 0)
+            {
+                return new ResponseEntity(HttpStatus.NOT_FOUND);
+            }
+            else
+            {
+                return new ResponseEntity<List<ShipmentRecord>>(shipments, HttpStatus.OK);
+            }
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<String>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @RequestMapping(value = "/deliveries", method = RequestMethod.GET)
+    public ResponseEntity getDeliveries()
+    {
+        try
+        {
+            List<ShipmentRecord> shipments = getShipmentRepository().getShipments(OrderStatus.DeliveryConfirmed);
+
+            if (shipments == null || shipments.size() == 0)
+            {
+                return new ResponseEntity(HttpStatus.NOT_FOUND);
+            }
+            else
+            {
+                List<Delivery> deliveries = new ArrayList<Delivery>();
+                OrderRepository orderRepository = getOrderRepository();
+                QuoteRepository quoteRepository = getQuoteRepository();
+
+                for (int n = 0; n < shipments.size(); n++) {
+                    Delivery delivery = new Delivery();
+
+                    ShipmentRecord shipment = shipments.get(n);
+                    delivery.setShipmentRecord(shipment);
+
+                    Order order = orderRepository.getOrder(shipment.getOrderId());
+                    delivery.setOrder(order);
+
+                    Quote quote = quoteRepository.getQuote(order.getQuoteId());
+                    delivery.setQuote(quote);
+
+                    deliveries.add(delivery);
+                }
+
+                return new ResponseEntity<List<Delivery>>(deliveries, HttpStatus.OK);
+            }
+        }
+        catch (Exception exc)
+        {
+            return new ResponseEntity<String>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Gets a specific shipment by its corresponding order id.
+     *
+     * @param id The order id
+     * @return An HttpResponse containing a shipment record.
+     */
+    @RequestMapping(method = RequestMethod.GET, value = "/{id}")
+    public ResponseEntity getShipment(@PathVariable String id)
+    {
+
+        try
+        {
+            ShipmentRecord sr = getShipmentRepository().getShipmentById(id);
+            if (sr == null)
+            {
+                return new ResponseEntity(HttpStatus.NOT_FOUND);
+            }
+            else
+            {
+                return new ResponseEntity<ShipmentRecord>(sr, HttpStatus.OK);
+            }
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<String>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
+    /**
+     * Creates a shipment record
+     *
+     * @param info Information about the SKU
+     * @return An HTTP status code.
+     */
+    @RequestMapping(method = RequestMethod.POST)
+    public ResponseEntity createShipmentRecord(@RequestBody ShipmentRecord info)
+    {
+        String errorMsg = info.validate();
+        if (errorMsg != null)
+        {
+            return new ResponseEntity<String>(errorMsg, HttpStatus.BAD_REQUEST);
+        }
+
+        try
+        {
+            ShipmentRecord sr = getShipmentRepository().getShipmentById(info.getOrderId());
+            if (sr != null)
+            {
+                return new ResponseEntity<String>("A shipment record already exists", HttpStatus.CONFLICT);
+            }
+
+            boolean result = getShipmentRepository().createShipment(info) != null;
+            String applicationPath = OrderingInitializer.getApplicationPath();
+            HttpHeaders responseHeaders = new HttpHeaders();
+            responseHeaders.set("Location", applicationPath + "/shipments/" + info.getOrderId());
+            return new ResponseEntity(responseHeaders, result ? HttpStatus.CREATED : HttpStatus.NOT_FOUND);
+        }
+        catch (BadRequestException bre)
+        {
+            return new ResponseEntity<String>(bre.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<String>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Updates a shipment record
+     *
+     * @param id  The order id
+     * @param record A shipment record
+     * @return An HTTP status code.
+     */
+    @RequestMapping(method = RequestMethod.PUT, value = "/{id}")
+    public ResponseEntity updateShipment(@PathVariable String id, @RequestBody ShipmentRecord record)
+    {
+        String errorMsg = record.validate();
+        if (errorMsg != null)
+        {
+            return new ResponseEntity<>(errorMsg, HttpStatus.BAD_REQUEST);
+        }
+
+        if (!id.equals(record.getOrderId()))
+        {
+            return new ResponseEntity<>("mismatched ids", HttpStatus.BAD_REQUEST);
+        }
+
+        try
+        {
+            ShipmentRecord sr = getShipmentRepository().getShipmentById(id);
+            if (sr == null)
+            {
+                return new ResponseEntity(HttpStatus.NOT_FOUND);
+            }
+
+            getShipmentRepository().updateShipment(record);
+            return new ResponseEntity(HttpStatus.OK);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Updates a shipment record with a new event.
+     *
+     * @param id  The order id
+     * @param event A shipment event record
+     * @return An HTTP status code.
+     */
+    @RequestMapping(method = RequestMethod.POST, value = "/{id}/events")
+    public ResponseEntity addEvent(@PathVariable String id, @RequestBody ShipmentEventInfo event)
+    {
+        String errorMsg = event.validate();
+        if (errorMsg != null)
+        {
+            return new ResponseEntity<>(errorMsg, HttpStatus.BAD_REQUEST);
+        }
+
+        try
+        {
+            ShipmentRecord sr = getShipmentRepository().getShipmentById(id);
+            if (sr == null)
+            {
+                return new ResponseEntity<ShipmentRecord>(HttpStatus.NOT_FOUND);
+            }
+
+            event.setDate(DateFormat.getDateInstance(DateFormat.SHORT).format(new Date()));
+
+            boolean result = getShipmentRepository().addEvent(id, event);
+            return new ResponseEntity(result ? HttpStatus.OK : HttpStatus.CREATED);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Removes an existing shipment from the system.
+     *
+     * @param orderId The order id.
+     * @return An HTTP status code
+     */
+    @RequestMapping(method = RequestMethod.DELETE, value = "/{orderId}")
+    public ResponseEntity deleteShipment(@PathVariable String orderId)
+    {
+        try
+        {
+            boolean ok = getShipmentRepository().removeShipment(orderId, null);
+            return new ResponseEntity(ok ? HttpStatus.NO_CONTENT : HttpStatus.NOT_FOUND);
+        }
+        catch (Exception exc)
+        {
+            // Don't cache the client -- it's relying on thread-local storage.
+            TelemetryClient client = Utility.getTelemetryClient();
+            if (client != null) client.trackException(exc);
+            return new ResponseEntity<>(exc.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private ShipmentRepository getShipmentRepository()
+    {
+        return RepositoryFactory.getShipmentRepository();
+    }
+
+    private OrderRepository getOrderRepository()
+    {
+        return RepositoryFactory.getOrderRepository();
+    }
+
+    private QuoteRepository getQuoteRepository()
+    {
+        return RepositoryFactory.getQuoteRepository();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/CatalogItem.java
+================================================
+package smpl.ordering.models;
+
+import smpl.ordering.Utility;
+
+/**
+ * Represents an catalog item item description
+ */
+public class CatalogItem
+{
+    private String skuNumber;
+    private String description;
+    private double price;
+    private int inventory;
+    private int leadTime;
+
+    public CatalogItem()
+    {
+    }
+
+    public CatalogItem(String skuNumber, String description, double price, int inventory, int leadTime)
+    {
+        this.skuNumber = skuNumber;
+        this.description = description;
+        this.price = price;
+        this.inventory = inventory;
+        this.leadTime = leadTime;
+    }
+
+    public CatalogItem(CatalogItem catalogItem)
+    {
+        this.skuNumber = catalogItem.getSkuNumber();
+        this.description = catalogItem.getDescription();
+        this.price = catalogItem.getPrice();
+        this.inventory = catalogItem.getInventory();
+        this.leadTime  = catalogItem.getLeadTime();
+    }
+
+    public String getDescription()
+    {
+        return description;
+    }
+
+    public void setDescription(String description)
+    {
+        this.description = description;
+    }
+
+    public double getPrice()
+    {
+        return price;
+    }
+
+    public void setPrice(double price)
+    {
+        this.price = price;
+    }
+
+    public String getSkuNumber()
+    {
+        return skuNumber;
+    }
+
+    public void setSkuNumber(String skuNumber)
+    {
+        this.skuNumber = skuNumber;
+    }
+
+    public int getInventory() {
+        return inventory;
+    }
+
+    public void setInventory(int inventory) {
+        this.inventory = inventory;
+    }
+
+    public int getLeadTime() {
+        return leadTime;
+    }
+
+    public void setLeadTime(int leadTime) {
+        this.leadTime = leadTime;
+    }
+
+    public String validate()
+    {
+        int count = 0;
+        StringBuilder errors = new StringBuilder("{\"errors\": [");
+        count = Utility.validateStringField(skuNumber, "SKU #", count, errors);
+        count = Utility.validateStringField(description, "description", count, errors);
+        errors.append("]}");
+
+        return (count > 0) ? errors.toString() : null;
+    }
+
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/DealerInfo.java
+================================================
+package smpl.ordering.models;
+
+import smpl.ordering.Utility;
+
+/**
+ * Represents the information stored about an individual dealer.
+ */
+public class DealerInfo
+{
+    private String name;
+    private String contact;
+    private String address;
+    private String email;
+    private String phone;
+
+    public DealerInfo()
+    {
+    }
+
+    public DealerInfo(String name)
+    {
+        this.name = name;
+    }
+
+    public DealerInfo(DealerInfo other)
+    {
+        this.name = other.name;
+        this.contact = other.contact;
+        this.address = other.address;
+        this.email = other.email;
+        this.phone = other.phone;
+    }
+
+    public String validate()
+    {
+        int count = 0;
+        StringBuilder errors = new StringBuilder("{\"errors\": [");
+        count = Utility.validateStringField(name, "name", count, errors);
+        errors.append("]}");
+
+        return (count > 0) ? errors.toString() : null;
+    }
+
+    public String getName()
+    {
+        return name;
+    }
+
+    public void setName(String name)
+    {
+        this.name = name;
+    }
+
+    public String getContact()
+    {
+        return contact;
+    }
+
+    public void setContact(String contact)
+    {
+        this.contact = contact;
+    }
+
+    public String getAddress()
+    {
+        return address;
+    }
+
+    public void setAddress(String address)
+    {
+        this.address = address;
+    }
+
+    public String getEmail()
+    {
+        return email;
+    }
+
+    public void setEmail(String email)
+    {
+        this.email = email;
+    }
+
+    public String getPhone()
+    {
+        return phone;
+    }
+
+    public void setPhone(String phone)
+    {
+        this.phone = phone;
+    }
+}
+
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/Delivery.java
+================================================
+package smpl.ordering.models;
+
+import smpl.ordering.Utility;
+
+/**
+ * Represents the aggregate information stored about delivery (Quote, Order, Shipment).
+ */
+public class Delivery {
+    private Quote quote;
+    private Order order;
+    private ShipmentRecord shipmentRecord;
+
+    public Quote getQuote() {
+        return this.quote;
+    }
+
+    public void setQuote(Quote quote) {
+        this.quote = quote;
+    }
+
+    public Order getOrder() {
+        return this.order;
+    }
+
+    public void setOrder(Order order) {
+        this.order = order;
+    }
+
+    public ShipmentRecord getShipmentRecord() {
+        return this.shipmentRecord;
+    }
+
+    public void setShipmentRecord(ShipmentRecord shipmentRecord) {
+        this.shipmentRecord = shipmentRecord;
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/DeliveryAddress.java
+================================================
+package smpl.ordering.models;
+
+public class DeliveryAddress
+{
+    @SuppressWarnings("SameParameterValue")
+    public DeliveryAddress(String street, String city, String state, String postalCode, String specialInstructions)
+    {
+        this.street = street;
+        this.city = city;
+        this.state = state;
+        this.postalCode = postalCode;
+        this.specialInstructions = specialInstructions;
+    }
+
+    public DeliveryAddress()
+    {
+    }
+
+    public String getStreet()
+    {
+        return street;
+    }
+
+    public void setStreet(String street)
+    {
+        this.street = street;
+    }
+
+    public String getCity()
+    {
+        return city;
+    }
+
+    public void setCity(String city)
+    {
+        this.city = city;
+    }
+
+    public String getState()
+    {
+        return state;
+    }
+
+    public void setState(String state)
+    {
+        this.state = state;
+    }
+
+    public String getPostalCode()
+    {
+        return postalCode;
+    }
+
+    public void setPostalCode(String postalCode)
+    {
+        this.postalCode = postalCode;
+    }
+
+    public String getSpecialInstructions()
+    {
+        return specialInstructions;
+    }
+
+    public void setSpecialInstructions(String specialInstructions)
+    {
+        this.specialInstructions = specialInstructions;
+    }
+
+    public boolean validate()
+    {
+        return isNotEmpty(city) && isNotEmpty(postalCode);
+    }
+
+    private static boolean isNotEmpty(String str)
+    {
+        return str != null && !str.isEmpty();
+    }
+
+    private String street;
+    private String city;
+    private String state;
+    private String postalCode;
+    private String specialInstructions;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/Order.java
+================================================
+package smpl.ordering.models;
+
+import smpl.ordering.Utility;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Represents an agreed-upon order of a refrigeration or freezer room,
+ * along with any catalog item, such as shelving and cooling equipment.
+ */
+public class Order
+{
+    private String orderId;
+    private String quoteId;
+    private String orderDate;
+    private OrderStatus status;
+    private List<OrderEventInfo> events;
+
+    public String validate()
+    {
+        int count = 0;
+        StringBuilder errors = new StringBuilder("{\"errors\": [");
+        count = Utility.validateStringField(quoteId, "quoteId", count, errors);
+        count = Utility.validateStringField(orderDate, "orderDate", count, errors);
+        errors.append("]}");
+
+        return (count > 0) ? errors.toString() : null;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Order order = (Order) o;
+
+        if (!events.equals(order.events)) return false;
+        if (!orderDate.equals(order.orderDate)) return false;
+        return orderId.equals(order.orderId) && quoteId.equals(order.quoteId) && status == order.status;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        int result = orderId.hashCode();
+        result = 31 * result + quoteId.hashCode();
+        result = 31 * result + orderDate.hashCode();
+        result = 31 * result + status.hashCode();
+        result = 31 * result + events.hashCode();
+        return result;
+    }
+
+    public Order()
+    {
+        events = new ArrayList();
+        status = OrderStatus.None;
+    }
+
+    public String getQuoteId()
+    {
+        return quoteId;
+    }
+
+    public void setQuoteId(String quoteId)
+    {
+        this.quoteId = quoteId;
+    }
+
+    public String getOrderId()
+    {
+        return orderId;
+    }
+
+    public void setOrderId(String orderId)
+    {
+        this.orderId = orderId;
+    }
+
+    public String getOrderDate()
+    {
+        return orderDate;
+    }
+
+    public void setOrderDate(String orderDate)
+    {
+        this.orderDate = orderDate;
+    }
+
+    public OrderStatus getStatus()
+    {
+        return status;
+    }
+
+    public void setStatus(OrderStatus status)
+    {
+        this.status = status;
+    }
+
+    public List<OrderEventInfo> getEvents()
+    {
+        return events;
+    }
+
+    public void setEvents(List<OrderEventInfo> events)
+    {
+        this.events = events;
+    }
+
+    public void addEvent(OrderEventInfo event)
+    {
+        events.add(event);
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/OrderEventInfo.java
+================================================
+package smpl.ordering.models;
+
+import java.text.DateFormat;
+import java.util.Date;
+
+/**
+ * Information on order-related events (comments).
+ */
+public class OrderEventInfo
+{
+    private String date;
+    private String comments;
+
+    public OrderEventInfo()
+    {
+    }
+
+    public OrderEventInfo(String comments)
+    {
+        DateFormat df = DateFormat.getDateInstance(DateFormat.SHORT);
+        this.setDate(df.format(new Date()));
+        this.setComments(comments);
+    }
+
+    public OrderEventInfo(String date, String comments)
+    {
+        this.setDate(date);
+        this.setComments(comments);
+    }
+
+    public String getComments()
+    {
+        return comments;
+    }
+
+    public void setComments(String comments)
+    {
+        this.comments = comments;
+    }
+
+    public String getDate()
+    {
+        return date;
+    }
+
+    public void setDate(String date)
+    {
+        this.date = date;
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/OrderStatus.java
+================================================
+package smpl.ordering.models;
+
+/**
+ * Order status enumeration
+ */
+public enum OrderStatus
+{
+    None,
+    Created,
+    Confirmed,
+    Started,
+    Built,
+    DeliveryConfirmed,
+    Shipped,
+    Delivered,
+    Installed
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/OrderUpdateInfo.java
+================================================
+package smpl.ordering.models;
+
+import java.text.DateFormat;
+import java.util.Date;
+
+/**
+ * Order update record
+ */
+@SuppressWarnings("SameParameterValue")
+public class OrderUpdateInfo
+{
+    private OrderStatus status;
+    private OrderEventInfo eventInfo;
+
+    public OrderUpdateInfo()
+    {
+    }
+
+    public OrderUpdateInfo(OrderStatus status, String comments)
+    {
+        DateFormat df = DateFormat.getDateInstance(DateFormat.SHORT);
+        this.status = status;
+        this.eventInfo = new OrderEventInfo(df.format(new Date()), comments);
+    }
+
+    public OrderStatus getStatus()
+    {
+        return status;
+    }
+
+    public void setStatus(OrderStatus status)
+    {
+        this.status = status;
+    }
+
+    public OrderEventInfo getEventInfo()
+    {
+        return eventInfo;
+    }
+
+    public void setEventInfo(OrderEventInfo eventInfo)
+    {
+        this.eventInfo = eventInfo;
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/PhoneInfo.java
+================================================
+package smpl.ordering.models;
+
+/**
+ * Information regarding phone numbers for individuals related
+ * to quotes, orders, and shipments.
+ */
+public class PhoneInfo
+{
+    public String getPhoneNumber()
+    {
+        return phoneNumber;
+    }
+
+    public void setPhoneNumber(String phoneNumber)
+    {
+        this.phoneNumber = phoneNumber;
+    }
+
+    public String getKind()
+    {
+        return kind;
+    }
+
+    public void setKind(String kind)
+    {
+        this.kind = kind;
+    }
+
+    public PhoneInfo()
+    {
+    }
+
+    public PhoneInfo(String phoneNumber, String kind)
+    {
+        this.phoneNumber = phoneNumber;
+        this.kind = kind;
+    }
+
+    private String phoneNumber;
+    private String kind;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/Quote.java
+================================================
+package smpl.ordering.models;
+
+import smpl.ordering.Utility;
+
+import java.util.*;
+
+/**
+ * Represents quote information sent from the service to the client.
+ *
+ * @see smpl.ordering.models.Order
+ */
+public class Quote
+{
+    private String quoteId;
+    private String validUntil;
+    private String customerName;
+    private String dealerName;
+    private List<QuoteItemInfo> quoteItems;
+    private double totalCost;
+    private double discount;
+    private String city;
+    private String postalCode;
+    private String state;
+
+    public Quote()
+    {
+    }
+
+    public Quote(Quote quote) {
+        this.quoteId = quote.quoteId;
+        this.customerName = quote.getCustomerName();
+        this.dealerName = quote.getDealerName();
+        this.validUntil = quote.getValidUntil();
+        this.totalCost = quote.getTotalCost();
+        this.discount = quote.getDiscount();
+        this.city = quote.getCity();
+        this.postalCode = quote.getPostalCode();
+        this.state = quote.getState();
+        this.quoteItems = quote.getQuoteItems();
+    }
+
+    public String validate()
+    {
+        int count = 0;
+        StringBuilder errors = new StringBuilder("{\"errors\": [");
+        count = Utility.validateStringField(dealerName, "dealerName", count, errors);
+        count = Utility.validateStringField(customerName, "customerName", count, errors);
+        errors.append("]}");
+
+        return (count > 0) ? errors.toString() : null;
+    }
+
+    public String getQuoteId()
+    {
+        return quoteId;
+    }
+
+    public void setQuoteId(String quoteId)
+    {
+        this.quoteId = quoteId;
+    }
+
+    public String getDealerName()
+    {
+        return dealerName;
+    }
+
+    public void setDealerName(String dealerName)
+    {
+        this.dealerName = dealerName;
+    }
+
+    public String getCustomerName()
+    {
+        return customerName;
+    }
+
+    public void setCustomerName(String customerName)
+    {
+        this.customerName = customerName;
+    }
+
+    public String getValidUntil()
+    {
+        return validUntil;
+    }
+
+    public void setValidUntil(String validUntil)
+    {
+        this.validUntil = validUntil;
+    }
+
+    public List<QuoteItemInfo> getQuoteItems()
+    {
+        return quoteItems;
+    }
+
+    public void setQuoteItems(List<QuoteItemInfo> quoteItems)
+    {
+        this.quoteItems = quoteItems;
+    }
+
+    /**
+     * Adds an item to the quote items list.
+     *
+     * @param sku        The item sku number
+     * @param amount     The amount or number of units quoted.
+     */
+    public void addQuoteItem(String sku, double amount)
+    {
+        if (quoteItems == null)
+        {
+            this.quoteItems = new ArrayList<QuoteItemInfo>();
+        }
+        quoteItems.add(new QuoteItemInfo(sku, amount));
+    }
+
+    /**
+     * Gets the overall cost of the quote, before any discount is applied.
+     */
+    public double getTotalCost()
+    {
+        return totalCost;
+    }
+
+    /**
+     * Sets the overall cost of the quote, before any discount is applied.
+     */
+    public void setTotalCost(double totalCost)
+    {
+        this.totalCost = totalCost;
+    }
+
+    /**
+     * Gets the overall discount, as an amount (not percentage).
+     */
+    public double getDiscount()
+    {
+        return discount;
+    }
+
+    /**
+     * Sets the overall discount, as an amount (not percentage).
+     */
+    public void setDiscount(double discount)
+    {
+        this.discount = discount;
+    }
+
+    /**
+     * Gets city where the unit is to be delivered.
+     * Used to estimate delivery costs and for capturing local regulatory purposes.
+     */
+    public String getCity()
+    {
+        return city;
+    }
+
+    /**
+     * Sets city where the unit is to be delivered.
+     * Used to estimate delivery costs and for capturing local regulatory purposes.
+     */
+    public void setCity(String city)
+    {
+        this.city = city;
+    }
+
+    /**
+     * Gets postal code where the unit is to be delivered.
+     * Used to estimate delivery costs and for capturing local regulatory purposes.
+     */
+    public String getPostalCode()
+    {
+        return postalCode;
+    }
+
+    /**
+     * Sets postal code where the unit is to be delivered.
+     * Used to estimate delivery costs and for capturing local regulatory purposes.
+     */
+    public void setPostalCode(String postalCode)
+    {
+        this.postalCode = postalCode;
+    }
+
+    /**
+     * Gets state where the unit is to be delivered.
+     * Used to estimate delivery costs and for capturing local regulatory purposes.
+     */
+    public String getState()
+    {
+        return state;
+    }
+
+    /**
+     * Sets state where the unit is to be delivered.
+     * Used to estimate delivery costs and for capturing local regulatory purposes.
+     */
+    public void setState(String state)
+    {
+        this.state = state;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Quote quote = (Quote) o;
+
+
+        if (Double.compare(quote.totalCost, totalCost) != 0) return false;
+        if (city != null ? !city.equals(quote.city) : quote.city != null) return false;
+        if (customerName != null ? !customerName.equals(quote.customerName) : quote.customerName != null) return false;
+        if (dealerName != null ? !dealerName.equals(quote.dealerName) : quote.dealerName != null) return false;
+        if (postalCode != null ? !postalCode.equals(quote.postalCode) : quote.postalCode != null) return false;
+        if (quoteId != null ? !quoteId.equals(quote.quoteId) : quote.quoteId != null) return false;
+        if (state != null ? !state.equals(quote.state) : quote.state != null) return false;
+        if (validUntil != null ? validUntil.equals(quote.validUntil) : quote.validUntil != null) return false;
+
+        if (quoteItems.size() != quote.quoteItems.size()) return false;
+
+        if (quoteItems.size() > 0)
+        {
+            QuoteItemInfo arr1[] = new QuoteItemInfo[quoteItems.size()];
+            QuoteItemInfo arr2[] = new QuoteItemInfo[quote.quoteItems.size()];
+
+            quoteItems.toArray(arr1);
+            quote.quoteItems.toArray(arr2);
+
+            Arrays.sort(arr1);
+            Arrays.sort(arr2);
+
+            if (!Arrays.equals(arr1, arr2)) return false;
+        }
+        // if all conditions are true return true.
+        return true;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        int result;
+        long temp;
+        result = quoteId != null ? quoteId.hashCode() : 0;
+        result = 31 * result + (validUntil != null ? validUntil.hashCode() : 0);
+        result = 31 * result + (customerName != null ? customerName.hashCode() : 0);
+        result = 31 * result + (dealerName != null ? dealerName.hashCode() : 0);
+        result = 31 * result + (quoteItems != null ? quoteItems.hashCode() : 0);
+        temp = Double.doubleToLongBits(totalCost);
+        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        temp = Double.doubleToLongBits(discount);
+        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + (city != null ? city.hashCode() : 0);
+        result = 31 * result + (postalCode != null ? postalCode.hashCode() : 0);
+        result = 31 * result + (state != null ? state.hashCode() : 0);
+        return result;
+    }
+
+
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/QuoteItemInfo.java
+================================================
+package smpl.ordering.models;
+
+/**
+ * Represents a line item of catalog item products, coming from the client to the service
+ *
+ * @see QuoteItemInfo
+ * @see smpl.ordering.models.CatalogItem
+ */
+public class QuoteItemInfo
+        implements Comparable<QuoteItemInfo>
+{
+    private String skuNumber;
+    private double amount;
+
+    public QuoteItemInfo()
+    {
+    }
+
+    public QuoteItemInfo(String sku, double amount)
+    {
+        this.skuNumber = sku;
+        this.amount = amount;
+    }
+
+    @Override
+    public int compareTo(@SuppressWarnings("NullableProblems") QuoteItemInfo other)
+    {
+        return skuNumber.compareTo(other.skuNumber);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        QuoteItemInfo itemInfo = (QuoteItemInfo) o;
+
+        return Double.compare(itemInfo.amount, amount) == 0 && skuNumber.equals(itemInfo.skuNumber);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        int result;
+        long temp;
+        result = skuNumber.hashCode();
+        temp = Double.doubleToLongBits(amount);
+        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        return result;
+    }
+
+    public String getSkuNumber()
+    {
+        return skuNumber;
+    }
+
+    public void setSkuNumber(String sku)
+    {
+        this.skuNumber = sku;
+    }
+
+    /**
+     * Gets the amount of the item that is quoted / ordered.
+     */
+    public double getAmount()
+    {
+        return amount;
+    }
+
+    /**
+     * Sets the amount of the item that is quoted / ordered.
+     */
+    public void setAmount(double amount)
+    {
+        this.amount = amount;
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/ShipmentEventInfo.java
+================================================
+package smpl.ordering.models;
+
+public class ShipmentEventInfo
+{
+    public ShipmentEventInfo()
+    {
+    }
+
+    public ShipmentEventInfo(String date, String comments)
+    {
+        this.date = date;
+        this.comments = comments;
+    }
+
+    public String getDate()
+    {
+        return date;
+    }
+
+    public void setDate(String date)
+    {
+        this.date = date;
+    }
+
+    public String getComments()
+    {
+        return comments;
+    }
+
+    public void setComments(String comments)
+    {
+        this.comments = comments;
+    }
+
+    public String validate()
+    {
+        StringBuilder builder = new StringBuilder();
+        boolean ok = true;
+
+        if (comments == null || comments.isEmpty())
+        {
+            builder.append("No or shipment event comment\n");
+            ok = false;
+        }
+        return ok ? null : builder.toString();
+    }
+
+    private String date;
+    private String comments;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/models/ShipmentRecord.java
+================================================
+package smpl.ordering.models;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Represents data fpr a particular shipment. Each order corresponds to no more
+ * than one shipment record. In other words, shipments are consolidated.
+ */
+public class ShipmentRecord
+{
+    /**
+     * The order id is also the key of the shipment record.
+     *
+     * @return The order/shipment identity
+     */
+    public String getOrderId()
+    {
+        return orderId;
+    }
+
+    public void setOrderId(String orderId)
+    {
+        this.orderId = orderId;
+    }
+
+    public String getDeliveryDate()
+    {
+        return deliveryDate;
+    }
+
+    public void setDeliveryDate(String deliveryDate)
+    {
+        this.deliveryDate = deliveryDate;
+    }
+
+    public List<ShipmentEventInfo> getEvents()
+    {
+        return events;
+    }
+
+    public void addEvent(ShipmentEventInfo event)
+    {
+        this.events.add(event);
+    }
+
+    @SuppressWarnings("SameParameterValue")
+    public void addEvent(String date, String comments)
+    {
+        this.events.add(new ShipmentEventInfo(date, comments));
+    }
+
+    public DeliveryAddress getDeliveryAddress()
+    {
+        return deliveryAddress;
+    }
+
+    public void setDeliveryAddress(DeliveryAddress deliveryAddress)
+    {
+        this.deliveryAddress = deliveryAddress;
+    }
+
+    public String getContactName()
+    {
+        return contactName;
+    }
+
+    public void setContactName(String contactName)
+    {
+        this.contactName = contactName;
+    }
+
+    public PhoneInfo getPrimaryContactPhone()
+    {
+        return primaryContactPhone;
+    }
+
+    public void setPrimaryContactPhone(PhoneInfo primaryContactPhone)
+    {
+        this.primaryContactPhone = primaryContactPhone;
+    }
+
+    public PhoneInfo getAlternateContactPhone()
+    {
+        return alternateContactPhone;
+    }
+
+    public void setAlternateContactPhone(PhoneInfo alternateContactPhone)
+    {
+        this.alternateContactPhone = alternateContactPhone;
+    }
+
+    public ShipmentRecord()
+    {
+        this.events = new ArrayList<>();
+    }
+
+    public ShipmentRecord(ShipmentRecord other)
+    {
+        orderId = other.orderId;
+        deliveryDate = other.deliveryDate;
+        deliveryAddress = other.deliveryAddress;
+        contactName = other.contactName;
+        primaryContactPhone = other.primaryContactPhone;
+        alternateContactPhone = other.alternateContactPhone;
+        events = new ArrayList<>();
+        for (ShipmentEventInfo event : other.events)
+        {
+            events.add(new ShipmentEventInfo(event.getDate(), event.getComments()));
+        }
+    }
+
+    public String validate()
+    {
+        StringBuilder bldr = new StringBuilder();
+        boolean ok = true;
+
+        if (orderId == null || orderId.isEmpty())
+        {
+            bldr.append("No order id\n");
+            ok = false;
+        }
+        if (deliveryDate == null || deliveryDate.isEmpty())
+        {
+            bldr.append("No delivery Date\n");
+            ok = false;
+        }
+        if (deliveryAddress == null || !deliveryAddress.validate())
+        {
+            bldr.append("No or incomplete delivery address\n");
+            ok = false;
+        }
+        if (contactName == null || contactName.isEmpty() || primaryContactPhone == null)
+        {
+            bldr.append("Contact information missing\n");
+            ok = false;
+        }
+
+        return ok ? null : bldr.toString();
+    }
+
+    private String orderId;
+
+    private String deliveryDate;
+
+    private final List<ShipmentEventInfo> events;
+
+    private DeliveryAddress deliveryAddress;
+
+    private String contactName;
+
+    private PhoneInfo primaryContactPhone;
+
+    private PhoneInfo alternateContactPhone;
+}
+
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/CatalogItemsRepository.java
+================================================
+package smpl.ordering.repositories;
+
+import smpl.ordering.models.CatalogItem;
+
+import java.util.List;
+
+/**
+ * Interface for repositories holding catalog item data.
+ */
+@SuppressWarnings({"SameParameterValue", "UnusedParameters"})
+public interface CatalogItemsRepository
+{
+    List<CatalogItem> getCatalogItems();
+
+    CatalogItem getCatalogItem(String sku);
+
+    boolean upsertCatalogItem(String sku, CatalogItem catalogItem, String eTag);
+
+    boolean removeCatalogItem(String sku, String eTag);
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/DealersRepository.java
+================================================
+package smpl.ordering.repositories;
+
+import smpl.ordering.models.DealerInfo;
+
+import java.util.List;
+
+/**
+ * Represents the interface of repositories holding dealer information.
+ */
+@SuppressWarnings({"SameParameterValue", "UnusedParameters"})
+public interface DealersRepository
+{
+    List<DealerInfo> getDealers();
+
+    DealerInfo getDealer(String name);
+
+    boolean upsertDealer(DealerInfo dealer, String eTag);
+
+    boolean removeDealer(String name, String eTag);
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/OrderRepository.java
+================================================
+package smpl.ordering.repositories;
+
+import smpl.ordering.BadRequestException;
+import smpl.ordering.models.Order;
+import smpl.ordering.models.OrderStatus;
+import smpl.ordering.models.OrderUpdateInfo;
+
+import java.util.List;
+
+/**
+ * Interface for repositories holding order information
+ */
+@SuppressWarnings({"SameParameterValue", "UnusedParameters"})
+public interface OrderRepository
+{
+    boolean hasOrder(String id);
+
+    Order getOrder(String id);
+
+    Order getOrderByQuoteId(String id);
+
+    List<Order> getOrdersByStatus(OrderStatus status);
+
+    List<Order> getOrdersByDealerName(String dealer, OrderStatus status);
+
+    Order createOrder(String from) throws BadRequestException;
+
+    @SuppressWarnings("UnusedParameters")
+    boolean updateOrder(String id, Order order, String eTag);
+
+    @SuppressWarnings("UnusedParameters")
+    boolean updateOrder(String id, OrderUpdateInfo info, String eTag) throws BadRequestException;
+
+    boolean removeOrder(String id, String eTag);
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/QuoteRepository.java
+================================================
+package smpl.ordering.repositories;
+
+import smpl.ordering.BadRequestException;
+import smpl.ordering.models.Quote;
+
+import java.util.List;
+
+/**
+ * Interface for repositories holding quote data.
+ */
+@SuppressWarnings({"SameParameterValue", "UnusedParameters"})
+public interface QuoteRepository
+{
+    Quote getQuote(String id);
+
+    List<Quote> getQuotesByCustomerName(String customerName);
+
+    List<String> getQuoteIdsByDealerName(String dealerName);
+
+    Quote createQuote(Quote from) throws BadRequestException;
+
+    boolean updateQuote(String id, Quote quote, String eTag);
+
+    boolean removeQuote(String id, String eTag);
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/RepositoryFactory.java
+================================================
+package smpl.ordering.repositories;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import smpl.ordering.OrderingConfiguration;
+import smpl.ordering.repositories.mock.*;
+import smpl.ordering.repositories.mongodb.*;
+
+@SuppressWarnings("EmptyCatchBlock")
+public class RepositoryFactory
+{
+
+    public static CatalogItemsRepository getCatalogItemsRepository()
+    {
+        switch (s_factory.storageKind)
+        {
+        case RepositoryFactory.MEMORY:
+            return s_factory.mockRepos.catalogItems;
+        case RepositoryFactory.MONGODB:
+            return s_factory.mongodbRepos.catalogItems;
+        default:
+            return null;
+        }
+    }
+
+    public static DealersRepository getDealersRepository()
+    {
+        switch (s_factory.storageKind)
+        {
+        case RepositoryFactory.MEMORY:
+            return s_factory.mockRepos.dealers;
+        case RepositoryFactory.MONGODB:
+            return s_factory.mongodbRepos.dealers;
+        default:
+            return null;
+        }
+    }
+
+    public static OrderRepository getOrderRepository()
+    {
+        switch (s_factory.storageKind)
+        {
+        case RepositoryFactory.MEMORY:
+            return s_factory.mockRepos.orders;
+        case RepositoryFactory.MONGODB:
+            return s_factory.mongodbRepos.orders;
+        default:
+            return null;
+        }
+    }
+
+    public static QuoteRepository getQuoteRepository()
+    {
+        switch (s_factory.storageKind)
+        {
+        case RepositoryFactory.MEMORY:
+            return s_factory.mockRepos.quotes;
+        case RepositoryFactory.MONGODB:
+            return s_factory.mongodbRepos.quotes;
+        default:
+            return null;
+        }
+    }
+
+    public static ShipmentRepository getShipmentRepository()
+    {
+        switch (s_factory.storageKind)
+        {
+        case RepositoryFactory.MEMORY:
+            return s_factory.mockRepos.shipments;
+        case RepositoryFactory.MONGODB:
+            return s_factory.mongodbRepos.shipments;
+        default:
+            return null;
+        }
+    }
+
+    private void init(String storage)
+    {
+        if (mongoTemplate == null)
+        {
+            try
+            {
+                mongoTemplate = OrderingConfiguration.getApplicationContext().getBean(MongoTemplate.class);
+            }
+            catch (Exception exc)
+            {
+            }
+        }
+
+        this.storageKind = storage;
+        this.mockRepos = new Repositories();
+        this.mongodbRepos = new Repositories();
+
+        this.mockRepos.catalogItems = new MockCatalogItemsRepository();
+        this.mockRepos.dealers = new MockDealersRepository();
+        this.mockRepos.quotes = new MockQuoteRepository(this.mockRepos.catalogItems, this.mockRepos.dealers);
+        this.mockRepos.orders = new MockOrderRepository(this.mockRepos.quotes);
+        this.mockRepos.shipments = new MockShipmentRepository(this.mockRepos.orders);
+
+        this.mongodbRepos.catalogItems = new MongoCatalogItemsRepository(mongoTemplate);
+        this.mongodbRepos.dealers = new MongoDealersRepository(mongoTemplate);
+        this.mongodbRepos.quotes = new MongoQuoteRepository(mongoTemplate, this.mongodbRepos.dealers);
+        this.mongodbRepos.orders = new MongoOrderRepository(mongoTemplate, this.mongodbRepos.quotes);
+        this.mongodbRepos.shipments = new MongoShipmentRepository(mongoTemplate, this.mongodbRepos.orders);
+    }
+
+    private RepositoryFactory(String storage)
+    {
+        init(storage);
+    }
+
+    public static synchronized RepositoryFactory getFactory()
+    {
+        return s_factory;
+    }
+
+    static public void reset(String storage)
+    {
+        if (s_factory != null)
+        {
+            s_factory.mongoTemplate = null;
+        }
+        s_factory = new RepositoryFactory(storage);
+    }
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
+
+    private class Repositories
+    {
+        CatalogItemsRepository catalogItems;
+        DealersRepository dealers;
+        QuoteRepository quotes;
+        OrderRepository orders;
+        ShipmentRepository shipments;
+    }
+
+    private Repositories mockRepos;
+    private Repositories mongodbRepos;
+
+    private String storageKind;
+    private static RepositoryFactory s_factory;
+
+    public static final String MEMORY = "memory";
+    public static final String MONGODB = "mongodb";
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/ShipmentRepository.java
+================================================
+package smpl.ordering.repositories;
+
+import smpl.ordering.BadRequestException;
+import smpl.ordering.models.OrderStatus;
+import smpl.ordering.models.ShipmentEventInfo;
+import smpl.ordering.models.ShipmentRecord;
+
+import java.util.List;
+
+/**
+ * Interface for repositories holding shipment data.
+ */
+public interface ShipmentRepository
+{
+    List<ShipmentRecord> getShipments(OrderStatus status);
+
+    ShipmentRecord getShipmentById(String id);
+
+    ShipmentRecord createShipment(ShipmentRecord info) throws BadRequestException;
+
+    boolean addEvent(String id, ShipmentEventInfo event);
+
+    boolean updateShipment(ShipmentRecord info);
+
+    boolean removeShipment(String id, String eTag);
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mock/MockCatalogItemsRepository.java
+================================================
+package smpl.ordering.repositories.mock;
+
+import smpl.ordering.TestPath;
+import smpl.ordering.models.CatalogItem;
+import smpl.ordering.repositories.CatalogItemsRepository;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * An in-memory repository of catalog items. Used for testing the API surface area.
+ */
+public class MockCatalogItemsRepository
+        implements CatalogItemsRepository, TestPath
+{
+    public MockCatalogItemsRepository()
+    {
+        catalog.add(new CatalogItem("MRP-0001", "Brake Pads", 26.99,  10,  3));
+        catalog.add(new CatalogItem("MRP-0002", "Brake Calipers", 33.99, 10, 3));
+        catalog.add(new CatalogItem("MRP-0003", "Brake Calipers Guide Pin", 2.99, 10, 3));
+    }
+
+    /**
+     * Retrieves a list of the items in the catalog.
+     *
+     * @return An catalog item list
+     */
+    @Override
+    public List<CatalogItem> getCatalogItems()
+    {
+
+        List<CatalogItem> result = new ArrayList<>();
+        for (CatalogItem catalogItem : catalog)
+        {
+            result.add(new CatalogItem(catalogItem));
+        }
+        return result;
+    }
+
+    /**
+     * Retrieves information on a specific product
+     *
+     * @param sku The SKU number
+     * @return The catalogItem, null if not found.
+     */
+    @Override
+    public CatalogItem getCatalogItem(String sku)
+    {
+        for (CatalogItem catalogItem : catalog)
+        {
+            if (compareSkuNumbers(sku, catalogItem))
+            {
+                return new CatalogItem(catalogItem);
+            }
+        }
+        return null;
+    }
+
+    private boolean compareSkuNumbers(String sku, CatalogItem catalogItem)
+    {
+        return catalogItem.getSkuNumber().toLowerCase().equals(sku.toLowerCase());
+    }
+
+    /**
+     * Insert or update an catalog item product information record in the catalog.
+     *
+     * @param sku       The SKU number
+     * @param catalogItem The catalog item information record.
+     * @param eTag      An entity tag used for optimistic concurrency
+     * @return true if update, false if insert.
+     */
+    @Override
+    public boolean upsertCatalogItem(String sku, CatalogItem catalogItem, String eTag)
+    {
+        for (int i = 0; i < catalog.size(); ++i)
+        {
+            CatalogItem ci = catalog.get(i);
+            if (compareSkuNumbers(sku, ci))
+            {
+                catalog.set(i, catalogItem);
+                return true;
+            }
+        }
+        catalog.add(catalogItem);
+        return false;
+    }
+
+    /**
+     * Remove an catalog item information record from the catalog.
+     *
+     * @param sku The SKU number
+     * @return true if found, false otherwise.
+     */
+    @Override
+    public boolean removeCatalogItem(String sku, String eTag)
+    {
+        for (int i = 0; i < catalog.size(); ++i)
+        {
+            CatalogItem catalogItem = catalog.get(i);
+            if (compareSkuNumbers(sku, catalogItem))
+            {
+                catalog.remove(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private final List<CatalogItem> catalog = new ArrayList<>();
+
+    @Override
+    public void reset()
+    {
+        catalog.clear();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mock/MockDealersRepository.java
+================================================
+package smpl.ordering.repositories.mock;
+
+import smpl.ordering.TestPath;
+import smpl.ordering.models.DealerInfo;
+import smpl.ordering.repositories.DealersRepository;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * In-memory dealer repository.
+ */
+public class MockDealersRepository
+        implements DealersRepository, TestPath
+{
+    public MockDealersRepository()
+    {
+        this.dealers = new ArrayList<>();
+    }
+
+    @Override
+    public List<DealerInfo> getDealers()
+    {
+        List<DealerInfo> result = new ArrayList<>();
+        for (DealerInfo info : dealers)
+        {
+            result.add(new DealerInfo(info));
+        }
+        return result;
+    }
+
+    @Override
+    public DealerInfo getDealer(String name)
+    {
+        for (DealerInfo info : dealers)
+        {
+            if (compareDealerNames(name, info))
+            {
+                return new DealerInfo(info);
+            }
+        }
+        return null;
+    }
+
+    private boolean compareDealerNames(String name, DealerInfo info)
+    {
+        return info.getName().toLowerCase().equals(name.toLowerCase());
+    }
+
+    @Override
+    public boolean upsertDealer(DealerInfo dealer, String eTag)
+    {
+        String name = dealer.getName();
+        for (int i = 0; i < dealers.size(); ++i)
+        {
+            DealerInfo info = dealers.get(i);
+            if (compareDealerNames(name, info))
+            {
+                dealers.set(i, dealer);
+                return true;
+            }
+        }
+        dealers.add(dealer);
+        return false;
+    }
+
+    @Override
+    public boolean removeDealer(String name, String eTag)
+    {
+        for (int i = 0; i < dealers.size(); ++i)
+        {
+            DealerInfo info = dealers.get(i);
+            if (compareDealerNames(name, info))
+            {
+                dealers.remove(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private final List<DealerInfo> dealers;
+
+    @Override
+    public void reset()
+    {
+        dealers.clear();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mock/MockOrderRepository.java
+================================================
+package smpl.ordering.repositories.mock;
+
+import smpl.ordering.BadRequestException;
+import smpl.ordering.ConflictingRequestException;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.*;
+import smpl.ordering.repositories.OrderRepository;
+import smpl.ordering.repositories.QuoteRepository;
+
+import java.text.DateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * In-memory order repository implementation class
+ */
+public class MockOrderRepository
+        implements OrderRepository, TestPath
+{
+    public MockOrderRepository(QuoteRepository quotes)
+    {
+        this.orders = new ArrayList<>();
+        this.quotes = quotes;
+    }
+
+    @Override
+    public boolean hasOrder(String id)
+    {
+        for (Order order : orders)
+        {
+            if (order.getOrderId().equals(id))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public Order getOrder(String id)
+    {
+        for (Order order : orders)
+        {
+            if (order.getOrderId().equals(id))
+            {
+                return order;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public List<Order> getOrdersByStatus(OrderStatus status)
+    {
+        List<Order> lst = new ArrayList<>();
+        for (Order order : orders)
+        {
+            if (status == OrderStatus.None || order.getStatus() == status)
+            {
+                lst.add(order);
+            }
+        }
+        return lst;
+    }
+
+    @Override
+    public List<Order> getOrdersByDealerName(String name, OrderStatus status)
+    {
+        List<Order> lst = new ArrayList<>();
+        for (Order order : orders)
+        {
+            Quote q = quotes.getQuote(order.getQuoteId());
+            if (q.getDealerName().toLowerCase().equals(name.toLowerCase()) &&
+                    (status == OrderStatus.None || status == order.getStatus()))
+            {
+                lst.add(order);
+            }
+        }
+        return lst;
+    }
+
+    @Override
+    public Order getOrderByQuoteId(String id)
+    {
+        for (Order order : orders)
+        {
+            if (order.getQuoteId().equals(id))
+            {
+                return order;
+            }
+        }
+        return null;
+    }
+
+
+    @Override
+    public Order createOrder(String from) throws BadRequestException
+    {
+        Quote q = quotes.getQuote(from);
+        if (q == null)
+        {
+            throw new BadRequestException(String.format("No such quote: %s", from));
+        }
+
+        Order assocOrder = getOrderByQuoteId(from);
+
+        if (assocOrder != null)
+        {
+            throw new ConflictingRequestException(String.format("The quote has already been used to create an order: %s", assocOrder.getOrderId()));
+        }
+
+        Order result = new Order();
+        DateFormat df = DateFormat.getDateInstance(DateFormat.SHORT);
+
+        result.setOrderDate(df.format(new Date()));
+        result.setOrderId(String.format("order-%s", from));
+        result.setQuoteId(from);
+        result.setStatus(OrderStatus.Created);
+
+        orders.add(result);
+
+        return result;
+    }
+
+    @Override
+    public boolean updateOrder(String id, Order order, String eTag)
+    {
+        Order old = getOrder(id);
+        if (old == null) return false;
+        int idx = orders.indexOf(old);
+        orders.set(idx, order);
+        return true;
+    }
+
+    @Override
+    public boolean updateOrder(String id, OrderUpdateInfo info, String eTag) throws BadRequestException
+    {
+        Order old = getOrder(id);
+        if (old == null) throw new BadRequestException("No such order");
+        old.addEvent(info.getEventInfo());
+        old.setStatus(info.getStatus());
+        return true;
+    }
+
+    @Override
+    public boolean removeOrder(String id, String eTag)
+    {
+        return false;
+    }
+
+    static
+    {
+        s_counter = new AtomicLong(0L);
+    }
+
+    private final List<Order> orders;
+    private static AtomicLong s_counter;
+    private final QuoteRepository quotes;
+
+    @Override
+    public void reset()
+    {
+        orders.clear();
+        s_counter = new AtomicLong(0L);
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mock/MockQuoteRepository.java
+================================================
+package smpl.ordering.repositories.mock;
+
+import smpl.ordering.TestPath;
+import smpl.ordering.models.*;
+import smpl.ordering.BadRequestException;
+import smpl.ordering.repositories.CatalogItemsRepository;
+import smpl.ordering.repositories.DealersRepository;
+import smpl.ordering.repositories.QuoteRepository;
+
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Random;
+
+/**
+ * An in-memory repository of quotes. Used for testing the API surface area.
+ */
+@SuppressWarnings("UnusedParameters")
+public class MockQuoteRepository
+        implements QuoteRepository, TestPath
+{
+    public MockQuoteRepository(CatalogItemsRepository catalog, DealersRepository dealers)
+    {
+        this.quotes = new ArrayList<>();
+        this.dealers = dealers;
+    }
+
+    /**
+     * Retrieves a specific quote from the repository.
+     *
+     * @param id The quote id.
+     * @return A Quote object, if found.
+     */
+    @Override
+    public Quote getQuote(String id)
+    {
+        for (Quote q : quotes)
+        {
+            if (q.getQuoteId().equals(id))
+            {
+                return q;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Retrieves a list of quotes where the customer name contains the string passed in.
+     *
+     * @param customerName A fragment of the customer name.
+     * @return A list of quotes, possibly empty.
+     */
+    @Override
+    public List<Quote> getQuotesByCustomerName(String customerName)
+    {
+        List<Quote> lst = new ArrayList<>();
+        for (Quote q : quotes)
+        {
+            if (q.getCustomerName().toLowerCase().contains(customerName.toLowerCase()))
+            {
+                lst.add(q);
+            }
+        }
+        return lst;
+    }
+
+    @Override
+    public List<String> getQuoteIdsByDealerName(String dealerName)
+    {
+        List<String> lst = new ArrayList<>();
+        for (Quote q : quotes)
+        {
+            if (q.getDealerName().compareToIgnoreCase(dealerName) == 0)
+            {
+                lst.add(q.getQuoteId());
+            }
+        }
+        return lst;
+    }
+
+    /**
+     * Creates a new quote from information edited by a client.
+     *
+     * @param quote The client quote information.
+     * @return A Quote object.
+     */
+    @Override
+    public Quote createQuote(Quote quote) throws BadRequestException
+    {
+        DealerInfo info = dealers.getDealer(quote.getDealerName());
+        if (info == null)
+        {
+            dealers.upsertDealer(new DealerInfo(quote.getDealerName()), null);
+        }
+
+        String id = quote.getQuoteId();
+
+        if (id == null || id.isEmpty())
+        {
+            quote.setQuoteId(String.format("%d", s_counter.nextInt() & 0x7FFFFFFF));
+        }
+        else
+        {
+            if (getQuote(id) != null)
+            {
+                throw new BadRequestException(String.format("Duplicate: the quote '%s' already exists", id));
+            }
+        }
+
+        quotes.add(quote);
+
+        return quote;
+    }
+
+    /**
+     * Update an existing quote from client-edited information.
+     *
+     * @param id   The quote id.
+     * @param from New client-edited information.
+     * @param eTag An entity tag used for optimistic concurrency
+     * @return true if the quote exists, false otherwise.
+     */
+    @Override
+    public boolean updateQuote(String id, Quote from, String eTag)
+    {
+        Quote quote = getQuote(id);
+        if (quote == null) return false;
+
+        DealerInfo info = dealers.getDealer(from.getDealerName());
+        if (info == null)
+        {
+            dealers.upsertDealer(new DealerInfo(from.getDealerName()), null);
+        }
+
+        from.setQuoteId(id);
+
+        int idx = quotes.indexOf(quote);
+        quotes.set(idx, from);
+
+        return true;
+    }
+
+    /**
+     * Remove a quote from the system.
+     *
+     * @param id   The quote id.
+     * @param eTag An entity tag used for optimistic concurrency
+     * @return true if the quote exists, false otherwise
+     */
+    @Override
+    public boolean removeQuote(String id, String eTag)
+    {
+        Quote quote = getQuote(id);
+        if (quote == null) return false;
+        quotes.remove(quote);
+        return true;
+    }
+
+    static
+    {
+        s_counter = new Random();
+    }
+
+    private final List<Quote> quotes;
+    private final DealersRepository dealers;
+    private static final Random s_counter;
+
+    @Override
+    public void reset()
+    {
+        quotes.clear();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mock/MockShipmentRepository.java
+================================================
+package smpl.ordering.repositories.mock;
+
+import smpl.ordering.BadRequestException;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.Order;
+import smpl.ordering.models.OrderStatus;
+import smpl.ordering.models.ShipmentEventInfo;
+import smpl.ordering.models.ShipmentRecord;
+import smpl.ordering.repositories.OrderRepository;
+import smpl.ordering.repositories.ShipmentRepository;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class MockShipmentRepository
+        implements ShipmentRepository, TestPath
+{
+    public MockShipmentRepository(OrderRepository orders)
+    {
+        this.orders = orders;
+    }
+
+    @Override
+    public List<ShipmentRecord> getShipments(OrderStatus status)
+    {
+        List<ShipmentRecord> result = new ArrayList<>();
+        for (ShipmentRecord record : records)
+        {
+            if (status == OrderStatus.None)
+            {
+                result.add(new ShipmentRecord(record));
+            }
+            else
+            {
+                Order o = orders.getOrder(record.getOrderId());
+                if (o.getStatus() == status)
+                {
+                    result.add(new ShipmentRecord(record));
+                }
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public ShipmentRecord getShipmentById(String id)
+    {
+        for (ShipmentRecord record : records)
+        {
+            if (record.getOrderId().equals(id))
+            {
+                return new ShipmentRecord(record);
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public ShipmentRecord createShipment(ShipmentRecord info) throws BadRequestException
+    {
+        Order order = orders.getOrder(info.getOrderId());
+        if (order == null)
+        {
+            throw new BadRequestException(String.format("No such order: %s", info.getOrderId()));
+        }
+
+        ShipmentRecord existing = getShipmentById(info.getOrderId());
+        if (existing != null)
+        {
+            throw new BadRequestException(String.format("A shipment record for order '%s' already exists", info.getOrderId()));
+        }
+
+        ShipmentRecord result = new ShipmentRecord(info);
+        records.add(result);
+        return result;
+    }
+
+    @Override
+    public boolean addEvent(String id, ShipmentEventInfo event)
+    {
+        ShipmentRecord existing = null;
+
+        for (ShipmentRecord record : records)
+        {
+            if (record.getOrderId().equals(id))
+            {
+                existing = record;
+                break;
+            }
+        }
+
+        if (existing == null) return false;
+
+        existing.addEvent(new ShipmentEventInfo(event.getDate(), event.getComments()));
+
+        return true;
+    }
+
+    @Override
+    public boolean updateShipment(ShipmentRecord info)
+    {
+        int idx = -1;
+        String id = info.getOrderId();
+
+        for (int i = 0; i < records.size(); ++i)
+        {
+            ShipmentRecord record = records.get(i);
+            if (record.getOrderId().equals(id))
+            {
+                idx = i;
+                break;
+            }
+        }
+
+        if (idx == -1) return false;
+
+        // Replace shipment in the same location
+
+        records.set(idx, new ShipmentRecord(info));
+
+        return true;
+    }
+
+    @Override
+    public boolean removeShipment(String id, String eTag)
+    {
+        return false;
+    }
+
+    public void reset()
+    {
+        records.clear();
+    }
+
+    private final List<ShipmentRecord> records = new ArrayList<>();
+    private final OrderRepository orders;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mongodb/MongoCatalogItemsRepository.java
+================================================
+package smpl.ordering.repositories.mongodb;
+
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import smpl.ordering.TestPath;
+import smpl.ordering.repositories.CatalogItemsRepository;
+import smpl.ordering.repositories.mongodb.models.CatalogItem;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * MongoDB-based catalog items repository implementation class
+ */
+public class MongoCatalogItemsRepository
+        implements CatalogItemsRepository, TestPath
+{
+    @Override
+    public List<smpl.ordering.models.CatalogItem> getCatalogItems()
+    {
+        List<CatalogItem> found = operations.findAll(CatalogItem.class);
+
+        List<smpl.ordering.models.CatalogItem> result = new ArrayList<>();
+
+        for (CatalogItem catalogItem : found)
+        {
+            result.add(catalogItem.toCatalogItem());
+        }
+
+        return result;
+    }
+
+    @Override
+    public smpl.ordering.models.CatalogItem getCatalogItem(String sku)
+    {
+        CatalogItem existing = findExistingCatalogItem(sku);
+
+        if (existing != null)
+        {
+            return existing.toCatalogItem();
+        }
+
+        return null;
+    }
+
+    private CatalogItem findExistingCatalogItem(String sku)
+    {
+        Query findExisting = new Query(Criteria.where("skuNumber").is(sku));
+        return operations.findOne(findExisting, CatalogItem.class);
+    }
+
+    @Override
+    public boolean upsertCatalogItem(String sku, smpl.ordering.models.CatalogItem catalogItem, String eTag)
+    {
+        CatalogItem existing = findExistingCatalogItem(sku);
+        CatalogItem mongoCatalogItem = new smpl.ordering.repositories.mongodb.models.CatalogItem(catalogItem);
+
+        if (existing != null)
+        {
+            mongoCatalogItem.setId(existing.getId());
+        }
+
+        operations.save(mongoCatalogItem);
+
+        return existing != null;
+    }
+
+    @Override
+    public boolean removeCatalogItem(String sku, String eTag)
+    {
+        Query findExisting = new Query(Criteria.where("skuNumber").is(sku));
+        CatalogItem existing = operations.findAndRemove(findExisting, CatalogItem.class);
+        return existing != null;
+    }
+
+    public MongoCatalogItemsRepository(MongoTemplate template)
+    {
+        operations = new MongoOperationsWithRetry(template);
+    }
+
+    private final MongoOperations operations;
+
+    @Override
+    public void reset()
+    {
+        operations.dropCollection(CatalogItem.class);
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mongodb/MongoDealersRepository.java
+================================================
+package smpl.ordering.repositories.mongodb;
+
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.DealerInfo;
+import smpl.ordering.repositories.DealersRepository;
+import smpl.ordering.repositories.mongodb.models.Dealer;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * MongoDB-based dealers repository implementation class
+ */
+public class MongoDealersRepository
+        implements DealersRepository, TestPath
+{
+
+    @Override
+    public List<DealerInfo> getDealers()
+    {
+        List<DealerInfo> result = new ArrayList<>();
+        List<Dealer> found = operations.findAll(Dealer.class);
+
+        for (Dealer dealer : found)
+        {
+            result.add(dealer.toDealerInfo());
+        }
+        return result;
+    }
+
+    @Override
+    public DealerInfo getDealer(String name)
+    {
+        Query findExisting = new Query(Criteria.where("name").is(name));
+        Dealer existing = operations.findOne(findExisting, Dealer.class);
+
+        if (existing != null)
+        {
+            return existing.toDealerInfo();
+        }
+        return null;
+    }
+
+    @Override
+    public boolean upsertDealer(DealerInfo dealer, String eTag)
+    {
+        Query findExisting = new Query(Criteria.where("name").is(dealer.getName()));
+        Dealer existing = operations.findOne(findExisting, Dealer.class);
+        Dealer mongoDealer = new Dealer(dealer);
+
+        if (existing != null)
+        {
+            mongoDealer.setId(existing.getId());
+        }
+
+        operations.save(mongoDealer);
+
+        return existing != null;
+    }
+
+    @Override
+    public boolean removeDealer(String name, String eTag)
+    {
+        Query findExisting = new Query(Criteria.where("name").is(name));
+        Dealer existing = operations.findAndRemove(findExisting, Dealer.class);
+        return existing != null;
+    }
+
+    public MongoDealersRepository(MongoTemplate template)
+    {
+        operations = new MongoOperationsWithRetry(template);
+    }
+
+    private final MongoOperations operations;
+
+    @Override
+    public void reset()
+    {
+        operations.dropCollection("dealers");
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mongodb/MongoOperationsWithRetry.java
+================================================
+package smpl.ordering.repositories.mongodb;
+
+import com.microsoft.applicationinsights.TelemetryClient;
+import com.microsoft.applicationinsights.channel.TelemetryChannel;
+import com.microsoft.applicationinsights.telemetry.Duration;
+import com.microsoft.applicationinsights.telemetry.RemoteDependencyTelemetry;
+import com.microsoft.applicationinsights.internal.schemav2.DependencyKind;
+import com.microsoft.applicationinsights.internal.schemav2.DependencySourceType;
+import com.mongodb.CommandResult;
+import com.mongodb.DBCollection;
+import com.mongodb.DBObject;
+import com.mongodb.WriteResult;
+import org.springframework.data.mongodb.core.*;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.TypedAggregation;
+import org.springframework.data.mongodb.core.convert.MongoConverter;
+import org.springframework.data.mongodb.core.geo.GeoResults;
+import org.springframework.data.mongodb.core.mapreduce.GroupBy;
+import org.springframework.data.mongodb.core.mapreduce.GroupByResults;
+import org.springframework.data.mongodb.core.mapreduce.MapReduceOptions;
+import org.springframework.data.mongodb.core.mapreduce.MapReduceResults;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.NearQuery;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import smpl.ordering.Utility;
+
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
+import java.util.Set;
+
+@SuppressWarnings({"ALL", "deprecation"})
+public class MongoOperationsWithRetry
+        implements MongoOperations
+{
+    private MongoOperations underlying;
+
+    MongoOperationsWithRetry(MongoOperations underlying)
+    {
+        this.underlying = underlying;
+    }
+
+    @Override
+    public String getCollectionName(Class<?> entityClass)
+    {
+        return underlying.getCollectionName(entityClass);
+    }
+
+    @Override
+    public CommandResult executeCommand(String jsonCommand)
+    {
+        return underlying.executeCommand(jsonCommand);
+    }
+
+    @Override
+    public CommandResult executeCommand(DBObject command)
+    {
+        return underlying.executeCommand(command);
+    }
+
+    @Override
+    public CommandResult executeCommand(DBObject command, int options)
+    {
+        return underlying.executeCommand(command, options);
+    }
+
+    @Override
+    public void executeQuery(Query query, String collectionName, DocumentCallbackHandler dch)
+    {
+        underlying.executeQuery(query, collectionName, dch);
+    }
+
+    @Override
+    public <T> T execute(DbCallback<T> action)
+    {
+        return underlying.execute(action);
+    }
+
+    @Override
+    public <T> T execute(Class<?> entityClass, CollectionCallback<T> action)
+    {
+        return underlying.execute(entityClass, action);
+    }
+
+    @Override
+    public <T> T execute(String collectionName, CollectionCallback<T> action)
+    {
+        return underlying.execute(collectionName, action);
+    }
+
+    @Override
+    public <T> T executeInSession(DbCallback<T> action)
+    {
+        return underlying.executeInSession(action);
+    }
+
+    @Override
+    public <T> DBCollection createCollection(Class<T> entityClass)
+    {
+        return underlying.createCollection(entityClass);
+    }
+
+    @Override
+    public <T> DBCollection createCollection(Class<T> entityClass, CollectionOptions collectionOptions)
+    {
+        return underlying.createCollection(entityClass, collectionOptions);
+    }
+
+    @Override
+    public DBCollection createCollection(String collectionName)
+    {
+        return underlying.createCollection(collectionName);
+    }
+
+    @Override
+    public DBCollection createCollection(String collectionName, CollectionOptions collectionOptions)
+    {
+        return underlying.createCollection(collectionName, collectionOptions);
+    }
+
+    @Override
+    public Set<String> getCollectionNames()
+    {
+        return underlying.getCollectionNames();
+    }
+
+    @Override
+    public DBCollection getCollection(String collectionName)
+    {
+        return underlying.getCollection(collectionName);
+    }
+
+    @Override
+    public <T> boolean collectionExists(Class<T> entityClass)
+    {
+        return underlying.collectionExists(entityClass);
+    }
+
+    @Override
+    public boolean collectionExists(String collectionName)
+    {
+        return underlying.collectionExists(collectionName);
+    }
+
+    @Override
+    public <T> void dropCollection(Class<T> entityClass)
+    {
+        boolean success = false;
+
+        Date start = new Date();
+        try
+        {
+            try
+            {
+                underlying.dropCollection(entityClass);
+            }
+            catch (org.springframework.dao.DataAccessResourceFailureException darf)
+            {
+                if (darf.getRootCause().getClass() != java.net.SocketTimeoutException.class)
+                {
+                    throw darf;
+                }
+                underlying.dropCollection(entityClass);
+            }
+            success = true;
+        }
+        finally
+        {
+            sendTelemetry(start, new Date(), "dropCollection", success);
+        }
+    }
+
+    private void sendTelemetry(Date start, Date end, String operation, boolean success)
+    {
+        TelemetryClient client = Utility.getTelemetryClient();
+        if (client != null)
+        {
+            RemoteDependencyTelemetry rdt = new RemoteDependencyTelemetry(String.format("MongoDB.%s", operation));
+			Duration duration = new Duration(end.getTime() - start.getTime());
+            rdt.setDuration(duration);
+            rdt.setCount(1);
+            rdt.setDependencyKind(DependencyKind.Other);
+            rdt.setSuccess(success);
+            client.track(rdt);
+        }
+    }
+
+    @Override
+    public void dropCollection(String collectionName)
+    {
+        boolean success = false;
+        Date start = new Date();
+        try
+        {
+            try
+            {
+                underlying.dropCollection(collectionName);
+            }
+            catch (org.springframework.dao.DataAccessResourceFailureException darf)
+            {
+                if (darf.getRootCause().getClass() != java.net.SocketTimeoutException.class)
+                {
+                    throw darf;
+                }
+                underlying.dropCollection(collectionName);
+            }
+            success = true;
+        }
+        finally
+        {
+            sendTelemetry(start, new Date(), "dropCollection", success);
+        }
+    }
+
+    @Override
+    public IndexOperations indexOps(String collectionName)
+    {
+        return underlying.indexOps(collectionName);
+    }
+
+    @Override
+    public IndexOperations indexOps(Class<?> entityClass)
+    {
+        return underlying.indexOps(entityClass);
+    }
+
+    @Override
+    public <T> List<T> findAll(Class<T> entityClass)
+    {
+        List<T> result = null;
+        Date start = new Date();
+        boolean success = false;
+        try
+        {
+            try
+            {
+                result = underlying.findAll(entityClass);
+            }
+            catch (org.springframework.dao.DataAccessResourceFailureException darf)
+            {
+                if (darf.getRootCause().getClass() != java.net.SocketTimeoutException.class)
+                {
+                    throw darf;
+                }
+                result = underlying.findAll(entityClass);
+            }
+            success = true;
+        }
+        finally
+        {
+            sendTelemetry(start, new Date(), "findAll", success);
+        }
+
+        return result;
+    }
+
+    @Override
+    public <T> List<T> findAll(Class<T> entityClass, String collectionName)
+    {
+        return underlying.findAll(entityClass, collectionName);
+    }
+
+    @Override
+    public <T> GroupByResults<T> group(String inputCollectionName, GroupBy groupBy, Class<T> entityClass)
+    {
+        return underlying.group(inputCollectionName, groupBy, entityClass);
+    }
+
+    @Override
+    public <T> GroupByResults<T> group(Criteria criteria, String inputCollectionName, GroupBy groupBy, Class<T> entityClass)
+    {
+        return underlying.group(criteria, inputCollectionName, groupBy, entityClass);
+    }
+
+    @Override
+    public <O> AggregationResults<O> aggregate(TypedAggregation<?> aggregation, String collectionName, Class<O> outputType)
+    {
+        return underlying.aggregate(aggregation, collectionName, outputType);
+    }
+
+    @Override
+    public <O> AggregationResults<O> aggregate(TypedAggregation<?> aggregation, Class<O> outputType)
+    {
+        return underlying.aggregate(aggregation, outputType);
+    }
+
+    @Override
+    public <O> AggregationResults<O> aggregate(Aggregation aggregation, Class<?> inputType, Class<O> outputType)
+    {
+        return underlying.aggregate(aggregation, inputType, outputType);
+    }
+
+    @Override
+    public <O> AggregationResults<O> aggregate(Aggregation aggregation, String collectionName, Class<O> outputType)
+    {
+        return underlying.aggregate(aggregation, collectionName, outputType);
+    }
+
+    @Override
+    public <T> MapReduceResults<T> mapReduce(String inputCollectionName, String mapFunction, String reduceFunction, Class<T> entityClass)
+    {
+        return underlying.mapReduce(inputCollectionName, mapFunction, reduceFunction, entityClass);
+    }
+
+    @Override
+    public <T> MapReduceResults<T> mapReduce(String inputCollectionName, String mapFunction, String reduceFunction, MapReduceOptions mapReduceOptions, Class<T> entityClass)
+    {
+        return underlying.mapReduce(inputCollectionName, mapFunction, reduceFunction, mapReduceOptions, entityClass);
+    }
+
+    @Override
+    public <T> MapReduceResults<T> mapReduce(Query query, String inputCollectionName, String mapFunction, String reduceFunction, Class<T> entityClass)
+    {
+        return underlying.mapReduce(query, inputCollectionName, mapFunction, reduceFunction, entityClass);
+    }
+
+    @Override
+    public <T> MapReduceResults<T> mapReduce(Query query, String inputCollectionName, String mapFunction, String reduceFunction, MapReduceOptions mapReduceOptions, Class<T> entityClass)
+    {
+        return underlying.mapReduce(query, inputCollectionName, mapFunction, reduceFunction, mapReduceOptions, entityClass);
+    }
+
+    @Override
+    public <T> GeoResults<T> geoNear(NearQuery near, Class<T> entityClass)
+    {
+        return underlying.geoNear(near, entityClass);
+    }
+
+    @Override
+    public <T> GeoResults<T> geoNear(NearQuery near, Class<T> entityClass, String collectionName)
+    {
+        return underlying.geoNear(near, entityClass, collectionName);
+    }
+
+    @Override
+    public <T> T findOne(Query query, Class<T> entityClass)
+    {
+        T result = null;
+        Date start = new Date();
+        boolean success = false;
+        try
+        {
+            try
+            {
+                result = underlying.findOne(query, entityClass);
+            }
+            catch (org.springframework.dao.DataAccessResourceFailureException darf)
+            {
+                if (darf.getRootCause().getClass() != java.net.SocketTimeoutException.class)
+                {
+                    throw darf;
+                }
+                result = underlying.findOne(query, entityClass);
+            }
+            success = true;
+        }
+        finally
+        {
+            sendTelemetry(start, new Date(), "findOne", success);
+        }
+
+        return result;
+    }
+
+    @Override
+    public <T> T findOne(Query query, Class<T> entityClass, String collectionName)
+    {
+        return underlying.findOne(query, entityClass, collectionName);
+    }
+
+    @Override
+    public boolean exists(Query query, String collectionName)
+    {
+        return underlying.exists(query, collectionName);
+    }
+
+    @Override
+    public boolean exists(Query query, Class<?> entityClass)
+    {
+        boolean result = false;
+        Date start = new Date();
+        boolean success = false;
+        try
+        {
+            try
+            {
+                result = underlying.exists(query, entityClass);
+            }
+            catch (org.springframework.dao.DataAccessResourceFailureException darf)
+            {
+                if (darf.getRootCause().getClass() != java.net.SocketTimeoutException.class)
+                {
+                    throw darf;
+                }
+                result = underlying.exists(query, entityClass);
+            }
+        }
+        finally
+        {
+            sendTelemetry(start, new Date(), "exists", success);
+        }
+
+        return result;
+    }
+
+    @Override
+    public boolean exists(Query query, Class<?> entityClass, String collectionName)
+    {
+        return underlying.exists(query, entityClass, collectionName);
+    }
+
+    @Override
+    public <T> List<T> find(Query query, Class<T> entityClass)
+    {
+        List<T> result = null;
+        Date start = new Date();
+        boolean success = false;
+        try
+        {
+            try
+            {
+                result = underlying.find(query, entityClass);
+            }
+            catch (org.springframework.dao.DataAccessResourceFailureException darf)
+            {
+                if (darf.getRootCause().getClass() != java.net.SocketTimeoutException.class)
+                {
+                    throw darf;
+                }
+                result = underlying.find(query, entityClass);
+            }
+        }
+        finally
+        {
+            sendTelemetry(start, new Date(), "find", success);
+        }
+
+        return result;
+    }
+
+    @Override
+    public <T> List<T> find(Query query, Class<T> entityClass, String collectionName)
+    {
+        return underlying.find(query, entityClass, collectionName);
+    }
+
+    @Override
+    public <T> T findById(Object id, Class<T> entityClass)
+    {
+        return underlying.findById(id, entityClass);
+    }
+
+    @Override
+    public <T> T findById(Object id, Class<T> entityClass, String collectionName)
+    {
+        return underlying.findById(id, entityClass, collectionName);
+    }
+
+    @Override
+    public <T> T findAndModify(Query query, Update update, Class<T> entityClass)
+    {
+        return underlying.findAndModify(query, update, entityClass);
+    }
+
+    @Override
+    public <T> T findAndModify(Query query, Update update, Class<T> entityClass, String collectionName)
+    {
+        return underlying.findAndModify(query, update, entityClass, collectionName);
+    }
+
+    @Override
+    public <T> T findAndModify(Query query, Update update, FindAndModifyOptions options, Class<T> entityClass)
+    {
+        return underlying.findAndModify(query, update, options, entityClass);
+    }
+
+    @Override
+    public <T> T findAndModify(Query query, Update update, FindAndModifyOptions options, Class<T> entityClass, String collectionName)
+    {
+        return underlying.findAndModify(query, update, options, entityClass, collectionName);
+    }
+
+    @Override
+    public <T> T findAndRemove(Query query, Class<T> entityClass)
+    {
+        T result = null;
+        Date start = new Date();
+        boolean success = false;
+        try
+        {
+            try
+            {
+                result = underlying.findAndRemove(query, entityClass);
+            }
+            catch (org.springframework.dao.DataAccessResourceFailureException darf)
+            {
+                if (darf.getRootCause().getClass() != java.net.SocketTimeoutException.class)
+                {
+                    throw darf;
+                }
+                result = underlying.findAndRemove(query, entityClass);
+            }
+        }
+        finally
+        {
+            sendTelemetry(start, new Date(), "findAndRemove", success);
+        }
+
+        return result;
+    }
+
+    @Override
+    public <T> T findAndRemove(Query query, Class<T> entityClass, String collectionName)
+    {
+        return underlying.findAndRemove(query, entityClass, collectionName);
+    }
+
+    @Override
+    public long count(Query query, Class<?> entityClass)
+    {
+        return underlying.count(query, entityClass);
+    }
+
+    @Override
+    public long count(Query query, String collectionName)
+    {
+        return underlying.count(query, collectionName);
+    }
+
+    @Override
+    public void insert(Object objectToSave)
+    {
+        Date start = new Date();
+        boolean success = false;
+        try
+        {
+            try
+            {
+                underlying.insert(objectToSave);
+            }
+            catch (org.springframework.dao.DataAccessResourceFailureException darf)
+            {
+                if (darf.getRootCause().getClass() != java.net.SocketTimeoutException.class)
+                {
+                    throw darf;
+                }
+                underlying.insert(objectToSave);
+            }
+        }
+        finally
+        {
+            sendTelemetry(start, new Date(), "insert", success);
+        }
+    }
+
+    @Override
+    public void insert(Object objectToSave, String collectionName)
+    {
+        underlying.insert(objectToSave, collectionName);
+    }
+
+    @Override
+    public void insert(Collection<? extends Object> batchToSave, Class<?> entityClass)
+    {
+        underlying.insert(batchToSave, entityClass);
+    }
+
+    @Override
+    public void insert(Collection<? extends Object> batchToSave, String collectionName)
+    {
+        underlying.insert(batchToSave, collectionName);
+    }
+
+    @Override
+    public void insertAll(Collection<? extends Object> objectsToSave)
+    {
+        underlying.insertAll(objectsToSave);
+    }
+
+    @Override
+    public void save(Object objectToSave)
+    {
+        Date start = new Date();
+        boolean success = false;
+        try
+        {
+            try
+            {
+                underlying.save(objectToSave);
+            }
+            catch (org.springframework.dao.DataAccessResourceFailureException darf)
+            {
+                if (darf.getRootCause().getClass() != java.net.SocketTimeoutException.class)
+                {
+                    throw darf;
+                }
+                underlying.save(objectToSave);
+            }
+        }
+        finally
+        {
+            sendTelemetry(start, new Date(), "save", success);
+        }
+
+    }
+
+    @Override
+    public void save(Object objectToSave, String collectionName)
+    {
+        underlying.save(objectToSave, collectionName);
+    }
+
+    @Override
+    public WriteResult upsert(Query query, Update update, Class<?> entityClass)
+    {
+        return underlying.upsert(query, update, entityClass);
+    }
+
+    @Override
+    public WriteResult upsert(Query query, Update update, String collectionName)
+    {
+        return underlying.upsert(query, update, collectionName);
+    }
+
+    @Override
+    public WriteResult upsert(Query query, Update update, Class<?> entityClass, String collectionName)
+    {
+        return underlying.upsert(query, update, entityClass, collectionName);
+    }
+
+    @Override
+    public WriteResult updateFirst(Query query, Update update, Class<?> entityClass)
+    {
+        return underlying.updateFirst(query, update, entityClass);
+    }
+
+    @Override
+    public WriteResult updateFirst(Query query, Update update, String collectionName)
+    {
+        return underlying.updateFirst(query, update, collectionName);
+    }
+
+    @Override
+    public WriteResult updateFirst(Query query, Update update, Class<?> entityClass, String collectionName)
+    {
+        return underlying.updateFirst(query, update, entityClass, collectionName);
+    }
+
+    @Override
+    public WriteResult updateMulti(Query query, Update update, Class<?> entityClass)
+    {
+        return underlying.updateMulti(query, update, entityClass);
+    }
+
+    @Override
+    public WriteResult updateMulti(Query query, Update update, String collectionName)
+    {
+        return underlying.updateMulti(query, update, collectionName);
+    }
+
+    @Override
+    public WriteResult updateMulti(Query query, Update update, Class<?> entityClass, String collectionName)
+    {
+        return underlying.updateMulti(query, update, entityClass, collectionName);
+    }
+
+    @Override
+    public WriteResult remove(Object object)
+    {
+        return underlying.remove(object);
+    }
+
+    @Override
+    public WriteResult remove(Object object, String collection)
+    {
+        return underlying.remove(object, collection);
+    }
+
+    @Override
+    public WriteResult remove(Query query, Class<?> entityClass)
+    {
+        return underlying.remove(query, entityClass);
+    }
+
+    @Override
+    public WriteResult remove(Query query, Class<?> entityClass, String collectionName)
+    {
+        return underlying.remove(query, entityClass, collectionName);
+    }
+
+    @Override
+    public WriteResult remove(Query query, String collectionName)
+    {
+        return underlying.remove(query, collectionName);
+    }
+
+    @Override
+    public <T> List<T> findAllAndRemove(Query query, String collectionName)
+    {
+        return underlying.findAllAndRemove(query, collectionName);
+    }
+
+    @Override
+    public <T> List<T> findAllAndRemove(Query query, Class<T> entityClass)
+    {
+        return underlying.findAllAndRemove(query, entityClass);
+    }
+
+    @Override
+    public <T> List<T> findAllAndRemove(Query query, Class<T> entityClass, String collectionName)
+    {
+        return underlying.findAllAndRemove(query, entityClass, collectionName);
+    }
+
+    @Override
+    public MongoConverter getConverter()
+    {
+        return underlying.getConverter();
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mongodb/MongoOrderRepository.java
+================================================
+package smpl.ordering.repositories.mongodb;
+
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import smpl.ordering.BadRequestException;
+import smpl.ordering.ConflictingRequestException;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.*;
+import smpl.ordering.repositories.OrderRepository;
+import smpl.ordering.repositories.QuoteRepository;
+import smpl.ordering.repositories.mongodb.models.OrderDetails;
+import smpl.ordering.repositories.mongodb.models.QuoteDetails;
+
+import java.text.DateFormat;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
+
+public class MongoOrderRepository
+        implements OrderRepository, TestPath
+{
+    @Override
+    public boolean hasOrder(String id)
+    {
+        Query findExisting = new Query(Criteria.where("orderId").is(id));
+        return operations.exists(findExisting, OrderDetails.class);
+    }
+
+    @Override
+    public Order getOrder(String id)
+    {
+        OrderDetails existing = findExistingOrder(id);
+        return (existing != null) ? existing.toOrder() : null;
+    }
+
+    private OrderDetails findExistingOrder(String id)
+    {
+        Query findExisting = new Query(Criteria.where("orderId").is(id));
+        return operations.findOne(findExisting, OrderDetails.class);
+    }
+
+    @Override
+    public List<Order> getOrdersByStatus(OrderStatus status)
+    {
+        List<OrderDetails> found;
+        if (status == OrderStatus.None)
+        {
+            found = operations.findAll(OrderDetails.class);
+        }
+        else
+        {
+            Query findExisting = new Query(Criteria.where("status").is(status));
+            found = operations.find(findExisting, OrderDetails.class);
+        }
+
+        List<Order> result = new ArrayList<>();
+        if (found != null && found.size() > 0)
+        {
+            for (OrderDetails details : found)
+            {
+                result.add(details.toOrder());
+            }
+        }
+        return result;
+    }
+
+
+    @Override
+    public List<Order> getOrdersByDealerName(String dealer, OrderStatus status)
+    {
+        List<String> quotesIds = quotes.getQuoteIdsByDealerName(dealer);
+
+        Criteria criteria = Criteria.where("quoteId").in(quotesIds);
+
+        if (status != OrderStatus.None)
+        {
+            criteria = criteria.and("status").is(status);
+        }
+
+        Query findExisting = new Query(criteria);
+
+        List<OrderDetails> found = operations.find(findExisting, OrderDetails.class);
+
+        List<Order> result = new ArrayList<>();
+        if (found != null && found.size() > 0)
+        {
+            for (OrderDetails details : found)
+            {
+                result.add(details.toOrder());
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public Order getOrderByQuoteId(String id)
+    {
+        Query findExisting = new Query(Criteria.where("quoteId").is(id));
+        OrderDetails existing = operations.findOne(findExisting, OrderDetails.class);
+        return (existing != null) ? existing.toOrder() : null;
+    }
+
+    @Override
+    public Order createOrder(String from) throws BadRequestException
+    {
+        Quote q = quotes.getQuote(from);
+        if (q == null)
+        {
+            throw new BadRequestException(String.format("No such quote: %s", from));
+        }
+
+        Order assocOrder = getOrderByQuoteId(from);
+
+        if (assocOrder != null)
+        {
+            throw new ConflictingRequestException(String.format("The quote has already been used to create an order: %s", assocOrder.getOrderId()));
+        }
+
+        Order result = new Order();
+        DateFormat df = DateFormat.getDateInstance(DateFormat.SHORT);
+        result.setOrderDate(df.format(new Date()));
+        result.setOrderId(String.format("order-%s", from));
+        result.setQuoteId(from);
+        result.setStatus(OrderStatus.Created);
+
+        operations.insert(new OrderDetails(result));
+
+        return result;
+    }
+
+    @Override
+    public boolean updateOrder(String id, Order order, String eTag)
+    {
+        OrderDetails existing = findExistingOrder(id);
+        return (existing != null) && saveOrder(id, order, existing);
+    }
+
+    private boolean saveOrder(String id, Order order, OrderDetails existing)
+    {
+        order.setOrderId(id); // Just to make sure
+
+        OrderDetails details = new OrderDetails(order);
+        details.setId(existing.getId());
+
+        operations.save(details);
+
+        return true;
+    }
+
+    @Override
+    public boolean updateOrder(String id, OrderUpdateInfo info, String eTag) throws BadRequestException
+    {
+        OrderDetails existing = findExistingOrder(id);
+
+        Order old = existing.toOrder();
+        old.addEvent(info.getEventInfo());
+        old.setStatus(info.getStatus());
+        return saveOrder(id, old, existing);
+    }
+
+    @Override
+    public boolean removeOrder(String id, String eTag)
+    {
+        Query findExisting = new Query(Criteria.where("orderId").is(id));
+        OrderDetails existing = operations.findAndRemove(findExisting, OrderDetails.class);
+        return existing != null;
+    }
+
+    public MongoOrderRepository(MongoTemplate template, QuoteRepository quotes)
+    {
+        this.operations = new MongoOperationsWithRetry(template);
+        this.quotes = quotes;
+    }
+
+    static
+    {
+        s_counter = new AtomicLong(0L);
+    }
+
+    private static AtomicLong s_counter;
+    private final QuoteRepository quotes;
+
+    private final MongoOperations operations;
+
+    @Override
+    public void reset()
+    {
+        operations.dropCollection("orders");
+        s_counter = new AtomicLong(0L);
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mongodb/MongoQuoteRepository.java
+================================================
+package smpl.ordering.repositories.mongodb;
+
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import smpl.ordering.BadRequestException;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.*;
+import smpl.ordering.repositories.DealersRepository;
+import smpl.ordering.repositories.QuoteRepository;
+import smpl.ordering.repositories.mongodb.models.QuoteDetails;
+
+import java.util.*;
+
+public class MongoQuoteRepository
+        implements QuoteRepository, TestPath
+{
+    @Override
+    public Quote getQuote(String id)
+    {
+        QuoteDetails existing = findExistingQuote(id);
+        return (existing != null) ? existing.toQuote() : null;
+    }
+
+    private QuoteDetails findExistingQuote(String id)
+    {
+        Query findExisting = new Query(Criteria.where("quoteId").is(id));
+        return operations.findOne(findExisting, QuoteDetails.class);
+    }
+
+    @Override
+    public List<Quote> getQuotesByCustomerName(String customerName)
+    {
+        // TODO: figure out a way to not bring all quotes into memory just to
+        //       do the filtering. The database should filter for us.
+
+        //Query findExisting = new Query(Criteria.where("customerName").is(customerName));
+        List<QuoteDetails> found = operations.findAll(QuoteDetails.class);
+
+        List<Quote> result = new ArrayList<>();
+
+        if (found != null)
+        {
+            for (QuoteDetails q : found)
+            {
+                String cName = q.getCustomerName();
+                if (cName != null && cName.toLowerCase().contains(customerName.toLowerCase()))
+                {
+                    result.add(q.toQuote());
+                }
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public List<String> getQuoteIdsByDealerName(String dealerName)
+    {
+        List<QuoteDetails> foundQueries = operations.find(new Query(Criteria.where("dealerName").is(dealerName)), QuoteDetails.class);
+        List<String> quotesIds = new ArrayList<>();
+        for (QuoteDetails q : foundQueries)
+        {
+            quotesIds.add(q.getQuoteId());
+        }
+
+        return quotesIds;
+    }
+
+    @Override
+    public Quote createQuote(Quote from) throws BadRequestException
+    {
+        Quote quote = new Quote(from);
+
+        DealerInfo info = dealers.getDealer(from.getDealerName());
+        if (info == null)
+        {
+            dealers.upsertDealer(new DealerInfo(from.getDealerName()), null);
+        }
+
+        String id = quote.getQuoteId();
+
+        if (id == null || id.isEmpty())
+        {
+            quote.setQuoteId(String.format("%d", s_counter.nextInt() & 0x7FFFFFFF));
+        }
+        else
+        {
+            if (getQuote(id) != null)
+            {
+                throw new BadRequestException(String.format("Duplicate: the quote '%s' already exists", id));
+            }
+        }
+
+        operations.insert(new QuoteDetails(quote));
+
+        return quote;
+    }
+
+    @Override
+    public boolean updateQuote(String id, Quote from, String eTag)
+    {
+        QuoteDetails existing = findExistingQuote(id);
+        if (existing == null) return false;
+
+        from.setQuoteId(id); // Just to make sure...
+
+        DealerInfo info = dealers.getDealer(from.getDealerName());
+        if (info == null)
+        {
+            dealers.upsertDealer(new DealerInfo(from.getDealerName()), null);
+        }
+
+        QuoteDetails details = new QuoteDetails(from);
+        details.setId(existing.getId());
+
+        operations.save(details);
+
+        return true;
+    }
+
+    @Override
+    public boolean removeQuote(String id, String eTag)
+    {
+        Query findExisting = new Query(Criteria.where("quoteId").is(id));
+        QuoteDetails existing = operations.findAndRemove(findExisting, QuoteDetails.class);
+        return existing != null;
+    }
+
+    public MongoQuoteRepository(MongoTemplate template, DealersRepository dealers)
+    {
+        this.operations = new MongoOperationsWithRetry(template);
+        this.dealers = dealers;
+    }
+
+    static
+    {
+        s_counter = new Random();
+    }
+
+    private final DealersRepository dealers;
+
+    private static final Random s_counter;
+    private final MongoOperations operations;
+
+    @Override
+    public void reset()
+    {
+        operations.dropCollection("quotes");
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mongodb/MongoShipmentRepository.java
+================================================
+package smpl.ordering.repositories.mongodb;
+
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import smpl.ordering.BadRequestException;
+import smpl.ordering.ConflictingRequestException;
+import smpl.ordering.TestPath;
+import smpl.ordering.models.*;
+import smpl.ordering.repositories.OrderRepository;
+import smpl.ordering.repositories.ShipmentRepository;
+import smpl.ordering.repositories.mongodb.models.ShipmentDetails;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * MongoDB-based shipment repository implementation class
+ */
+public class MongoShipmentRepository implements ShipmentRepository, TestPath
+{
+    @Override
+    public List<ShipmentRecord> getShipments(OrderStatus status)
+    {
+        List<Order> ordrs = orders.getOrdersByStatus(status);
+        List<String> oids = new ArrayList<>();
+        for (Order o : ordrs)
+        {
+            oids.add(o.getOrderId());
+        }
+
+        Query q = new Query(Criteria.where("orderId").in(oids));
+        List<ShipmentDetails> details = operations.find(q, ShipmentDetails.class);
+
+        List<ShipmentRecord> result = new ArrayList<>();
+        if (details != null)
+        {
+            for (ShipmentDetails d : details)
+            {
+                result.add(d.toShipmentRecord());
+            }
+        }
+
+        return result;
+    }
+
+    @Override
+    public ShipmentRecord getShipmentById(String id)
+    {
+        Query q = new Query(Criteria.where("orderId").is(id));
+        ShipmentDetails existing = operations.findOne(q, ShipmentDetails.class);
+        return (existing != null) ? existing.toShipmentRecord() : null;
+    }
+
+    @Override
+    public ShipmentRecord createShipment(ShipmentRecord info) throws BadRequestException
+    {
+        Order assocOrder = orders.getOrder(info.getOrderId());
+        if (assocOrder == null)
+        {
+            throw new BadRequestException(String.format("Order '%s' could not be found: ", info.getOrderId()));
+        }
+
+        ShipmentDetails existing = findExistingShipmentDetails(info.getOrderId());
+        if (existing != null)
+        {
+            throw new ConflictingRequestException(String.format("A shipment record for order '%s' already exists", info.getOrderId()));
+        }
+
+        operations.insert(new ShipmentDetails(info));
+        return new ShipmentRecord(info);
+    }
+
+    private ShipmentDetails findExistingShipmentDetails(String id)
+    {
+        Query q = new Query(Criteria.where("orderId").is(id));
+        return operations.findOne(q, ShipmentDetails.class);
+    }
+
+    @Override
+    public boolean addEvent(String id, ShipmentEventInfo event)
+    {
+        ShipmentDetails existing = findExistingShipmentDetails(id);
+        if (existing == null) return false;
+
+        ShipmentRecord result = existing.toShipmentRecord();
+        result.addEvent(event);
+        return saveUpdates(existing, result);
+    }
+
+    private boolean saveUpdates(ShipmentDetails existing, ShipmentRecord result)
+    {
+        ShipmentDetails updated = new ShipmentDetails(result);
+        updated.setId(existing.getId());
+
+        operations.save(updated);
+
+        return true;
+    }
+
+    @Override
+    public boolean updateShipment(ShipmentRecord info)
+    {
+        ShipmentDetails existing = findExistingShipmentDetails(info.getOrderId());
+        return (existing != null) && saveUpdates(existing, info);
+    }
+
+    @Override
+    public boolean removeShipment(String id, String eTag)
+    {
+        Query findExisting = new Query(Criteria.where("orderId").is(id));
+        ShipmentDetails existing = operations.findAndRemove(findExisting, ShipmentDetails.class);
+        return existing != null;
+    }
+
+    public MongoShipmentRepository(MongoTemplate template, OrderRepository orders)
+    {
+        this.operations = new MongoOperationsWithRetry(template);
+        this.orders = orders;
+    }
+
+    private final OrderRepository orders;
+    private final MongoOperations operations;
+
+    @Override
+    public void reset()
+    {
+        operations.dropCollection("shipments");
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mongodb/models/CatalogItem.java
+================================================
+package smpl.ordering.repositories.mongodb.models;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+@Document(collection = "catalog")
+public class CatalogItem
+{
+    public CatalogItem()
+    {
+    }
+
+    public CatalogItem(smpl.ordering.models.CatalogItem from)
+    {
+        this.skuNumber = from.getSkuNumber();
+        this.description = from.getDescription();
+        this.price = from.getPrice();
+        this.inventory = from.getInventory();
+        this.leadTime = from .getLeadTime();
+    }
+
+    public smpl.ordering.models.CatalogItem toCatalogItem()
+    {
+        int calculatedLeadTime = (inventory > 0 ) ? 0 : leadTime;
+
+        smpl.ordering.models.CatalogItem result = new smpl.ordering.models.CatalogItem();
+        result.setSkuNumber(skuNumber);
+        result.setDescription(description);
+        result.setPrice(price);
+        result.setInventory(inventory);
+        result.setLeadTime(calculatedLeadTime);
+        return result;
+    }
+
+    @Id
+    private String id;
+
+    public String getId()
+    {
+        return id;
+    }
+
+    public void setId(String id)
+    {
+        this.id = id;
+    }
+
+    @Indexed
+    private String skuNumber;
+    private String description;
+    private double price;
+    private int inventory;
+    private int leadTime;
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mongodb/models/Dealer.java
+================================================
+package smpl.ordering.repositories.mongodb.models;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
+import smpl.ordering.models.DealerInfo;
+
+@Document(collection = "dealers")
+public class Dealer
+{
+    @Id
+    private String id;
+
+    @Indexed
+    private String name;
+    private String contact;
+    private String address;
+    private String email;
+    private String phone;
+
+    public Dealer()
+    {
+    }
+
+    public Dealer(DealerInfo from)
+    {
+        this.name = from.getName();
+        this.contact = from.getContact();
+        this.address = from.getAddress();
+        this.email = from.getEmail();
+        this.phone = from.getPhone();
+    }
+
+    public DealerInfo toDealerInfo()
+    {
+        DealerInfo result = new DealerInfo();
+        result.setName(name);
+        result.setContact(contact);
+        result.setAddress(address);
+        result.setEmail(email);
+        result.setPhone(phone);
+        return result;
+    }
+
+    public String getId()
+    {
+        return id;
+    }
+
+    public void setId(String id)
+    {
+        this.id = id;
+    }
+
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mongodb/models/OrderDetails.java
+================================================
+package smpl.ordering.repositories.mongodb.models;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
+import smpl.ordering.models.Order;
+import smpl.ordering.models.OrderEventInfo;
+import smpl.ordering.models.OrderStatus;
+
+import java.util.List;
+
+@Document(collection = "orders")
+public class OrderDetails
+{
+    public String getId()
+    {
+        return this.id;
+    }
+
+    public void setId(String id)
+    {
+        this.id = id;
+    }
+
+    @Id
+    private String id;
+
+    @Indexed
+    private String orderId;
+    @Indexed
+    private String quoteId;
+
+    private String orderDate;
+
+    @Indexed
+    private OrderStatus status;
+    private OrderEventInfo[] events;
+
+    public OrderDetails()
+    {
+    }
+
+    public OrderDetails(Order from)
+    {
+        this.orderId = from.getOrderId();
+        this.quoteId = from.getQuoteId();
+        this.orderDate = from.getOrderDate();
+        this.status = from.getStatus();
+
+        List<OrderEventInfo> es = from.getEvents();
+        this.events = (es != null && es.size() > 0) ?
+                es.toArray(new OrderEventInfo[es.size()]) :
+                new OrderEventInfo[0];
+    }
+
+    public Order toOrder()
+    {
+        Order result = new Order();
+        result.setOrderId(orderId);
+        result.setQuoteId(quoteId);
+        result.setStatus(status);
+        result.setOrderDate(orderDate);
+        if (events != null)
+        {
+            for (OrderEventInfo item : events)
+            {
+                result.addEvent(item);
+            }
+        }
+        return result;
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mongodb/models/QuoteDetails.java
+================================================
+package smpl.ordering.repositories.mongodb.models;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
+import smpl.ordering.models.QuoteItemInfo;
+import smpl.ordering.models.Quote;
+
+import java.util.List;
+
+@Document(collection = "quotes")
+public class QuoteDetails
+{
+    @Id
+    private String id;
+
+    public String getQuoteId()
+    {
+        return quoteId;
+    }
+
+    @Indexed
+    private String quoteId;
+
+    private String validUntil;
+
+    private String customerName;
+
+    public String getDealerName()
+    {
+        return dealerName;
+    }
+
+    @Indexed
+    private String dealerName;
+    private QuoteItemInfo[] quoteItems;
+    private double totalCost;
+    private double discount;
+    private String city;
+    private String postalCode;
+    private String state;
+
+    public QuoteDetails()
+    {
+    }
+
+    public QuoteDetails(Quote from)
+    {
+        this.quoteId = from.getQuoteId();
+        this.validUntil = from.getValidUntil();
+        this.customerName = from.getCustomerName();
+        this.dealerName = from.getDealerName();
+        this.totalCost = from.getTotalCost();
+        this.discount = from.getDiscount();
+        this.city = from.getCity();
+        this.postalCode = from.getPostalCode();
+        this.state = from.getState();
+
+        List<QuoteItemInfo> ai = from.getQuoteItems();
+        this.quoteItems = (ai != null && ai.size() > 0) ?
+                ai.toArray(new QuoteItemInfo[ai.size()]) :
+                new QuoteItemInfo[0];
+    }
+
+    public Quote toQuote()
+    {
+        Quote result = new Quote();
+        result.setQuoteId(quoteId);
+        result.setValidUntil(validUntil);
+        result.setCustomerName(customerName);
+        result.setDealerName(dealerName);
+        result.setTotalCost(totalCost);
+        result.setDiscount(discount);
+        result.setCity(city);
+        result.setPostalCode(postalCode);
+        result.setState(state);
+        if (quoteItems != null)
+        {
+            for (QuoteItemInfo item : quoteItems)
+            {
+                result.addQuoteItem(item.getSkuNumber(), item.getAmount());
+            }
+        }
+        return result;
+    }
+
+    public String getCustomerName()
+    {
+        return customerName;
+    }
+
+    public String getId()
+    {
+        return id;
+    }
+
+    public void setId(String id)
+    {
+        this.id = id;
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/java/smpl/ordering/repositories/mongodb/models/ShipmentDetails.java
+================================================
+package smpl.ordering.repositories.mongodb.models;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
+import smpl.ordering.models.DeliveryAddress;
+import smpl.ordering.models.PhoneInfo;
+import smpl.ordering.models.ShipmentEventInfo;
+import smpl.ordering.models.ShipmentRecord;
+
+@Document(collection = "shipments")
+public class ShipmentDetails
+{
+    public String getId()
+    {
+        return id;
+    }
+
+    public void setId(String id)
+    {
+        this.id = id;
+    }
+
+    @Id
+    private String id;
+
+    @Indexed
+    private String orderId;
+
+    private ShipmentEventInfo[] events;
+
+    private DeliveryAddress deliveryAddress;
+
+    private String contactName;
+
+    private PhoneInfo primaryContactPhone;
+
+    private PhoneInfo alternateContactPhone;
+
+    public ShipmentDetails()
+    {
+    }
+
+    public ShipmentDetails(ShipmentRecord from)
+    {
+        this.orderId = from.getOrderId();
+        this.events = (from.getEvents() != null) ?
+                from.getEvents().toArray(new ShipmentEventInfo[from.getEvents().size()]) :
+                new ShipmentEventInfo[0];
+        this.deliveryAddress = from.getDeliveryAddress();
+        this.contactName = from.getContactName();
+        this.primaryContactPhone = from.getPrimaryContactPhone();
+        this.alternateContactPhone = from.getAlternateContactPhone();
+    }
+
+    public ShipmentRecord toShipmentRecord()
+    {
+        ShipmentRecord result = new ShipmentRecord();
+        result.setOrderId(orderId);
+        result.setDeliveryAddress(deliveryAddress);
+        result.setPrimaryContactPhone(primaryContactPhone);
+        result.setContactName(contactName);
+        result.setAlternateContactPhone(alternateContactPhone);
+        if (events != null)
+        {
+            for (ShipmentEventInfo info : events)
+            {
+                result.addEvent(info);
+            }
+        }
+        return result;
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/resources/application.properties
+================================================
+# suppress inspection "UnusedProperty" for whole file
+###########
+#
+# This properties file is intended for use with debugging, staging and production system deployment. Not
+# suitable for configuring unit test execution.
+#
+###########
+
+#
+# Service configuration. These apply when running under Spring Boot Actuator, not when deploying under
+# an application server, for which configuration is done separately.
+#
+server.port: 8080
+management.port: 8081
+management.address: 127.0.0.1
+
+#
+# Configuration elements specific to the Fabrikant ordering service.
+#
+ordering.storage: mongodb
+ordering.pingMessage: Configuration data is from inside the WAR
+ordering.validationMessage: This is version 1.0.3
+
+#
+# Default MongoDB configuration parameters. Override on Tomcat7 production system by placing
+# an application.properties file in the root Tomcat7 directory.
+#
+mongodb.host: localhost
+mongodb.database: ordering
+
+
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/resources/ApplicationInsights.xml
+================================================
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationInsights xmlns="http://schemas.microsoft.com/ApplicationInsights/2013/Settings" schemaVersion="2014-05-30">
+    <!--
+      Learn more about Application Insights configuration with ApplicationInsights.config here:
+      http://go.microsoft.com/fwlink/?LinkID=513840
+    -->
+    <InstrumentationKey></InstrumentationKey>
+    <TelemetryModules>
+        <Add type="com.microsoft.applicationinsights.web.extensibility.modules.WebRequestTrackingTelemetryModule"/>
+        <Add type="com.microsoft.applicationinsights.web.extensibility.modules.WebSessionTrackingTelemetryModule"/>
+        <Add type="com.microsoft.applicationinsights.web.extensibility.modules.WebUserTrackingTelemetryModule"/>
+    </TelemetryModules>
+    <ContextInitializers>
+    </ContextInitializers>
+    <TelemetryInitializers>
+        <Add type="com.microsoft.applicationinsights.web.extensibility.initializers.WebOperationIdTelemetryInitializer"/>
+        <Add type="com.microsoft.applicationinsights.web.extensibility.initializers.WebOperationNameTelemetryInitializer"/>
+        <Add type="com.microsoft.applicationinsights.web.extensibility.initializers.WebSessionTelemetryInitializer"/>
+        <Add type="com.microsoft.applicationinsights.web.extensibility.initializers.WebUserTelemetryInitializer"/>
+        <Add type="com.microsoft.applicationinsights.web.extensibility.initializers.WebUserAgentTelemetryInitializer"/>
+    </TelemetryInitializers>
+    <TelemetryChannel>
+        <DeveloperMode>true</DeveloperMode>
+    </TelemetryChannel>
+    <Channel>
+        <!--<Type>com.microsoft.applicationinsights.channel.StdOutChannel</Type>-->
+        <!--<EndpointAddress>http://localhost:8888/v2/track</EndpointAddress>-->
+    </Channel>
+</ApplicationInsights>
+
+
+================================================
+FILE: src/Backend/OrderService/src/main/resources/buildinfo.properties
+================================================
+build.number: 0.1.#
+build.timestamp: 2015-05-02T13:11:31-04:00
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/ConfigurationRule.java
+================================================
+package smpl.ordering;
+
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+/**
+ * This JUnit rule is used to enforce the availability of an ApplicationContext, which is essential for
+ * creating beans and auto-wiring.
+ */
+public class ConfigurationRule
+        implements TestRule
+{
+    @Override
+    public Statement apply(Statement statement, Description description)
+    {
+        AnnotationConfigApplicationContext context =
+                new AnnotationConfigApplicationContext(TestOrderingConfiguration.class);
+        return statement;
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/TestOrderingConfiguration.java
+================================================
+package smpl.ordering;
+
+import com.microsoft.applicationinsights.TelemetryClient;
+import com.microsoft.applicationinsights.TelemetryConfiguration;
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientOptions;
+import com.mongodb.ServerAddress;
+import org.springframework.beans.BeansException;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import smpl.ordering.repositories.RepositoryFactory;
+
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+
+@Configuration
+@ComponentScan
+@EnableAutoConfiguration
+public class TestOrderingConfiguration
+        implements ApplicationContextAware
+{
+    public
+    @Bean
+    MongoTemplate mongoTemplate() throws Exception
+    {
+        Properties props = PropertyHelper.getProperties();
+
+        MongoClientOptions.Builder options = MongoClientOptions.builder();
+        options.socketKeepAlive(false);
+
+        // Compared to the product configuration, this is a bit primitive, but trying to autowire the unit test
+        // configuration turned out to be rather complicated, so getting properties manually is a better
+        // way to go.
+        String mongoHost = props.getProperty("mongodb.host");
+        String mongoPort = System.getenv("MONGO_PORT"); // Anticipating use within a docker container.
+
+        if (!Utility.isNullOrEmpty(mongoPort))
+        {
+            URL portUrl = new URL(mongoPort.replace("tcp:", "http:"));
+            mongoHost = portUrl.getHost();
+        }
+
+        String mongoDB = props.getProperty("mongodb.database");
+
+        if (s_mongoClient == null)
+        {
+            if (mongoDB != null && !mongoDB.isEmpty() && mongoHost != null && !mongoHost.isEmpty())
+            {
+                List<ServerAddress> hosts = new ArrayList<>();
+                for (String host : mongoHost.split(","))
+                {
+                    hosts.add(new ServerAddress(host));
+                }
+                s_mongoClient = new MongoClient(hosts, options.build());
+
+            }
+            else
+            {
+                s_mongoClient = new MongoClient();
+            }
+        }
+
+        return new MongoTemplate(s_mongoClient, mongoDB);
+    }
+
+    public
+    @Bean
+    TelemetryClient getTelemetryClient()
+    {
+        if (TelemetryConfiguration.getActive() == null)
+        {
+            return null;
+        }
+
+        TelemetryClient client = new TelemetryClient(TelemetryConfiguration.getActive());
+        return client;
+    }
+
+    public
+    @Bean
+    RepositoryFactory repositoryFactory()
+    {
+        // See comments about manually getting properties earlier in the file.
+        Properties props = PropertyHelper.getProperties();
+        String storage = props.getProperty("ordering.storage");
+        RepositoryFactory.reset(storage);
+        return RepositoryFactory.getFactory();
+    }
+
+    private static ApplicationContext applicationContext;
+
+    private static MongoClient s_mongoClient;
+
+    @Override
+    public void setApplicationContext(ApplicationContext context) throws BeansException
+    {
+        applicationContext = context;
+    }
+
+    public static ApplicationContext getApplicationContext()
+    {
+        return applicationContext;
+    }
+}
+
+
+
+================================================
+FILE: src/Backend/OrderService/src/test/java/smpl/ordering/UtilityTest.java
+================================================
+package smpl.ordering;
+
+import com.microsoft.applicationinsights.TelemetryClient;
+import org.junit.Rule;
+import org.junit.Test;
+
+import javax.validation.constraints.AssertFalse;
+
+import static org.junit.Assert.*;
+
+public class UtilityTest
+{
+    @Rule
+    public ConfigurationRule rule = new ConfigurationRule();
+
+    @Test
+    public void testIsNullOrEmpty() throws Exception
+    {
+        assertTrue(Utility.isNullOrEmpty(null));
+        assertTrue(Utility.isNullOrEmpty(""));
+        assertFalse(Utility.isNullOrEmpty("test"));
+        assertFalse(Utility.isNullOrEmpty(" "));
+    }
+
+    @Test
+    public void testGetTelemetryClient() throws Exception
+    {
+        // Verify that the Telemetry client used for unit tests is disabled.
+        TelemetryClient client = Utility.getTelemetryClient();
+        assertTrue(true);//client.isDisabled());
+    }
+}

@@ -1,0 +1,2030 @@
+
+
+
+
+================================================
+FILE: src/Clients/Web/pages/dealers/dealers.html
+================================================
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>dealers</title>
+
+    <link href="dealers.css" rel="stylesheet" />
+    <script src="dealers.js"></script>
+</head>
+<body>
+    <div class="dealers fragment">
+        <header class="page-header" aria-label="Header content" role="banner">
+            <button class="page-header-home">
+                <img src="../../images/FabrikamIcon.png" />
+            </button>
+            <h2 class="titlearea win-type-ellipsis">
+                <span class="pagetitle">Dealers</span>
+            </h2>
+        </header>
+        <section class="page-section" aria-label="Main content" role="main">
+            <!-- Simple template for the ListView instantiation  -->
+            <div class="dealerItemTemplate" data-win-control="WinJS.Binding.Template" style="display: none">
+                <div class="listItem dealerItem">
+                    <div class="dealerItem-Detail">
+                        <h3 data-win-bind="textContent: name"></h3>
+                        <div class="list-item-entry-small" data-win-bind="textContent: contact"></div>
+                        <div class="list-item-entry-small" data-win-bind="textContent: address"></div>
+                        <div class="list-item-entry-small" data-win-bind="textContent: email"></div>
+                        <div class="list-item-entry-small" data-win-bind="textContent: phone"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="edittools" data-win-control="Controls.EditTools" data-win-options="{  }"></div>
+
+            <div id="listView"
+                 class="itemListView dealerListView"
+                 data-win-control="WinJS.UI.ListView"
+                 data-win-options="{
+                    itemDataSource: Data.dealers.dataSource,
+                    itemTemplate: select('.dealerItemTemplate'),
+                    selectionMode: 'single',
+                    tapBehavior: 'directSelect',
+                    swipeBehavior: 'select',
+                    layout: { type: WinJS.UI.ListLayout }
+                 }">
+            </div>
+
+            <div class="editDetail dealerDetail">
+                <label class="inputlabel">Name:</label>
+                <input id="name" class="textinput" type="text" data-win-bind="value: name Binding.Mode.twoway" />
+                <label class="inputlabel">Contact:</label>
+                <input id="contact" class="textinput" type="text" data-win-bind="value: contact Binding.Mode.twoway" />
+                <label class="inputlabel">Address:</label>
+                <input id="address" class="textinput" type="text" data-win-bind="value: address Binding.Mode.twoway" />
+                <label class="inputlabel">Email:</label>
+                <input id="email" class="textinput" type="text" data-win-bind="value: email Binding.Mode.twoway" />
+                <label class="inputlabel">Phone:</label>
+                <input id="phone" class="textinput" type="text" data-win-bind="value: phone Binding.Mode.twoway" />
+            </div>
+        </section>
+    </div>
+</body>
+</html>
+
+
+
+================================================
+FILE: src/Clients/Web/pages/dealers/dealers.js
+================================================
+﻿// For an introduction to the Page Control template, see the following documentation:
+// http://go.microsoft.com/fwlink/?LinkId=232511
+(function () {
+    "use strict";
+    var nav = WinJS.Navigation;
+
+    WinJS.UI.Pages.define("pages/dealers/dealers.html", {
+        listViewControl: null,
+        editTools: null,
+        editButtons: null,
+        currentItem: null,
+        dealerDetailElement: null,
+        autocomplete: null,
+        // This function is called whenever a user navigates to this page. It
+        // populates the page elements with the app's data.
+        ready: function (element, options) {
+            var subpage = element.querySelector(".page-section");
+            var that = this;
+
+
+            that.listViewControl = element.querySelector(".dealerListView").winControl;
+            that.dealerDetailElement = element.querySelector(".dealerDetail");
+            subpage.style.display = "none";
+            showProgress("Loading...");
+            return Data.dealersGet().then(function (dealers) {
+                if (!dealers) {
+                    hideProgress();
+                    nav.back(nav.history.backStack.length);
+                    return;
+                }
+                that.editTools = subpage.querySelector(".edittools").winControl;
+                that.editButtons = that.editTools.getButtons();
+                that.editTools.addEventListener("click", that._buttonHandler.bind(that));
+                that.listViewControl.forceLayout();
+
+                that.editButtons['add'].disabled = false;
+                that.editButtons['edit'].style.display = "none";
+
+                addAddressHandler(that.dealerDetailElement.querySelector("#address"), function (place) {
+                    that.currentItem.address = place.formatted_address;
+                });
+
+                that.listViewControl.onselectionchanged = function (arg) {
+                    that.listViewControl.selection.getItems().then(function (items) {
+                        if (items.length > 0) {
+                            that.currentItem = items[0].data;
+                            WinJS.Binding.processAll(that.dealerDetailElement, items[0].data);
+                            //that.editButtons['delete'].disabled = false;
+                            //that.editButtons['edit'].disabled = false;
+                            //that.editButtons['save'].disabled = false;
+                        }
+                        else {
+                            that.currentItem = null;
+                            //that.editButtons['delete'].disabled = true;
+                            //that.editButtons['edit'].disabled = true;
+                            //that.editButtons['save'].disabled = true;
+                        }
+                    });
+                }
+                that.listViewControl.selection.add(0);
+                hideProgress();
+                subpage.style.display = "";
+
+                WinJS.UI.Animation.enterContent(subpage);
+
+            });
+        },
+
+        _buttonHandler: function (args) {
+            if (!args.label || (this.currentItem == null && args.label != 'add')) {
+                return;
+            }
+            var that = this;
+
+            switch (args.label) {
+                case 'save': {
+                    Data.dealerSave(this.currentItem).then(function (saved) {
+                        if (saved) {
+                            var index = Data.dealers.indexOf(saved);
+                            that.listViewControl.selection.clear();
+                            that.listViewControl.selection.add(index);
+                            that.listViewControl.ensureVisible(index);
+                        }
+                    });
+                    break;
+                }
+                case 'delete': {
+                    confirm("Delete Dealer", "Are you sure that you'd like to delete " + this.currentItem.name + "?", "Yes", "No").then(function (result) {
+                        if (result.reason == "primary") {
+                            var idx = Data.dealers.indexOf(that.currentItem) - 1;
+                            if (idx < 0) {
+                                idx = 0;
+                            }
+                            Data.dealerDelete(that.currentItem).then(function (deleted) {
+                                that.listViewControl.selection.clear();
+                                if (Data.dealers.length > 0) {
+                                    that.listViewControl.selection.add(idx);
+                                    that.listViewControl.ensureVisible(idx);
+                                }
+                            });
+                        }
+                    });
+                    break;
+                }
+                case 'add': {
+                    this.listViewControl.selection.clear();
+                    this.currentItem = Data.dealerCreate();
+                    WinJS.Binding.processAll(this.dealerDetailElement, this.currentItem);
+                    that.dealerDetailElement.querySelector("#name").focus();
+
+                    break;
+                }
+                default: {
+
+                }
+            }
+        },
+
+        unload: function () {
+            // TODO: Respond to navigations away from this page.
+        },
+
+        updateLayout: function (element) {
+            /// <param name="element" domElement="true" />
+
+            // TODO: Respond to changes in layout.
+        }
+    });
+})();
+
+
+
+================================================
+FILE: src/Clients/Web/pages/deliveries/deliveries.css
+================================================
+﻿.fullDeliveryDetail {
+    float: left;
+    margin-top: 10px;
+    margin-left: 20px;
+    width: 50%;
+    max-height: calc(100% - 120px);
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+    .fullDeliveryDetail .editDetail {
+        float: left;
+        margin-top: 0px;
+        margin-left: 0px;
+        width: 100%;
+        background: #F0F0F0;
+        padding-left: 10px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        padding-right: 0px;
+    }
+
+.deliveryDetail {
+    margin-bottom: 10px;
+}
+
+    .deliveryDetail .eventsSection {
+        display: flex;
+        width: 100%;
+        align-items: center;
+    }
+
+.deliveryDetail .horizontalDetail .horizontalDetailCol {
+    display: inline-block;
+    width: 48%;
+}
+
+
+
+================================================
+FILE: src/Clients/Web/pages/deliveries/deliveries.html
+================================================
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Deliveries</title>
+
+    <link href="deliveries.css" rel="stylesheet" />
+    <link href="../quotes/quotes.css" rel="stylesheet" />
+    <link href="../orders/orders.css" rel="stylesheet" />
+    <script src="deliveries.js"></script>
+</head>
+<body>
+    <div class="deliveries fragment">
+        <header class="page-header" aria-label="Header content" role="banner">
+            <button class="page-header-home">
+                <img src="../../images/FabrikamIcon.png" />
+            </button>
+            <h2 class="titlearea win-type-ellipsis">
+                <span class="pagetitle">Deliveries</span>
+            </h2>
+        </header>
+        <section class="page-section" aria-label="Main content" role="main">
+            <!-- Simple template for the ListView instantiation  -->
+            <div class="deliveryItemTemplate" data-win-control="WinJS.Binding.Template" style="display: none">
+                <div class="listItem deliveryItem">
+                    <div class="deliveryItem-Detail">
+                        <h3 data-win-bind="textContent: __quote.dealerName"></h3>
+                        <div class="list-item-entry-small" data-win-bind="textContent: __quote.customerName"></div>
+                        <div class="list-item-entry-small" data-win-bind="textContent: deliveryDate">asdasdasd</div>
+                        <div class="list-item-entry-small" data-win-bind="textContent: __order.status"></div>
+                        <div class="list-item-entry-small"><span data-win-bind="textContent: __quote.width"></span>W x <span data-win-bind="textContent: __quote.height"></span>H x <span data-win-bind="textContent: __quote.depth"></span>D <span data-win-bind="textContent: __quote.purpose"></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="edittools" data-win-control="Controls.EditTools" data-win-options="{  }"></div>
+
+            <div id="deliveryExtrasPopup" class="pagePopup">
+                <div data-win-control="WinJS.UI.ContentDialog" data-win-options="{
+                     title: 'Main instruction',
+                     primaryCommandText: 'Done'
+                 }">
+                </div>
+            </div>
+
+            <div id="listView"
+                 class="itemListView deliveryListView"
+                 data-win-control="WinJS.UI.ListView"
+                 data-win-options="{
+                    itemDataSource: Data.deliveries.dataSource,
+                    itemTemplate: select('.deliveryItemTemplate'),
+                    selectionMode: 'single',
+                    tapBehavior: 'directSelect',
+                    swipeBehavior: 'select',
+                    layout: { type: WinJS.UI.ListLayout }
+                 }">
+            </div>
+            <div class="fullDeliveryDetail">
+                <div class="editDetail deliveryDetail">
+                    <label class="inputlabel">Delivery Date:</label>
+                    <input id="orderDate" class="textinput" type="text" data-win-bind="value: deliveryDate Binding.Mode.twoway" />
+                    <label class="inputlabel">Address:</label>
+                    <input id="deliveryAddress" class="textinput" type="text" data-win-bind="value: deliveryAddress.city Binding.Mode.twoway" />
+                    <label class="inputlabel">Post Code:</label>
+                    <input id="deliveryPostcode" class="textinput" type="text" data-win-bind="value: deliveryAddress.postalCode Binding.Mode.twoway" />
+                    <div class="horizontalDetail">
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Phone 1:</label>
+                            <input id="width" class="textinput" type="text" data-win-bind="value: primaryContactPhone.phoneNumber Binding.Mode.twoway" />
+                        </div>
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Phone 2:</label>
+                            <input id="height" class="textinput" type="text" data-win-bind="value: alternateContactPhone.phoneNumber Binding.Mode.twoway" />
+                        </div>
+                    </div>
+                    <div class="eventsSection">
+                        <label class="buttonlabel">Manage Events:</label>
+                        <button id="manageDeliveryEvents" class="edit-tools-button" type="button"></button>
+                    </div>
+                </div>
+                <div class="editDetail orderDetail">
+                    <label class="inputlabel">Order Date:</label>
+                    <input id="orderDate" class="textinput" type="text" data-win-bind="value: __order.orderDate Binding.Mode.twoway" />
+                    <select id="status" class="selectinput" data-win-bind="value: __order.status Binding.Mode.twoway">
+                        <option value="Created">Created</option>
+                        <option value="Confirmed">Confirmed</option>
+                        <option value="Started">Started</option>
+                        <option value="Built">Built</option>
+                        <option value="DeliveryConfirmed">Delivery Confirmed</option>
+                        <option value="Shipped">Shipped</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Installed">Installed</option>
+                    </select>
+                    <div class="eventsSection">
+                        <label class="buttonlabel">Manage Events:</label>
+                        <button id="manageOrderEvents" class="edit-tools-button" type="button"></button>
+                    </div>
+                </div>
+                <div class="editDetail quoteDetail">
+                    <label class="inputlabel">Dealer:</label>
+                    <input id="quoteDealerName" class="textinput" type="text" data-win-bind="value: __quote.dealerName Binding.Mode.twoway" />
+                    <label class="inputlabel">Valid Until:</label>
+                    <input id="quoteValidUntil" class="textinput" type="text" data-win-bind="value: __quote.validUntil Binding.Mode.twoway" />
+                    <label class="inputlabel">Customer:</label>
+                    <input id="quoteCustomerName" class="textinput" type="text" data-win-bind="value: __quote.customerName Binding.Mode.twoway" />
+                    <label class="inputlabel">Address:</label>
+                    <input id="quoteAddress" class="textinput" type="text" data-win-bind="value: __quote.city Binding.Mode.twoway" />
+                    <label class="inputlabel">Post Code:</label>
+                    <input id="quotePostcode" class="textinput" type="text" data-win-bind="value: __quote.postalCode Binding.Mode.twoway" />
+                    <label class="inputlabel">Comments:</label>
+                    <input id="quoteComments" class="textinput" type="text" data-win-bind="value: __quote.comments Binding.Mode.twoway" />
+                    <label class="inputlabel">Purpose:</label>
+                    <select id="quotePurpose" class="selectinput" data-win-bind="value: __quote.purpose Binding.Mode.twoway">
+                        <option value="Refrigerator">Fridge</option>
+                        <option value="Freezer">Freezer</option>
+                    </select>
+                    <label class="inputlabel">Description:</label>
+                    <input id="quoteUnitDescription" class="textinput" type="text" data-win-bind="value: __quote.unitDescription Binding.Mode.twoway" />
+                    <div class="extrasSection">
+                        <label class="buttonlabel">Manage Extras:</label>
+                        <button id="manageExtras" class="edit-tools-button" type="button"></button>
+                    </div>
+                    <div class="horizontalDetail">
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Width:</label>
+                            <input id="width" class="textinput" type="text" data-win-bind="value: __quote.width Binding.Mode.twoway" />
+                        </div>
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Height:</label>
+                            <input id="height" class="textinput" type="text" data-win-bind="value: __quote.height Binding.Mode.twoway" />
+                        </div>
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Depth:</label>
+                            <input id="depth" class="textinput" type="text" data-win-bind="value: __quote.depth Binding.Mode.twoway" />
+                        </div>
+                    </div>
+                    <div class="horizontalDetail">
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Ambient:</label>
+                            <input id="width" class="textinput" type="text" data-win-bind="value: __quote.ambientAverage Binding.Mode.twoway" />
+                        </div>
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Peak:</label>
+                            <input id="height" class="textinput" type="text" data-win-bind="value: __quote.ambientPeak Binding.Mode.twoway" />
+                        </div>
+                    </div>
+                    <div class="horizontalDetail">
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Terms:</label>
+                            <input id="width" class="textinput" type="text" data-win-bind="value: __quote.terms Binding.Mode.twoway" />
+                        </div>
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Total:</label>
+                            <input id="height" class="textinput" type="text" data-win-bind="value: __quote.totalCost Binding.Mode.twoway" />
+                        </div>
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Discount:</label>
+                            <input id="height" class="textinput" type="text" data-win-bind="value: __quote.discount Binding.Mode.twoway" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
+
+
+
+================================================
+FILE: src/Clients/Web/pages/deliveries/deliveries.js
+================================================
+﻿// For an introduction to the Page Control template, see the following documentation:
+// http://go.microsoft.com/fwlink/?LinkId=232511
+(function () {
+    "use strict";
+    var nav = WinJS.Navigation;
+
+    WinJS.UI.Pages.define("pages/deliveries/deliveries.html", {
+        listViewControl: null,
+        editTools: null,
+        editButtons: null,
+        currentItem: null,
+        originalItem: null,
+        deliveryDetailElement: null,
+        itemTemplateHTML: null,
+        bound: false,
+        // This function is called whenever a user navigates to this page. It
+        // populates the page elements with the app's data.
+        ready: function (element, options) {
+            var subpage = element.querySelector(".page-section");
+            var that = this;
+            var fromOrder = WinJS.Promise.as();
+
+            if (options && options.order) {
+                showProgress("Creating Delivery...");
+                fromOrder = Data.deliveryCreateFromOrder(options.order);
+            }
+            else {
+                showProgress("Loading...");
+            }
+
+            return WinJS.UI.processAll(element).then(function () {
+                element.querySelector("#manageExtras").addEventListener("click", that._extrasHandler.bind(that));
+                element.querySelector("#manageOrderEvents").addEventListener("click", that._orderEventsHandler.bind(that));
+                element.querySelector("#manageDeliveryEvents").addEventListener("click", that._deliveryEventsHandler.bind(that));
+
+                that.listViewControl = element.querySelector(".deliveryListView").winControl;
+                that.listViewControl.itemTemplate = that._itemRenderer.bind(that);
+                that.itemTemplateHTML = element.querySelector(".deliveryItemTemplate").innerHTML;
+                that.deliveryDetailElement = element.querySelector(".fullDeliveryDetail");
+
+                subpage.style.display = "none";
+                return fromOrder.then(function (newdelivery) {
+                    return Data.deliveriesGet().then(function (deliveries) {
+                        if (newdelivery && Data.deliveryFindById(newdelivery.orderId) < 0) {
+                            deliveries.push(newdelivery);
+                        }
+                        if (!deliveries) {
+                            hideProgress();
+                            nav.back(nav.history.backStack.length);
+                            return;
+                        }
+                        var toolsElement = subpage.querySelector(".edittools");
+                        if (!toolsElement) {
+                            return;
+                        }
+                        that.editTools = toolsElement.winControl;
+                        that.editButtons = that.editTools.getButtons();
+                        that.editTools.addEventListener("click", that._buttonHandler.bind(that));
+                        that.listViewControl.forceLayout();
+                        that.editButtons['add'].style.display = "none";
+                        that.editButtons['edit'].style.display = "none";
+
+                        addAddressHandler(that.deliveryDetailElement.querySelector("#deliveryAddress"), function (place) {
+                            that.currentItem.deliveryAddress.city = place.formatted_address;
+                            that.currentItem.deliveryAddress.postalCode = getPostCodeFromPlace(place)
+                        });
+
+                        addAddressHandler(that.deliveryDetailElement.querySelector("#deliveryPostcode"), function (place) {
+                            that.currentItem.deliveryAddress.city = place.formatted_address;
+                            that.currentItem.deliveryAddress.postalCode = getPostCodeFromPlace(place)
+                            that.quoteDetailElement.querySelector("#deliveryPostcode").value = that.currentItem.deliveryAddress.postalCode;
+                        });
+
+                        addAddressHandler(that.deliveryDetailElement.querySelector("#quoteAddress"), function (place) {
+                            that.currentItem.__quote.city = place.formatted_address;
+                            that.currentItem.__quote.postalCode = getPostCodeFromPlace(place)
+                        });
+
+                        addAddressHandler(that.deliveryDetailElement.querySelector("#quotePostcode"), function (place) {
+                            that.currentItem.__quote.city = place.formatted_address;
+                            that.currentItem.__quote.postalCode = getPostCodeFromPlace(place)
+                            that.quoteDetailElement.querySelector("#quotePostcode").value = that.currentItem.__quote.postalCode;
+                        });
+
+                        that.listViewControl.onselectionchanged = function (arg) {
+                            that.listViewControl.selection.getItems().then(function (items) {
+                                if (items.length > 0) {
+                                    that.currentItem = items[0].data;
+                                    that.originalItem = clone(items[0].data.backingData);
+                                    that.originalItem.__order = clone(items[0].data.__order.backingData);
+                                    that.originalItem.__quote = clone(items[0].data.__quote.backingData);
+                                    WinJS.Binding.processAll(that.deliveryDetailElement, items[0].data);
+                                    //that.editButtons['delete'].disabled = false;
+                                    //that.editButtons['edit'].disabled = false;
+                                    //that.editButtons['save'].disabled = false;
+                                }
+                                else {
+                                    that.currentItem = null;
+                                    that.originalItem = null;
+                                    //that.editButtons['delete'].disabled = true;
+                                    //that.editButtons['edit'].disabled = true;
+                                    //that.editButtons['save'].disabled = true;
+                                }
+                            });
+                        }
+
+                        that.listViewControl.onloadingstatechanged = function (args) {
+                            if (that.listViewControl.loadingState === "viewPortLoaded") {
+                                WinJS.Promise.timeout().then(function () {
+                                    var selectindex = 0;
+                                    if (newdelivery) {
+                                        selectindex = Data.deliveryFindById(newdelivery.orderId);
+                                    }
+
+                                    that.listViewControl.selection.add(selectindex);
+                                    that.listViewControl.onloadingstatechanged = undefined;
+                                });
+                            }
+                        }
+                        hideProgress();
+                        subpage.style.display = "";
+                        WinJS.UI.Animation.enterContent(subpage);
+                    });
+                });
+            });
+        },
+
+        _itemRenderer: function (itemPromise, recycled) {
+            var that = this;
+            return itemPromise.then(function (currentItem) {
+                if (!that) {
+                    return document.createElement("div");
+                }
+
+                var data = currentItem.data;
+                return Data.orderGetById(data.orderId).then(function (order) {
+                    data.__order = order;
+                    data.__quote = order.__quote;
+
+                    var boundTemplate = document.createElement("div");
+                    boundTemplate.className = "win-template";
+                    boundTemplate.innerHTML = that.itemTemplateHTML;
+
+                    return WinJS.Binding.processAll(boundTemplate, data).then(function () {
+                        return boundTemplate;
+                    });
+                });
+            });
+        },
+
+        _extrasHandler: function (args) {
+            popup("deliveryExtrasPopup", "Manage Extras", "pages/extras/extras.html", this.currentItem.__quote);
+        },
+        _deliveryEventsHandler: function (args) {
+            popup("deliveryExtrasPopup", "Manage Delivery Events", "pages/orderevents/orderevents.html", this.currentItem);
+        },
+        _orderEventsHandler: function (args) {
+            popup("deliveryExtrasPopup", "Manage Order Events", "pages/orderevents/orderevents.html", this.currentItem.__order);
+        },
+        _buttonHandler: function (args) {
+            if (!args.label || (this.currentItem == null && args.label != 'add')) {
+                return;
+            }
+            var that = this;
+
+            switch (args.label) {
+                case 'save': {
+                    Data.deliverySave(this.currentItem, this.originalItem).then(function (saved) {
+                        if (saved) {
+                            var index = Data.deliveries.indexOf(saved);
+                            that.listViewControl.selection.clear();
+                            that.listViewControl.selection.add(index);
+                            that.listViewControl.ensureVisible(index);
+                        }
+                    });
+                    break;
+                }
+                case 'delete': {
+                    confirm("Delete Order", "Are you sure that you'd like to delete this delivery?", "Yes", "No").then(function (result) {
+                        if (result.reason == "primary") {
+                            var idx = Data.deliveries.indexOf(that.currentItem) - 1;
+                            if (idx < 0) {
+                                idx = 0;
+                            }
+                            Data.deliveryDelete(that.currentItem).then(function (deleted) {
+                                that.listViewControl.selection.clear();
+                                if (Data.deliveries.length > 0) {
+                                    that.listViewControl.selection.add(idx);
+                                    that.listViewControl.ensureVisible(idx);
+                                }
+                            });
+                        }
+                    });
+                    break;
+                }
+                default: {
+
+                }
+            }
+        },
+
+        unload: function () {
+
+        },
+
+        updateLayout: function (element) {
+            /// <param name="element" domElement="true" />
+
+            // TODO: Respond to changes in layout.
+        }
+    });
+})();
+
+
+
+================================================
+FILE: src/Clients/Web/pages/extras/extras.css
+================================================
+﻿.extrasDetail {
+}
+
+.extras {
+}
+
+
+
+================================================
+FILE: src/Clients/Web/pages/extras/extras.html
+================================================
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>extras</title>
+
+    <link href="extras.css" rel="stylesheet" />
+    <script src="extras.js"></script>
+</head>
+<body>
+    <div class="extras fragment">
+        <section class="page-section" aria-label="Main content" role="main">
+            <!-- Simple template for the ListView instantiation  -->
+            <div class="extrasItemTemplate" data-win-control="WinJS.Binding.Template" style="display: none">
+                <div class="listItem extrasItem">
+                    <div class="extrasItem-Detail">
+                        <h3 data-win-bind="textContent: skuNumber"></h3>
+                        <div class="list-item-entry-small" data-win-bind="textContent: description"></div>
+                        <div class="list-item-entry-small" data-win-bind="textContent: unit"></div>
+                        <div class="list-item-entry-small" data-win-bind="textContent: unitPrice"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="edittools" data-win-control="Controls.EditTools" data-win-options="{  }"></div>
+
+            <div id="listView"
+                 class="itemListView extrasListView"
+                 data-win-control="WinJS.UI.ListView"
+                 data-win-options="{
+                    itemTemplate: select('.extrasItemTemplate'),
+                    selectionMode: 'single',
+                    tapBehavior: 'directSelect',
+                    swipeBehavior: 'select',
+                    layout: { type: WinJS.UI.ListLayout }
+                 }">
+            </div>
+
+            <div class="editDetail extrasDetail">
+                <label class="inputlabel">Name:</label>
+                <input id="extras-skuNumber" class="textinput" type="text" data-win-bind="value: skuNumber Binding.Mode.twoway" />
+                <br />
+                <label class="inputlabel">Description:</label>
+                <input id="extras-description" class="textinput" type="text" data-win-bind="value: description Binding.Mode.twoway" />
+                <br />
+                <label class="inputlabel">Unit:</label>
+                <input id="extras-unit" class="textinput" type="text" data-win-bind="value: unit Binding.Mode.twoway" />
+                <br />
+                <label class="inputlabel">Price:</label>
+                <input id="extras-unitPrice" class="textinput" type="text" data-win-bind="value: unitPrice Binding.Mode.twoway" />
+            </div>
+        </section>
+    </div>
+</body>
+</html>
+
+
+
+================================================
+FILE: src/Clients/Web/pages/extras/extras.js
+================================================
+﻿// For an introduction to the Page Control template, see the following documentation:
+// http://go.microsoft.com/fwlink/?LinkId=232511
+(function () {
+    "use strict";
+
+    WinJS.UI.Pages.define("pages/extras/extras.html", {
+        listViewControl: null,
+        editTools: null,
+        editButtons: null,
+        currentItem: null,
+        extrasDetailElement: null,
+        extrasData: null,
+        additionalItems: null,
+        addingItem: false,
+        // This function is called whenever a user navigates to this page. It
+        // populates the page elements with the app's data.
+        ready: function (element, options) {
+            var subpage = element.querySelector(".page-section");
+            var that = this;
+            that.additionalItems = options.state.additionalItems;
+
+            return WinJS.UI.processAll(element).then(function () {
+
+                that.listViewControl = element.querySelector(".extrasListView").winControl;
+                that.extrasDetailElement = element.querySelector(".extrasDetail");
+                subpage.style.display = "none";
+                showProgress("Loading...");
+                return Data.catalogGet().then(function (catalog) {
+                    var skuField = that.extrasDetailElement.querySelector("#extras-skuNumber");
+                    that.extrasData = that._getCatalogEntriesForExtras(that.additionalItems);
+
+                    WinJS.UI.setOptions(that.listViewControl, {
+                        itemDataSource: that.extrasData.dataSource
+                    });
+
+                    that.editTools = subpage.querySelector(".edittools").winControl;
+                    that.editButtons = that.editTools.getButtons();
+                    that.editTools.addEventListener("click", that._buttonHandler.bind(that));
+                    that.listViewControl.forceLayout();
+
+                    that.editButtons['add'].disabled = false;
+                    that.editButtons['edit'].style.display = "none";
+
+                    addTextChangeEventHandler(skuField, function (args) {
+                        that._populateExtraDetails(skuField.value);
+                    }.bind(that));
+
+                    that.listViewControl.onselectionchanged = function (arg) {
+                        that.listViewControl.selection.getItems().then(function (items) {
+                            if (items.length > 0) {
+                                that.currentItem = items[0].data;
+                                WinJS.Binding.processAll(that.extrasDetailElement, items[0].data);
+                                //that.editButtons['delete'].disabled = false;
+                                //that.editButtons['edit'].disabled = false;
+                                //that.editButtons['save'].disabled = false;
+                            }
+                            else {
+                                that.currentItem = null;
+                                //that.editButtons['delete'].disabled = true;
+                                //that.editButtons['edit'].disabled = true;
+                                //that.editButtons['save'].disabled = true;
+                            }
+                        });
+                    }
+                    that.listViewControl.selection.add(0);
+                    hideProgress();
+                    subpage.style.display = "";
+
+                    WinJS.UI.Animation.enterContent(subpage);
+                });
+            });
+        },
+        _populateExtraDetails: function (skuNumber) {
+            var that = this;
+            var extra = Data.catalogFindSku(skuNumber);
+            if (extra) {
+                if (extra.backingData) {
+                    extra = extra.backingData;
+                }
+                Object.keys(extra).forEach(function (extraKey) {
+                    if (extraKey != "skuNumber") {
+                        that.currentItem[extraKey] = extra[extraKey];
+                    }
+                });
+            }
+        },
+        _getCatalogEntriesForExtras: function (additionalItems) {
+            var extras = new WinJS.Binding.List().createSorted(function (l, r) {
+                return l.skuNumber < r.skuNumber ? -1 : l.skuNumber === r.skuNumber ? 0 : 1;
+            });
+
+            for (var n = 0; n < additionalItems.length; n++) {
+                var catalogEntry = Data.catalogFindSku(additionalItems[n].skuNumber);
+                if (catalogEntry != null) {
+                    extras.push(catalogEntry);
+                }
+            }
+
+            return extras;
+        },
+        _buttonHandler: function (args) {
+            if (!args.label || (this.currentItem == null && args.label != 'add')) {
+                return;
+            }
+            var that = this;
+
+            switch (args.label) {
+                case 'save': {
+                    this.addingItem = false;
+                    return Data.catalogSave(this.currentItem).then(function (saved) {
+                        if (saved) {
+                            if (that.currentItem.__new) {
+                                that.extrasData.push(saved);
+                            }
+                            var index = that.extrasData.indexOf(saved);
+                            that.listViewControl.selection.clear();
+                            that.listViewControl.selection.add(index);
+                            that.listViewControl.ensureVisible(index);
+                        }
+                    });
+                    break;
+                }
+                case 'delete': {
+                    this.addingItem = false;
+                    return confirm("Delete Extra", "Are you sure that you'd like to delete " + this.currentItem.skuNumber + "?", "Yes", "No").then(function (result) {
+                        if (result.reason == "primary") {
+                            var idx = that.extrasData.indexOf(that.currentItem);
+                            if (idx >= 0) {
+                                that.extrasData.splice(idx, 1);
+                                idx -= 1;
+                            }
+
+                            if (idx < 0) {
+                                idx = 0;
+                            }
+
+                            that.listViewControl.selection.clear();
+                            if (that.extrasData.length > 0) {
+                                that.listViewControl.selection.add(idx);
+                                that.listViewControl.ensureVisible(idx);
+                            }
+
+                            //Data.catalogDelete(that.currentItem).then(function (deleted) {
+                            //    that.listViewControl.selection.clear();
+                            //    if (that.dataSource.length > 0) {
+                            //        that.listViewControl.selection.add(idx);
+                            //        that.listViewControl.ensureVisible(idx);
+                            //    }
+                            //});
+                        }
+                    });
+                    break;
+                }
+                case 'add': {
+                    this.addingItem = true;
+                    this.listViewControl.selection.clear();
+                    this.currentItem = Data.catalogCreate();
+                    WinJS.Binding.processAll(this.extrasDetailElement, this.currentItem);
+                    that.extrasDetailElement.querySelector("#extras-skuNumber").focus();
+
+                    break;
+                }
+                default: {
+
+                }
+            }
+            return WinJS.Promise.as(true);
+        },
+
+        unload: function () {
+            var that = this;
+
+            function cleanupUnload() {
+                // TODO: Respond to navigations away from this page.
+                that.additionalItems.splice(0, that.additionalItems.length);
+                that.extrasData.forEach(function (extra) {
+                    var theExtraEntry = {};
+                    theExtraEntry.skuNumber = extra.skuNumber;
+                    theExtraEntry.shouldPreInstall = true;
+                    theExtraEntry.amount = 1;
+                    that.additionalItems.push(theExtraEntry);
+                });
+            }
+
+            if (this.addingItem == true) {
+                this._buttonHandler({ label: 'save' }).then(cleanupUnload);
+            }
+            else {
+                cleanupUnload();
+            }
+        },
+
+        updateLayout: function (element) {
+            /// <param name="element" domElement="true" />
+
+            // TODO: Respond to changes in layout.
+        }
+    });
+})();
+
+
+
+================================================
+FILE: src/Clients/Web/pages/main/main.css
+================================================
+﻿.main section {
+    margin: auto 120px;
+}
+
+
+
+================================================
+FILE: src/Clients/Web/pages/main/main.html
+================================================
+﻿<!DOCTYPE html>
+<!-- saved from url=(0058)file:///D:/Source/MRP/src/Clients/Web/pages/main/main.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <title>main</title>
+
+    <link href="./main.css" rel="stylesheet">
+    <script src="./main_files/main.js"></script>
+</head>
+<body>
+    <div class="main fragment">
+        <header class="page-header" aria-label="Header content" role="banner">
+            <button class="page-header-home">
+                <img src="./main_files/FabrikamIcon.png">
+            </button>
+            <h2 class="titlearea win-type-ellipsis">
+                <span class="pagetitle">Welcome to Parts Unlimited MRP system</span>
+            </h2>
+			<h3> A Fabrikam Subsidiary </h3>
+        </header>
+        <section class="page-section" aria-label="Main content" role="main">
+            <div id="launchpad">
+                <img id="companylogo" src="./main_files/unlimited_logo.png">
+                <div id="launchtiles">
+                    <button class="launchtile" data-page="dealers">
+                        <div class="launchtileinner">
+                            <img class="launchtilelogo" src="./main_files/DealersIcon.png">
+                            <div class="launchtiletitle">Dealers</div>
+                        </div>
+                    </button>
+                    <button class="launchtile" data-page="quotes">
+                        <div class="launchtileinner">
+                            <img class="launchtilelogo" src="./main_files/QuoteIcon.png">
+                            <div class="launchtiletitle">Quotes</div>
+                        </div>
+                    </button>
+                    <button class="launchtile" data-page="orders">
+                        <div class="launchtileinner">
+                            <img class="launchtilelogo" src="./main_files/OrderIcon.png">
+                            <div class="launchtiletitle">Orders</div>
+                        </div>
+                    </button>
+                    <button class="launchtile" data-page="deliveries">
+                        <div class="launchtileinner">
+                            <img class="launchtilelogo" src="./main_files/DeliveryIcon.png">
+                            <div class="launchtiletitle">Deliveries</div>
+                        </div>
+                    </button>
+                    <button class="launchtile" data-page="catalog">
+                        <div class="launchtileinner">
+                            <img class="launchtilelogo" src="./main_files/CatalogIcon.png">
+                            <div class="launchtiletitle">Catalog</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+
+</body></html>
+
+
+================================================
+FILE: src/Clients/Web/pages/main/main.js
+================================================
+﻿// For an introduction to the Page Control template, see the following documentation:
+// http://go.microsoft.com/fwlink/?LinkId=232511
+(function () {
+    "use strict";
+
+    var app = WinJS.Application;
+    var nav = WinJS.Navigation;
+    var sched = WinJS.Utilities.Scheduler;
+    var ui = WinJS.UI;
+
+    WinJS.UI.Pages.define("pages/main/main.html", {
+        // This function is called whenever a user navigates to this page. It
+        // populates the page elements with the app's data.
+        ready: function (element, options) {
+
+            var launchtiles = document.querySelectorAll('.launchtile');
+            for (var n = 0; n < launchtiles.length; n++) {
+                var launchtile = launchtiles[n];
+                launchtile.addEventListener('click', this.launchtileInvoked.bind(this));
+            }
+        },
+
+        toggleNavBarVisibility: function (ev) {
+            document.getElementById('createNavBar').winControl.show();
+        },
+
+        launchtileInvoked: function (ev) {
+            var tile = ev.currentTarget;
+            var location = "pages/" + tile.dataset.page + "/" + tile.dataset.page + ".html";
+            nav.navigate(location);
+            var trigger = document.querySelector(".nav-trigger");
+            trigger.checked = false;
+        },
+
+        unload: function () {
+            // TODO: Respond to navigations away from this page.
+        },
+
+        updateLayout: function (element) {
+            /// <param name="element" domElement="true" />
+
+            // TODO: Respond to changes in layout.
+        }
+    });
+})();
+
+
+
+================================================
+FILE: src/Clients/Web/pages/main/main_files/main.js
+================================================
+﻿// For an introduction to the Page Control template, see the following documentation:
+// http://go.microsoft.com/fwlink/?LinkId=232511
+(function () {
+    "use strict";
+
+    var app = WinJS.Application;
+    var nav = WinJS.Navigation;
+    var sched = WinJS.Utilities.Scheduler;
+    var ui = WinJS.UI;
+
+    WinJS.UI.Pages.define("pages/main/main.html", {
+        // This function is called whenever a user navigates to this page. It
+        // populates the page elements with the app's data.
+        ready: function (element, options) {
+
+            var launchtiles = document.querySelectorAll('.launchtile');
+            for (var n = 0; n < launchtiles.length; n++) {
+                var launchtile = launchtiles[n];
+                launchtile.addEventListener('click', this.launchtileInvoked.bind(this));
+            }
+        },
+
+        toggleNavBarVisibility: function (ev) {
+            document.getElementById('createNavBar').winControl.show();
+        },
+
+        launchtileInvoked: function (ev) {
+            var tile = ev.currentTarget;
+            var location = "pages/" + tile.dataset.page + "/" + tile.dataset.page + ".html";
+            nav.navigate(location);
+            var trigger = document.querySelector(".nav-trigger");
+            trigger.checked = false;
+        },
+
+        unload: function () {
+            // TODO: Respond to navigations away from this page.
+        },
+
+        updateLayout: function (element) {
+            /// <param name="element" domElement="true" />
+
+            // TODO: Respond to changes in layout.
+        }
+    });
+})();
+
+
+
+================================================
+FILE: src/Clients/Web/pages/orderevents/orderevents.css
+================================================
+﻿
+
+
+================================================
+FILE: src/Clients/Web/pages/orderevents/orderevents.html
+================================================
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>orderevents</title>
+
+    <link href="orderevents.css" rel="stylesheet" />
+    <script src="orderevents.js"></script>
+</head>
+<body>
+    <div class="orderevents fragment">
+        <section class="page-section" aria-label="Main content" role="main">
+            <!-- Simple template for the ListView instantiation  -->
+            <div class="ordereventsItemTemplate" data-win-control="WinJS.Binding.Template" style="display: none">
+                <div class="listItem ordereventsItem">
+                    <div class="ordereventsItem-Detail">
+                        <h3 data-win-bind="textContent: date"></h3>
+                        <div class="list-item-entry-small" data-win-bind="textContent: comments"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="edittools" data-win-control="Controls.EditTools" data-win-options="{  }"></div>
+
+            <div id="listView"
+                 class="itemListView ordereventsListView"
+                 data-win-control="WinJS.UI.ListView"
+                 data-win-options="{
+                    itemTemplate: select('.ordereventsItemTemplate'),
+                    selectionMode: 'single',
+                    tapBehavior: 'directSelect',
+                    swipeBehavior: 'select',
+                    layout: { type: WinJS.UI.ListLayout }
+                 }">
+            </div>
+
+            <div class="editDetail ordereventsDetail">
+                <label class="inputlabel">Date:</label>
+                <input id="orderevents-date" class="textinput" type="text" data-win-bind="value: date Binding.Mode.twoway" />
+                <br />
+                <label class="inputlabel">Comments:</label>
+                <input id="orderevents-comments" class="textinput-multiline" type="text" data-win-bind="value: comments Binding.Mode.twoway" />
+            </div>
+        </section>
+    </div>
+</body>
+</html>
+
+
+
+================================================
+FILE: src/Clients/Web/pages/orderevents/orderevents.js
+================================================
+﻿// For an introduction to the Page Control template, see the following documentation:
+// http://go.microsoft.com/fwlink/?LinkId=232511
+(function () {
+    "use strict";
+
+    WinJS.UI.Pages.define("pages/orderevents/orderevents.html", {
+        listViewControl: null,
+        editTools: null,
+        editButtons: null,
+        currentItem: null,
+        originalItem: null,
+        ordereventsDetailElement: null,
+        ordereventsData: null,
+        events: null,
+        addingItem: false,
+        // This function is called whenever a user navigates to this page. It
+        // populates the page elements with the app's data.
+        ready: function (element, options) {
+            var subpage = element.querySelector(".page-section");
+            var that = this;
+            that.events = options.state.events;
+
+            return WinJS.UI.processAll(element).then(function () {
+
+                that.listViewControl = element.querySelector(".ordereventsListView").winControl;
+                that.ordereventsDetailElement = element.querySelector(".ordereventsDetail");
+                subpage.style.display = "none";
+                showProgress("Loading...");
+                return Data.catalogGet().then(function (catalog) {
+                    that.ordereventsData = that._getOrderEventsDataSource(that.events);
+
+                    WinJS.UI.setOptions(that.listViewControl, {
+                        itemDataSource: that.ordereventsData.dataSource
+                    });
+
+                    that.editTools = subpage.querySelector(".edittools").winControl;
+                    that.editButtons = that.editTools.getButtons();
+                    that.editTools.addEventListener("click", that._buttonHandler.bind(that));
+                    that.listViewControl.forceLayout();
+
+                    that.editButtons['add'].disabled = false;
+                    that.editButtons['edit'].style.display = "none";
+
+                    that.listViewControl.onselectionchanged = function (arg) {
+                        that.listViewControl.selection.getItems().then(function (items) {
+                            if (items.length > 0) {
+                                that.currentItem = items[0].data;
+                                that.originalItem = clone(items[0].data);
+                                WinJS.Binding.processAll(that.ordereventsDetailElement, items[0].data);
+                                //that.editButtons['delete'].disabled = false;
+                                //that.editButtons['edit'].disabled = false;
+                                //that.editButtons['save'].disabled = false;
+                            }
+                            else {
+                                that.currentItem = null;
+                                that.originalItem = null;
+                                //that.editButtons['delete'].disabled = true;
+                                //that.editButtons['edit'].disabled = true;
+                                //that.editButtons['save'].disabled = true;
+                            }
+                        });
+                    }
+                    that.listViewControl.selection.add(0);
+                    hideProgress();
+                    subpage.style.display = "";
+
+                    WinJS.UI.Animation.enterContent(subpage);
+                });
+            });
+        },
+        _getOrderEventsDataSource: function (events) {
+            var orderevents = new WinJS.Binding.List().createSorted(function (l, r) {
+                try {
+                    var ldate = new Date(l.date);
+                    var rdate = new Date(r.date);
+                    if (ldate.getFullYear() < 1970) {
+                        ldate.setFullYear(ldate.getFullYear() + 100);
+                    }
+
+                    if (rdate.getFullYear() < 1970) {
+                        rdate.setFullYear(rdate.getFullYear() + 100);
+                    }
+
+                    return ldate > rdate ? -1 : ldate === rdate ? 0 : 1;
+                }
+                catch (e) {
+                    return l.date > r.date ? -1 : l.date === r.date ? 0 : 1;
+                }
+
+            });
+
+            for (var n = 0; n < events.length; n++) {
+                orderevents.push(WinJS.Binding.as(events[n]));
+            }
+
+            return orderevents;
+        },
+        _buttonHandler: function (args) {
+            if (!args.label || (this.currentItem == null && args.label != 'add')) {
+                return;
+            }
+            var that = this;
+
+            switch (args.label) {
+                case 'save': {
+                    this.addingItem = false;
+                    if (that.currentItem.__new) {
+                        that.ordereventsData.push(that.currentItem);
+                    }
+                    var index = that.ordereventsData.indexOf(that.currentItem);
+                    that.listViewControl.selection.clear();
+                    that.listViewControl.selection.add(index);
+                    that.listViewControl.ensureVisible(index);
+                    break;
+                }
+                case 'delete': {
+                    this.addingItem = false;
+                    return confirm("Delete OrderEvent", "Are you sure that you'd like to delete this event?", "Yes", "No").then(function (result) {
+                        if (result.reason == "primary") {
+                            var idx = that.ordereventsData.indexOf(that.currentItem);
+                            if (idx >= 0) {
+                                that.ordereventsData.splice(idx, 1);
+                                idx -= 1;
+                            }
+
+                            if (idx < 0) {
+                                idx = 0;
+                            }
+
+                            that.listViewControl.selection.clear();
+                            if (that.ordereventsData.length > 0) {
+                                that.listViewControl.selection.add(idx);
+                                that.listViewControl.ensureVisible(idx);
+                            }
+                        }
+                    });
+                    break;
+                }
+                case 'add': {
+                    this.addingItem = true;
+                    this.listViewControl.selection.clear();
+                    this.currentItem = WinJS.Binding.as({ "date": Date.now().toString("M/d/yyyy hh:mm:ss tt"), "comments": "" });
+                    this.currentItem.__new = true;
+                    WinJS.Binding.processAll(this.ordereventsDetailElement, this.currentItem);
+                    that.ordereventsDetailElement.querySelector("#orderevents-comments").focus();
+
+                    break;
+                }
+                default: {
+
+                }
+            }
+            return WinJS.Promise.as(true);
+        },
+
+        unload: function () {
+            var that = this;
+
+            function cleanupUnload() {
+                // TODO: Respond to navigations away from this page.
+                that.events.splice(0, that.events.length);
+                that.ordereventsData.forEach(function (orderevent) {
+                    that.events.push(orderevent.backingData);
+                });
+            }
+
+            if (this.addingItem == true) {
+                this._buttonHandler({ label: 'save' }).then(cleanupUnload);
+            }
+            else {
+                cleanupUnload();
+            }
+        },
+
+        updateLayout: function (element) {
+            /// <param name="element" domElement="true" />
+
+            // TODO: Respond to changes in layout.
+        }
+    });
+})();
+
+
+
+================================================
+FILE: src/Clients/Web/pages/orders/orders.css
+================================================
+﻿.fullOrderDetail {
+    float: left;
+    margin-top: 10px;
+    margin-left: 20px;
+    width: 50%;
+    max-height: calc(100% - 120px);
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+    .fullOrderDetail .editDetail {
+        float: left;
+        margin-top: 0px;
+        margin-left: 0px;
+        width: 100%;
+        background: #F0F0F0;
+        padding-left: 10px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        padding-right: 0px;
+    }
+
+.orderDetail {
+    margin-bottom: 10px;
+}
+
+    .orderDetail .eventsSection {
+        display: flex;
+        width: 100%;
+        align-items: center;
+    }
+
+
+
+================================================
+FILE: src/Clients/Web/pages/orders/orders.html
+================================================
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>orders</title>
+
+    <link href="orders.css" rel="stylesheet" />
+    <link href="../quotes/quotes.css" rel="stylesheet" />
+    <script src="orders.js"></script>
+</head>
+<body>
+    <div class="orders fragment">
+        <header class="page-header" aria-label="Header content" role="banner">
+            <button class="page-header-home">
+                <img src="../../images/FabrikamIcon.png" />
+            </button>
+            <h2 class="titlearea win-type-ellipsis">
+                <span class="pagetitle">Orders</span>
+            </h2>
+        </header>
+        <section class="page-section" aria-label="Main content" role="main">
+            <!-- Simple template for the ListView instantiation  -->
+            <div class="orderItemTemplate" data-win-control="WinJS.Binding.Template" style="display: none">
+                <div class="listItem orderItem">
+                    <div class="orderItem-Detail">
+                        <h3 data-win-bind="textContent: __quote.dealerName"></h3>
+                        <div class="list-item-entry-small" data-win-bind="textContent: __quote.customerName"></div>
+                        <div class="list-item-entry-small" data-win-bind="textContent: orderDate"></div>
+                        <div class="list-item-entry-small" data-win-bind="textContent: status"></div>
+                        <div class="list-item-entry-small"><span data-win-bind="textContent: __quote.width"></span>W x <span data-win-bind="textContent: __quote.height"></span>H x <span data-win-bind="textContent: __quote.depth"></span>D <span data-win-bind="textContent: __quote.purpose"></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="edittools" data-win-control="Controls.EditTools" data-win-options="{  }"></div>
+
+            <div id="orderExtrasPopup" class="pagePopup">
+                <div data-win-control="WinJS.UI.ContentDialog" data-win-options="{
+                     title: 'Main instruction',
+                     primaryCommandText: 'Done'
+                 }">
+                </div>
+            </div>
+
+            <div id="listView"
+                 class="itemListView orderListView"
+                 data-win-control="WinJS.UI.ListView"
+                 data-win-options="{
+                    itemDataSource: Data.orders.dataSource,
+                    itemTemplate: select('.orderItemTemplate'),
+                    selectionMode: 'single',
+                    tapBehavior: 'directSelect',
+                    swipeBehavior: 'select',
+                    layout: { type: WinJS.UI.ListLayout }
+                 }">
+            </div>
+            <div class="fullOrderDetail">
+                <div class="editDetail orderDetail">
+                    <label class="inputlabel">Order Date:</label>
+                    <input id="orderDate" class="textinput" type="text" data-win-bind="value: orderDate Binding.Mode.twoway" />
+                    <select id="status" class="selectinput" data-win-bind="value: status Binding.Mode.twoway">
+                        <option value="Created">Created</option>
+                        <option value="Confirmed">Confirmed</option>
+                        <option value="Started">Started</option>
+                        <option value="Built">Built</option>
+                        <option value="DeliveryConfirmed">Delivery Confirmed</option>
+                        <option value="Shipped">Shipped</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Installed">Installed</option>
+                    </select>
+                    <div class="eventsSection">
+                        <label class="buttonlabel">Manage Events:</label>
+                        <button id="manageEvents" class="edit-tools-button" type="button"></button>
+                    </div>
+                </div>
+                <div class="editDetail quoteDetail">
+                    <label class="inputlabel">Dealer:</label>
+                    <input id="dealerName" class="textinput" type="text" data-win-bind="value: __quote.dealerName Binding.Mode.twoway" />
+                    <label class="inputlabel">Valid Until:</label>
+                    <input id="validUntil" class="textinput" type="text" data-win-bind="value: __quote.validUntil Binding.Mode.twoway" />
+                    <label class="inputlabel">Customer:</label>
+                    <input id="customerName" class="textinput" type="text" data-win-bind="value: __quote.customerName Binding.Mode.twoway" />
+                    <label class="inputlabel">Address:</label>
+                    <input id="address" class="textinput" type="text" data-win-bind="value: __quote.city Binding.Mode.twoway" />
+                    <label class="inputlabel">Post Code:</label>
+                    <input id="postcode" class="textinput" type="text" data-win-bind="value: __quote.postalCode Binding.Mode.twoway" />
+                    <label class="inputlabel">Comments:</label>
+                    <input id="comments" class="textinput" type="text" data-win-bind="value: __quote.comments Binding.Mode.twoway" />
+                    <label class="inputlabel">Purpose:</label>
+                    <select id="purpose" class="selectinput" data-win-bind="value: __quote.purpose Binding.Mode.twoway">
+                        <option value="Refrigerator">Fridge</option>
+                        <option value="Freezer">Freezer</option>
+                    </select>
+                    <label class="inputlabel">Description:</label>
+                    <input id="purpose" class="textinput" type="text" data-win-bind="value: __quote.unitDescription Binding.Mode.twoway" />
+                    <div class="extrasSection">
+                        <label class="buttonlabel">Manage Extras:</label>
+                        <button id="manageExtras" class="edit-tools-button" type="button"></button>
+                    </div>
+                    <div class="horizontalDetail">
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Width:</label>
+                            <input id="width" class="textinput" type="text" data-win-bind="value: __quote.width Binding.Mode.twoway" />
+                        </div>
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Height:</label>
+                            <input id="height" class="textinput" type="text" data-win-bind="value: __quote.height Binding.Mode.twoway" />
+                        </div>
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Depth:</label>
+                            <input id="depth" class="textinput" type="text" data-win-bind="value: __quote.depth Binding.Mode.twoway" />
+                        </div>
+                    </div>
+                    <div class="horizontalDetail">
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Ambient:</label>
+                            <input id="width" class="textinput" type="text" data-win-bind="value: __quote.ambientAverage Binding.Mode.twoway" />
+                        </div>
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Peak:</label>
+                            <input id="height" class="textinput" type="text" data-win-bind="value: __quote.ambientPeak Binding.Mode.twoway" />
+                        </div>
+                    </div>
+                    <div class="horizontalDetail">
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Terms:</label>
+                            <input id="width" class="textinput" type="text" data-win-bind="value: __quote.terms Binding.Mode.twoway" />
+                        </div>
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Total:</label>
+                            <input id="height" class="textinput" type="text" data-win-bind="value: __quote.totalCost Binding.Mode.twoway" />
+                        </div>
+                        <div class="horizontalDetailCol">
+                            <label class="inputlabel">Discount:</label>
+                            <input id="height" class="textinput" type="text" data-win-bind="value: __quote.discount Binding.Mode.twoway" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
+
+
+
+================================================
+FILE: src/Clients/Web/pages/orders/orders.js
+================================================
+﻿// For an introduction to the Page Control template, see the following documentation:
+// http://go.microsoft.com/fwlink/?LinkId=232511
+(function () {
+    "use strict";
+    var nav = WinJS.Navigation;
+
+    WinJS.UI.Pages.define("pages/orders/orders.html", {
+        listViewControl: null,
+        editTools: null,
+        editButtons: null,
+        currentItem: null,
+        originalItem: null,
+        orderDetailElement: null,
+        itemTemplateHTML: null,
+        bound: false,
+        // This function is called whenever a user navigates to this page. It
+        // populates the page elements with the app's data.
+        ready: function (element, options) {
+            var subpage = element.querySelector(".page-section");
+            var that = this;
+            var fromQuote = WinJS.Promise.as();
+
+            if (options && options.quote) {
+                showProgress("Creating Order...");
+                fromQuote = Data.orderCreateFromQuote(options.quote);
+            }
+            else {
+                showProgress("Loading...");
+            }
+
+            return WinJS.UI.processAll(element).then(function () {
+                element.querySelector("#manageExtras").addEventListener("click", that._extrasHandler.bind(that));
+                element.querySelector("#manageEvents").addEventListener("click", that._eventsHandler.bind(that));
+
+                that.listViewControl = element.querySelector(".orderListView").winControl;
+                that.listViewControl.itemTemplate = that._itemRenderer.bind(that);
+                that.itemTemplateHTML = element.querySelector(".orderItemTemplate").innerHTML;
+                that.orderDetailElement = element.querySelector(".fullOrderDetail");
+
+                subpage.style.display = "none";
+                return fromQuote.then(function (neworder) {
+                    return Data.ordersGet("").then(function (orders) {
+                        if (!orders) {
+                            hideProgress();
+                            nav.back(nav.history.backStack.length);
+                            return;
+                        }
+                        var toolsElement = subpage.querySelector(".edittools");
+                        if (!toolsElement) {
+                            return;
+                        }
+                        that.editTools = toolsElement.winControl;
+                        that.editButtons = that.editTools.getButtons();
+                        that.editTools.addEventListener("click", that._buttonHandler.bind(that));
+                        that.listViewControl.forceLayout();
+                        that.editButtons['add'].style.display = "none";
+                        //that.editButtons['edit'].firstElementChild.textContent = "⛟";
+                        that.editButtons['edit'].firstElementChild.textContent = WinJS.UI.AppBarIcon["newwindow"];
+                        that.editButtons['edit'].title = "Deliver";
+                        addAddressHandler(that.orderDetailElement.querySelector("#address"), function (place) {
+                            that.currentItem.city = place.formatted_address;
+                            that.currentItem.postalCode = getPostCodeFromPlace(place)
+                        });
+                        addAddressHandler(that.orderDetailElement.querySelector("#postcode"), function (place) {
+                            that.currentItem.city = place.formatted_address;
+                            that.currentItem.postalCode = getPostCodeFromPlace(place);
+                            that.quoteDetailElement.querySelector("#postcode").value = that.currentItem.postalCode;
+                        });
+
+                        that.listViewControl.onselectionchanged = function (arg) {
+                            that.listViewControl.selection.getItems().then(function (items) {
+                                if (items.length > 0) {
+                                    that.currentItem = items[0].data;
+                                    that.originalItem = clone(items[0].data.backingData);
+                                    WinJS.Binding.processAll(that.orderDetailElement, items[0].data);
+                                    //that.editButtons['delete'].disabled = false;
+                                    //that.editButtons['edit'].disabled = false;
+                                    //that.editButtons['save'].disabled = false;
+                                }
+                                else {
+                                    that.currentItem = null;
+                                    that.originalItem = null;
+                                    //that.editButtons['delete'].disabled = true;
+                                    //that.editButtons['edit'].disabled = true;
+                                    //that.editButtons['save'].disabled = true;
+                                }
+                            });
+                        }
+
+                        that.listViewControl.onloadingstatechanged = function (args) {
+                            if (that.listViewControl.loadingState === "viewPortLoaded") {
+                                WinJS.Promise.timeout().then(function () {
+                                    var selectindex = 0;
+                                    if (neworder) {
+                                        selectindex = Data.orderFindById(neworder.orderId);
+                                    }
+                                    
+                                    that.listViewControl.selection.add(selectindex);
+                                    that.listViewControl.onloadingstatechanged = undefined;
+                                });
+                            }
+                        }
+                        hideProgress();
+                        subpage.style.display = "";
+                        WinJS.UI.Animation.enterContent(subpage);
+                    });
+                });
+            });
+        },
+
+        _itemRenderer: function (itemPromise, recycled) {
+            var that = this;
+            return itemPromise.then(function (currentItem) {
+                if (!that) {
+                    return document.createElement("div");
+                }
+                var data = currentItem.data;
+                return Data.quoteGetById(data.quoteId).then(function (quote) {
+                    data.__quote = quote;
+
+                    var boundTemplate = document.createElement("div");
+                    boundTemplate.className = "win-template";
+                    boundTemplate.innerHTML = that.itemTemplateHTML;
+
+                    return WinJS.Binding.processAll(boundTemplate, data).then(function () {
+                        return boundTemplate;
+                    });
+                });
+            });
+        },
+
+        _extrasHandler: function (args) {
+            popup("orderExtrasPopup", "Manage Extras", "pages/extras/extras.html", this.currentItem.__quote);
+        },
+        _eventsHandler: function (args) {
+            popup("orderExtrasPopup", "Manage Events", "pages/orderevents/orderevents.html", this.currentItem);
+        },
+        _buttonHandler: function (args) {
+            if (!args.label || (this.currentItem == null && args.label != 'add')) {
+                return;
+            }
+            var that = this;
+
+            switch (args.label) {
+                case 'save': {
+                    Data.orderSave(this.currentItem, this.originalItem).then(function (saved) {
+                        if (saved) {
+                            var index = Data.orders.indexOf(saved);
+                            that.listViewControl.selection.clear();
+                            that.listViewControl.selection.add(index);
+                            that.listViewControl.ensureVisible(index);
+                        }
+                    });
+                    break;
+                }
+                case 'edit': {
+                    nav.navigate("pages/deliveries/deliveries.html", { order: that.currentItem });
+                    break;
+                }
+                case 'delete': {
+                    confirm("Delete Order", "Are you sure that you'd like to delete this order?", "Yes", "No").then(function (result) {
+                        if (result.reason == "primary") {
+                            var idx = Data.orders.indexOf(that.currentItem) - 1;
+                            if (idx < 0) {
+                                idx = 0;
+                            }
+                            Data.orderDelete(that.currentItem).then(function (deleted) {
+                                that.listViewControl.selection.clear();
+                                if (Data.orders.length > 0) {
+                                    that.listViewControl.selection.add(idx);
+                                    that.listViewControl.ensureVisible(idx);
+                                }
+                            });
+                        }
+                    });
+                    break;
+                }
+                case 'add': {
+                    this.listViewControl.selection.clear();
+                    this.currentItem = Data.orderCreate();
+                    this.originalItem = null;
+                    WinJS.Binding.processAll(this.orderDetailElement, this.currentItem);
+                    that.orderDetailElement.querySelector("#dealerName").focus();
+
+                    break;
+                }
+                default: {
+
+                }
+            }
+        },
+
+        unload: function () {
+
+        },
+
+        updateLayout: function (element) {
+            /// <param name="element" domElement="true" />
+
+            // TODO: Respond to changes in layout.
+        }
+    });
+})();
+
+
+
+================================================
+FILE: src/Clients/Web/pages/quotes/quotes.css
+================================================
+﻿.quoteDetail {
+}
+
+    .quoteDetail .extrasSection {
+        display: flex;
+        width: 100%;
+        align-items: center;
+    }
+
+
+
+================================================
+FILE: src/Clients/Web/pages/quotes/quotes.html
+================================================
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>quotes</title>
+
+    <link href="quotes.css" rel="stylesheet" />
+    <script src="quotes.js"></script>
+</head>
+<body>
+    <div class="quotes fragment">
+        <header class="page-header" aria-label="Header content" role="banner">
+            <button class="page-header-home">
+                <img src="../../images/FabrikamIcon.png" />
+            </button>
+            <h2 class="titlearea win-type-ellipsis">
+                <span class="pagetitle">Quotes</span>
+            </h2>
+        </header>
+        <section class="page-section" aria-label="Main content" role="main">
+            <!-- Simple template for the ListView instantiation  -->
+            <div class="quoteItemTemplate" data-win-control="WinJS.Binding.Template" style="display: none">
+                <div class="listItem quoteItem">
+                    <div class="quoteItem-Detail">
+                        <h3 data-win-bind="textContent: dealerName"></h3>
+                        <div class="list-item-entry-small" data-win-bind="textContent: validUntil"></div>
+                        <div class="list-item-entry-small" data-win-bind="textContent: customerName"></div>
+                        <div class="list-item-entry-small" data-win-bind="textContent: purpose"></div>
+                        <div class="list-item-entry-small"><span data-win-bind="textContent: width"></span>W x <span data-win-bind="textContent: height"></span>H x <span data-win-bind="textContent: depth"></span>D <span data-win-bind="textContent: purpose"></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="edittools" data-win-control="Controls.EditTools" data-win-options="{  }"></div>
+
+            <div id="quoteExtrasPopup" class="pagePopup">
+                <div data-win-control="WinJS.UI.ContentDialog" data-win-options="{
+                     title: 'Main instruction',
+                     primaryCommandText: 'Done'
+                 }">
+                </div>
+            </div>
+
+            <div id="listView"
+                 class="itemListView quoteListView"
+                 data-win-control="WinJS.UI.ListView"
+                 data-win-options="{
+                    itemDataSource: Data.quotes.dataSource,
+                    itemTemplate: select('.quoteItemTemplate'),
+                    selectionMode: 'single',
+                    tapBehavior: 'directSelect',
+                    swipeBehavior: 'select',
+                    layout: { type: WinJS.UI.ListLayout }
+                 }">
+            </div>
+
+            <div class="editDetail quoteDetail">
+                <label class="inputlabel">Dealer:</label>
+                <input id="dealerName" class="textinput" type="text" data-win-bind="value: dealerName Binding.Mode.twoway" />
+                <label class="inputlabel">Valid Until:</label>
+                <input id="validUntil" class="textinput" type="text" data-win-bind="value: validUntil Binding.Mode.twoway" />
+                <label class="inputlabel">Customer:</label>
+                <input id="customerName" class="textinput" type="text" data-win-bind="value: customerName Binding.Mode.twoway" />
+                <label class="inputlabel">Address:</label>
+                <input id="address" class="textinput" type="text" data-win-bind="value: city Binding.Mode.twoway" />
+                <label class="inputlabel">Post Code:</label>
+                <input id="postcode" class="textinput" type="text" data-win-bind="value: postalCode Binding.Mode.twoway" />
+                <label class="inputlabel">Comments:</label>
+                <input id="comments" class="textinput" type="text" data-win-bind="value: comments Binding.Mode.twoway" />
+                <label class="inputlabel">Purpose:</label>
+                <select id="purpose" class="selectinput" data-win-bind="value: purpose Binding.Mode.twoway">
+                    <option value="Refrigerator">Fridge</option>
+                    <option value="Freezer">Freezer</option>
+                </select>
+                <label class="inputlabel">Description:</label>
+                <input id="purpose" class="textinput" type="text" data-win-bind="value: unitDescription Binding.Mode.twoway" />
+                <div class="extrasSection">
+                    <label class="buttonlabel">Manage Extras:</label>
+                    <button id="manageExtras" class="edit-tools-button" type="button"></button>
+                </div>
+                <div class="horizontalDetail">
+                    <div class="horizontalDetailCol">
+                        <label class="inputlabel">Width:</label>
+                        <input id="width" class="textinput" type="text" data-win-bind="value: width Binding.Mode.twoway" />
+                    </div>
+                    <div class="horizontalDetailCol">
+                        <label class="inputlabel">Height:</label>
+                        <input id="height" class="textinput" type="text" data-win-bind="value: height Binding.Mode.twoway" />
+                    </div>
+                    <div class="horizontalDetailCol">
+                        <label class="inputlabel">Depth:</label>
+                        <input id="depth" class="textinput" type="text" data-win-bind="value: depth Binding.Mode.twoway" />
+                    </div>
+                </div>
+                <div class="horizontalDetail">
+                    <div class="horizontalDetailCol">
+                        <label class="inputlabel">Ambient:</label>
+                        <input id="width" class="textinput" type="text" data-win-bind="value: ambientAverage Binding.Mode.twoway" />
+                    </div>
+                    <div class="horizontalDetailCol">
+                        <label class="inputlabel">Peak:</label>
+                        <input id="height" class="textinput" type="text" data-win-bind="value: ambientPeak Binding.Mode.twoway" />
+                    </div>
+                </div>
+                <div class="horizontalDetail">
+                    <div class="horizontalDetailCol">
+                        <label class="inputlabel">Terms:</label>
+                        <input id="width" class="textinput" type="text" data-win-bind="value: terms Binding.Mode.twoway" />
+                    </div>
+                    <div class="horizontalDetailCol">
+                        <label class="inputlabel">Total:</label>
+                        <input id="height" class="textinput" type="text" data-win-bind="value: totalCost Binding.Mode.twoway" />
+                    </div>
+                    <div class="horizontalDetailCol">
+                        <label class="inputlabel">Discount:</label>
+                        <input id="height" class="textinput" type="text" data-win-bind="value: discount Binding.Mode.twoway" />
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
+
+
+
+================================================
+FILE: src/Clients/Web/pages/quotes/quotes.js
+================================================
+﻿// For an introduction to the Page Control template, see the following documentation:
+// http://go.microsoft.com/fwlink/?LinkId=232511
+(function () {
+    "use strict";
+    var nav = WinJS.Navigation;
+
+    WinJS.UI.Pages.define("pages/quotes/quotes.html", {
+        listViewControl: null,
+        editTools: null,
+        editButtons: null,
+        currentItem: null,
+        quoteDetailElement: null,
+        // This function is called whenever a user navigates to this page. It
+        // populates the page elements with the app's data.
+        ready: function (element, options) {
+            var subpage = element.querySelector(".page-section");
+            var that = this;
+
+            return WinJS.UI.processAll(element).then(function () {
+                element.querySelector("#manageExtras").addEventListener("click", that._extrasHandler.bind(that));
+
+                that.listViewControl = element.querySelector(".quoteListView").winControl;
+                that.quoteDetailElement = element.querySelector(".quoteDetail");
+                subpage.style.display = "none";
+                showProgress("Loading...");
+                return Data.quotesGet("").then(function (quotes) {
+                    if (!quotes) {
+                        hideProgress();
+                        nav.back(nav.history.backStack.length);
+                        return;
+                    }
+                    var toolsElement = subpage.querySelector(".edittools");
+                    if (!toolsElement) {
+                        return;
+                    }
+                    that.editTools = toolsElement.winControl;
+                    that.editButtons = that.editTools.getButtons();
+                    that.editTools.addEventListener("click", that._buttonHandler.bind(that));
+                    that.listViewControl.forceLayout();
+
+                    that.editButtons['add'].disabled = false;
+                    that.editButtons['edit'].style.display = "";
+                    that.editButtons['edit'].firstElementChild.textContent = WinJS.UI.AppBarIcon["newwindow"];
+
+                    addAddressHandler(that.quoteDetailElement.querySelector("#address"), function (place) {
+                        that.currentItem.city = place.formatted_address;
+                        that.currentItem.postalCode = getPostCodeFromPlace(place)
+                    });
+                    addAddressHandler(that.quoteDetailElement.querySelector("#postcode"), function (place) {
+                        that.currentItem.city = place.formatted_address;
+                        that.currentItem.postalCode = getPostCodeFromPlace(place);
+                        that.quoteDetailElement.querySelector("#postcode").value = that.currentItem.postalCode;
+                    });
+                    that.listViewControl.onselectionchanged = function (arg) {
+                        that.listViewControl.selection.getItems().then(function (items) {
+                            if (items.length > 0) {
+                                that.currentItem = items[0].data;
+                                WinJS.Binding.processAll(that.quoteDetailElement, items[0].data);
+                                //that.editButtons['delete'].disabled = false;
+                                //that.editButtons['edit'].disabled = false;
+                                //that.editButtons['save'].disabled = false;
+                            }
+                            else {
+                                that.currentItem = null;
+                                //that.editButtons['delete'].disabled = true;
+                                //that.editButtons['edit'].disabled = true;
+                                //that.editButtons['save'].disabled = true;
+                            }
+                        });
+                    }
+                    that.listViewControl.selection.add(0);
+                    hideProgress();
+                    subpage.style.display = "";
+
+                    WinJS.UI.Animation.enterContent(subpage);
+                });
+            });
+        },
+        _extrasHandler: function (args) {
+            popup("quoteExtrasPopup", "Manage Extras", "pages/extras/extras.html", this.currentItem);
+        },
+        _buttonHandler: function (args) {
+            if (!args.label || (this.currentItem == null && args.label != 'add')) {
+                return;
+            }
+            var that = this;
+
+            switch (args.label) {
+                case 'save': {
+                    Data.quoteSave(this.currentItem).then(function (saved) {
+                        if (saved) {
+                            var index = Data.quotes.indexOf(saved);
+                            that.listViewControl.selection.clear();
+                            that.listViewControl.selection.add(index);
+                            that.listViewControl.ensureVisible(index);
+                        }
+                    });
+                    break;
+                }
+                case 'edit': {
+                    nav.navigate("pages/orders/orders.html", { quote: that.currentItem });
+                    break;
+                }
+                case 'delete': {
+                    confirm("Delete Dealer", "Are you sure that you'd like to delete this quote?", "Yes", "No").then(function (result) {
+                        if (result.reason == "primary") {
+                            var idx = Data.quotes.indexOf(that.currentItem) - 1;
+                            if (idx < 0) {
+                                idx = 0;
+                            }
+                            Data.quoteDelete(that.currentItem).then(function (deleted) {
+                                that.listViewControl.selection.clear();
+                                if (Data.quotes.length > 0) {
+                                    that.listViewControl.selection.add(idx);
+                                    that.listViewControl.ensureVisible(idx);
+                                }
+                            });
+                        }
+                    });
+                    break;
+                }
+                case 'add': {
+                    this.listViewControl.selection.clear();
+                    this.currentItem = Data.quoteCreate();
+                    WinJS.Binding.processAll(this.quoteDetailElement, this.currentItem);
+                    that.quoteDetailElement.querySelector("#dealerName").focus();
+
+                    break;
+                }
+                default: {
+
+                }
+            }
+        },
+
+        unload: function () {
+
+        },
+
+        updateLayout: function (element) {
+            /// <param name="element" domElement="true" />
+
+            // TODO: Respond to changes in layout.
+        }
+    });
+})();
+
+
