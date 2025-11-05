@@ -1,0 +1,4 @@
+| Component Name | Language | Frameworks | Database | Communication | Patterns |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Integration Service** | Java | Spring Boot, Jackson | N/A (Interacts with Ordering Service DB) | RESTful APIs (synchronous), Azure Cloud Queues (asynchronous) | Scheduled Background Processing, Hybrid Integration Strategy, Asynchronous Messaging, Factory Pattern, Abstraction Layer |
+| **Ordering Service** | Java | Spring Boot, Spring MVC, Spring Data MongoDB, JUnit | MongoDB | RESTful APIs, Application Insights (Telemetry) | Microservice, Layered Architecture, Repository Pattern, Factory Pattern, Optimistic Concurrency Control (eTags), Domain-Driven Design (DDD), Externalized Configuration, Aspect-Oriented Monitoring |
