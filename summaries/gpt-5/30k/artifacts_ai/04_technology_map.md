@@ -1,0 +1,8 @@
+| Component Name | Language | Frameworks | Database | Communication | Patterns |
+|---|---|---|---|---|---|
+| Web UI (Clients) | JavaScript, HTML/CSS | WinJS, DateJS, Apache Tomcat (hosting) | None | Browser → OrderService via HTTP/JSON (CORS), served as WAR on Tomcat | SPA, MVVM/two-way binding, Page Controller (WinJS.UI.Pages), AJAX data module |
+| OrderService (Ordering API) | Java 8 | Spring Boot, Spring MVC, Spring Data MongoDB, Spring Actuator, Azure Application Insights SDK | MongoDB (“ordering”; “orderingtest” for tests); optional PostgreSQL schema (not active) | Exposes REST HTTP/JSON on 8080; local management on 8081; connects to MongoDB | Repository pattern, Service Locator (RepositoryFactory), RESTful controllers, DTOs, Retry-with-telemetry, Aggregate read model (Delivery), Validation/health endpoint |
+| IntegrationService (Queue Bridge) | Java 8 | Spring Boot, Spring Scheduling, Azure Storage SDK | None | Polls Azure Storage Queues (“orders”, “product”); HTTP calls to OrderService | Polling Consumer, Orchestrator/Saga (Quote→Order→Shipment), Anti-Corruption/Bridge, Message Translator, At-least-once processing |
+| Database (MongoDB) | N/A | MongoDB | MongoDB (“ordering”; “orderingtest”) | Mongo wire protocol on 27017; REST on 28017 in Docker | Document store, Collections per aggregate, Indexed fields, Seed script (MongoRecords.js) |
+| Python CI Sample | Python | unittest, Travis CI (CI pipeline) | None | N/A | CI test sample |
+| Flask + Locust Sample | Python | Flask, Locust | None | HTTP endpoints (sample /tests) exercised by Locust | Simple REST sample, Load generation/testing |
