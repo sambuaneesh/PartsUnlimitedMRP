@@ -1,0 +1,358 @@
+Architectural Summary for OrderService (Chunk 4/6)
+
+Scope and Purpose
+- This chunk implements the backend of an Ordering domain in a Spring-based service. It exposes REST controllers for Dealers, Orders, Quotes, Shipments, and operational “Ping,” backed by repository abstractions with both in-memory and MongoDB implementations. It also includes data models/DTOs, MongoDB persistence models, a repository factory, telemetry instrumentation, and configuration for runtime and tests.
+
+Key Components and Responsibilities
+1) Controllers (Spring MVC, @Controller)
+- DealerController (/dealers)
+  - Manages dealer contacts.
+  - Uses DealersRepository via RepositoryFactory.
+  - Note: getDealers intentionally issues a very large number of repository calls (numMongoDBCalls = 100000) to generate load for APM labs.
+
+- OrderController (/orders)
+  - Retrieves, creates, updates, and deletes orders; updates status; records events on orders.
+  - Uses OrderRepository and QuoteRepository via RepositoryFactory.
+
+- QuoteController (/quotes)
+  - CRUD for quotes and searching by customer name.
+  - Uses QuoteRepository via RepositoryFactory.
+
+- ShipmentController (/shipments)
+  - CRUD for shipments and add shipment events; retrieve deliveries (aggregate of shipment+order+quote).
+  - Uses ShipmentRepository, OrderRepository, QuoteRepository via RepositoryFactory.
+
+- PingController (/ping)
+  - Health/liveness endpoint and configuration/build info echo.
+
+2) Domain Models (smpl.ordering.models)
+- CatalogItem: skuNumber, description, price, inventory, leadTime; validate() checks skuNumber and description.
+- DealerInfo: name, contact, address, email, phone; validate() checks name.
+- Delivery: aggregate DTO bundling Quote + Order + ShipmentRecord for delivery view.
+- DeliveryAddress: street, city, state, postalCode, specialInstructions; validate() requires city and postalCode.
+- Order: orderId, quoteId, orderDate, status (OrderStatus), List<OrderEventInfo> events; validate() checks quoteId, orderDate.
+- OrderEventInfo: date, comments.
+- OrderStatus: None, Created, Confirmed, Started, Built, DeliveryConfirmed, Shipped, Delivered, Installed.
+- OrderUpdateInfo: status, eventInfo (OrderEventInfo), convenience constructor sets current date/comments.
+- PhoneInfo: phoneNumber, kind.
+- Quote: quoteId, validUntil, customerName, dealerName, List<QuoteItemInfo> quoteItems, totalCost, discount, city, postalCode, state; validate() checks dealerName and customerName; addQuoteItem.
+- QuoteItemInfo: skuNumber, amount; Comparable by skuNumber.
+- ShipmentEventInfo: date, comments; validate() requires comments.
+- ShipmentRecord: orderId (key), deliveryDate, DeliveryAddress, contactName, PhoneInfo primaryContactPhone, PhoneInfo alternateContactPhone, List<ShipmentEventInfo> events; validate() requires orderId, deliveryDate, address validity, contactName, primaryContactPhone.
+
+3) Repository Interfaces (smpl.ordering.repositories)
+- CatalogItemsRepository: getCatalogItems(), getCatalogItem(sku), upsertCatalogItem(sku, CatalogItem, eTag), removeCatalogItem(sku, eTag).
+- DealersRepository: getDealers(), getDealer(name), upsertDealer(DealerInfo, eTag), removeDealer(name, eTag).
+- OrderRepository: hasOrder(id), getOrder(id), getOrderByQuoteId(id), getOrdersByStatus(status), getOrdersByDealerName(dealer, status), createOrder(fromQuoteId), updateOrder(id, Order, eTag), updateOrder(id, OrderUpdateInfo, eTag), removeOrder(id, eTag).
+- QuoteRepository: getQuote(id), getQuotesByCustomerName(customerName), getQuoteIdsByDealerName(dealerName), createQuote(Quote), updateQuote(id, Quote, eTag), removeQuote(id, eTag).
+- ShipmentRepository: getShipments(status), getShipmentById(id), createShipment(ShipmentRecord), addEvent(id, ShipmentEventInfo), updateShipment(ShipmentRecord), removeShipment(id, eTag).
+
+4) Repository Implementations
+- In-memory (smpl.ordering.repositories.mock.*)
+  - MockCatalogItemsRepository
+    - Pre-populated with 3 items.
+    - Case-insensitive SKU comparisons.
+  - MockDealersRepository
+    - In-memory list; case-insensitive name comparisons.
+  - MockQuoteRepository
+    - Holds quotes; on create/update ensures dealer exists (creates dealer if missing).
+    - getQuotesByCustomerName: in-memory substring search (case-insensitive).
+    - getQuoteIdsByDealerName: exact case-insensitive match.
+    - On create: if quoteId absent, generates random positive int; errors on duplicate id.
+  - MockOrderRepository
+    - createOrder(fromQuoteId): validates quote exists; rejects if an order already exists for the quote; constructs orderId as “order-{quoteId}”; sets date and status Created.
+    - getOrdersByDealerName: traverses to QuoteRepository to match dealer and filter by status.
+    - updateOrder(id, OrderUpdateInfo): appends event and updates status.
+  - MockShipmentRepository
+    - createShipment: requires order to exist; rejects duplicate shipment per order.
+    - addEvent: append event to shipment.
+    - getShipments(status): if status None returns all; otherwise checks associated Order status via OrderRepository.
+
+- MongoDB-backed (smpl.ordering.repositories.mongodb.*)
+  - MongoOperationsWithRetry
+    - Wrapper around Spring Data MongoOperations with:
+      - Single retry on org.springframework.dao.DataAccessResourceFailureException with root cause java.net.SocketTimeoutException for common operations (dropCollection, findAll, findOne, exists, find, findAndRemove, insert, save).
+      - Application Insights telemetry (RemoteDependencyTelemetry) for operations (e.g., findAll, findOne, insert, save, dropCollection, exists, find, findAndRemove) including duration, success flag, type=MongoDB.Operation.
+  - MongoCatalogItemsRepository
+    - Collection: catalog.
+    - Model: mongodb.models.CatalogItem (fields: id, indexed skuNumber; description, price, inventory, leadTime).
+    - getCatalogItem/findExisting by skuNumber.
+    - upsert: save by skuNumber; if existing, preserves id.
+    - toCatalogItem sets leadTime to 0 when inventory > 0.
+  - MongoDealersRepository
+    - Collection: dealers.
+    - Model: mongodb.models.Dealer (id, indexed name, contact, address, email, phone).
+    - getDealer/upsert/remove by name (unique).
+  - MongoQuoteRepository
+    - Collection: quotes.
+    - Model: mongodb.models.QuoteDetails (id, indexed quoteId, dealerName; customerName, validUntil, totalCost, discount, city, postalCode, state; quoteItems[]).
+    - getQuote by quoteId.
+    - getQuotesByCustomerName: currently loads all and filters in-memory (TODO comment notes inefficiency).
+    - getQuoteIdsByDealerName: uses a Mongo query on dealerName, returns quoteId list.
+    - create/update: ensures Dealer exists via DealersRepository (creates stub Dealer if missing). Generates random positive int if quoteId empty; rejects duplicate.
+  - MongoOrderRepository
+    - Collection: orders.
+    - Model: mongodb.models.OrderDetails (id, indexed orderId, quoteId, status; orderDate; events[]).
+    - hasOrder/getOrder by orderId.
+    - getOrdersByStatus: either all or filter by status.
+    - getOrdersByDealerName: calls QuoteRepository.getQuoteIdsByDealerName(dealer), then queries orders on quoteId in list (and optional status).
+    - createOrder(fromQuoteId): validates quote existence; rejects if order already exists for quote; constructs orderId = “order-{quoteId}”; sets orderDate and status Created; insert.
+    - updateOrder(id, OrderUpdateInfo): load OrderDetails, add event/status, save.
+    - removeOrder by orderId.
+  - MongoShipmentRepository
+    - Collection: shipments.
+    - Model: mongodb.models.ShipmentDetails (id, indexed orderId, events[], DeliveryAddress, contactName, primaryContactPhone, alternateContactPhone).
+    - getShipments(status): retrieves orders by status from OrderRepository, collects orderIds, queries shipments with orderId in list.
+    - createShipment: requires associated order; rejects duplicate shipment record per order; insert.
+    - addEvent: loads Shipment, appends event, saves.
+    - updateShipment/saveUpdates: replaces record preserving id.
+    - removeShipment by orderId.
+
+5) RepositoryFactory
+- Static factory to choose repository implementations based on storage kind: “memory” or “mongodb”.
+- Initializes both mockRepos and mongodbRepos; selects via static getters (e.g., getOrderRepository()).
+- Obtains MongoTemplate from OrderingConfiguration application context (bean) when using MongoDB.
+- reset(storage) resets factory, optionally used by tests to switch storage backend.
+
+6) Telemetry and Utility Integration
+- Controllers catch exceptions and report via TelemetryClient from Utility.getTelemetryClient() (not cached; relies on thread-local storage).
+- MongoOperationsWithRetry sends Application Insights dependency telemetry per DB operation.
+- ApplicationInsights.xml sets DeveloperMode=true, includes web telemetry modules and initializers; no InstrumentationKey set in this chunk (must be provided externally for production).
+
+REST API Surface
+1) Dealers (/dealers)
+- GET /dealers
+  - Returns: 200 OK with List<DealerInfo> or 404 if empty.
+  - Note: Executes getDealers() 100000 times in a loop for APM demo (heavy DB usage).
+- GET /dealers/{name}
+  - Returns: 200 OK with DealerInfo or 404 if not found.
+- POST /dealers
+  - Body: DealerInfo (name required via validate()).
+  - Behavior: 409 if dealer exists; otherwise creates/updates via upsert; sets Location header to /dealers/{name}.
+  - Returns: 200 OK if updated, 201 Created if inserted; 400 on validation error; 500 on error.
+- PUT /dealers/{name}
+  - Body: DealerInfo (validation).
+  - Behavior: 404 if dealer not found; otherwise upsert.
+  - Returns: 200 OK on success; 400 on validation error; 500 on error.
+- DELETE /dealers/{name}
+  - Returns: 204 No Content if deleted; 404 if not found; 500 on error.
+
+2) Orders (/orders)
+- GET /orders/{orderId}
+  - Returns: 200 OK with Order; 404 if not found.
+- GET /orders?dealer={name?}&status={OrderStatus? default None}
+  - If dealer omitted: returns orders filtered by status or all (None).
+  - If dealer provided: filters by dealer and status.
+  - Returns: 200 OK with List<Order>; 404 if empty.
+- POST /orders?fromQuote={quoteId}
+  - Creates an order from a quote. Validates quote exists, and that no existing order references it.
+  - Returns: 201 Created with Order and Location header /orders/{orderId}; 400 if quote missing or other BadRequest; 409 if conflicting (quote already used); 500 on error.
+- POST /orders/{orderId}/events
+  - Body: OrderEventInfo (comments expected).
+  - Adds event to order with current date; saves order.
+  - Returns: 201 Created; 400 if order not found; 500 on error.
+- PUT /orders/{orderId}
+  - Body: Order (validate requires quoteId and orderDate).
+  - Updates entire Order record.
+  - Returns: 200 OK if updated; 404 if not found; 400 on validation error; 500 on error.
+- PUT /orders/{orderId}/status
+  - Body: OrderUpdateInfo (status, eventInfo.comments); controller sets event date to current date.
+  - Returns: 200 OK on success; 400 if order not found or BadRequest; 500 on error.
+- DELETE /orders/{orderId}
+  - Returns: 204 No Content if removed; 404 if not found; 500 on error.
+
+3) Quotes (/quotes)
+- GET /quotes/{quoteId}
+  - Returns: 200 OK with Quote; 404 if not found.
+- GET /quotes?name={customerNameFragment}
+  - Returns: 200 OK with List<Quote> where customerName contains fragment (case-insensitive); 404 if none.
+- POST /quotes
+  - Body: Quote (validate requires dealerName and customerName).
+  - Behavior: If dealer doesn’t exist, creates dealer record automatically. If quoteId empty, generates random positive int. Errors on duplicate quoteId.
+  - Returns: 201 Created with Quote and Location header /quotes/{quoteId}; 400 on BadRequest; 409 if conflicting state; 500 on error.
+- PUT /quotes/{quoteId}
+  - Body: Quote (validation).
+  - Behavior: Ensures dealer exists (creates if missing); updates quote by id.
+  - Returns: 200 OK if updated; 404 if not found; 400 on validation error; 500 on error.
+- DELETE /quotes/{quoteId}
+  - Returns: 204 No Content if deleted; 404 if not found; 500 on error.
+
+4) Shipments (/shipments)
+- GET /shipments?status={OrderStatus default None}
+  - Returns shipments filtered by associated order status or all; 200 OK with List<ShipmentRecord>; 404 if none.
+- GET /shipments/deliveries
+  - Returns: 200 OK with List<Delivery>, where each entry contains ShipmentRecord (status DeliveryConfirmed), its Order, and associated Quote; 404 if none.
+- GET /shipments/{orderId}
+  - Returns: 200 OK with ShipmentRecord; 404 if not found.
+- POST /shipments
+  - Body: ShipmentRecord (validate requires orderId, deliveryDate, valid DeliveryAddress, contactName, primaryContactPhone).
+  - Behavior: Requires existing order; rejects if shipment already exists for order; sets Location header /shipments/{orderId}.
+  - Returns: 201 Created on success; 400 BadRequest; 409 Conflict on duplicate; 404 if unexpected; 500 on error.
+- PUT /shipments/{orderId}
+  - Body: ShipmentRecord (id must match path).
+  - Returns: 200 OK if updated; 404 if not found; 400 on validation or id mismatch; 500 on error.
+- POST /shipments/{orderId}/events
+  - Body: ShipmentEventInfo (validate comments); controller sets event date to current date.
+  - Returns: 200 OK if appended to existing; 201 Created if created anew by repo method returns false/true mapping (note: implementation returns true on success and controller returns 200 OK if true, 201 otherwise); 404 if shipment not found; 400 on validation error; 500 on error.
+- DELETE /shipments/{orderId}
+  - Returns: 204 No Content if removed; 404 if not found; 500 on error.
+
+5) Ping (/ping)
+- HEAD /ping
+  - Liveness check: 200 OK.
+- GET /ping
+  - Returns configuration health info:
+    - ordering.pingMessage
+    - ordering.validationMessage
+    - Build info (build.number, build.timestamp) from buildinfo.properties if available.
+  - Returns: 200 OK or 500 on error.
+
+Inter-Component Dependencies and Communication Patterns
+- Controllers depend on repository interfaces via RepositoryFactory (static accessors). No DI of repositories directly; RepositoryFactory internally is Spring-aware for MongoTemplate and initialized via OrderingConfiguration (not in this chunk) and repositoryFactory() bean in Test config.
+- Repositories:
+  - QuoteRepository uses DealersRepository to ensure dealer existence on create/update.
+  - OrderRepository uses QuoteRepository to validate quote existence and prevent duplicate orders per quote.
+  - ShipmentRepository uses OrderRepository to validate order existence and to filter shipments by order status.
+- External dependency: MongoDB (via Spring Data MongoTemplate/MongoOperations; operations wrapped by MongoOperationsWithRetry to send telemetry and retry on socket timeouts).
+- Telemetry: Microsoft Application Insights:
+  - Used in controllers to track exceptions.
+  - Used in Mongo wrapper to track DB dependencies.
+  - TelemetryClient obtained via Utility.getTelemetryClient() and should not be cached (thread-local reliance).
+
+Data Persistence Models and MongoDB Schema
+- Collections:
+  - catalog (mongodb.models.CatalogItem)
+    - Fields: id, indexed skuNumber, description, price, inventory, leadTime.
+    - Read conversion: emitted leadTime = 0 when inventory > 0, else stored leadTime.
+  - dealers (mongodb.models.Dealer)
+    - Fields: id, indexed name, contact, address, email, phone.
+  - quotes (mongodb.models.QuoteDetails)
+    - Fields: id, indexed quoteId, indexed dealerName, validUntil, customerName, quoteItems[], totalCost, discount, city, postalCode, state.
+  - orders (mongodb.models.OrderDetails)
+    - Fields: id, indexed orderId, indexed quoteId, orderDate, indexed status, events[] (OrderEventInfo).
+  - shipments (mongodb.models.ShipmentDetails)
+    - Fields: id, indexed orderId, events[], deliveryAddress (embedded), contactName, primaryContactPhone, alternateContactPhone.
+
+- Relationships:
+  - Quote has dealerName (string). Dealers repository stores DealerInfo; quote operations ensure dealer entry exists.
+  - Order references Quote by quoteId. There is one Order per Quote enforced in logic (create rejects duplicates).
+  - ShipmentRecord keyed by orderId, one per Order enforced in logic (create rejects duplicates).
+  - Delivery view composes ShipmentRecord + Order + Quote, fetched by joining via repository calls.
+
+Key Business Logic and Algorithms
+- Dealer existence propagation: Creating/updating a Quote will upsert a Dealer record if missing.
+- Order creation:
+  - Validates quote existence and uniqueness: only one order allowed per quote.
+  - Constructs orderId as “order-{quoteId}”; sets orderDate to current date; initial status Created.
+- Order updates:
+  - Full replace via PUT /orders/{id} after validation.
+  - Status update via OrderUpdateInfo which also appends an event with current date.
+- Shipment creation and updates:
+  - Requires associated Order to exist; only one shipment per order.
+  - Events can be appended; controller stamps current date for the event.
+- Shipments by status: Implementation uses order status to filter shipments (Mongo version queries shipments with orderIds drawn from orders with given status).
+- Performance/Load testing behavior:
+  - DealerController.getDealers() deliberately executes 100000 repository calls, likely for APM exercises (comment mentions to change from 1000 to 1; currently set to 100000).
+- Validation:
+  - Models provide validate() methods for mandatory fields; controllers call validate() and return 400 Bad Request on failures.
+- Telemetry and resilience:
+  - Mongo operations retried once on socket timeout during specific calls.
+  - AI dependency telemetry captured with durations and success.
+
+Configuration and Deployment Details
+- Runtime properties (src/main/resources/application.properties)
+  - server.port: 8080
+  - management.port: 8081 (Spring Boot Actuator management endpoints)
+  - management.address: 127.0.0.1
+  - ordering.storage: mongodb (selects MongoDB-backed repositories; switch to “memory” for in-memory)
+  - ordering.pingMessage: Configuration data is from inside the WAR
+  - ordering.validationMessage: This is version 1.0.3
+  - mongodb.host: localhost (can be comma-separated list)
+  - mongodb.database: ordering
+
+- Application Insights (ApplicationInsights.xml)
+  - DeveloperMode: true
+  - Web modules enabled: request, session, user tracking.
+  - Telemetry initializers for operation id/name, session, user, user agent.
+  - InstrumentationKey empty here; must be set in deployment environment or config to enable telemetry ingestion.
+
+- Build info (buildinfo.properties)
+  - build.number: 0.1.#
+  - build.timestamp: 2015-05-02T13:11:31-04:00
+  - Used by PingController to report version meta.
+
+- Test configuration (src/test/java)
+  - TestOrderingConfiguration provides beans:
+    - MongoTemplate constructed from properties or environment variable MONGO_PORT (Docker link-style) for host resolution.
+    - TelemetryClient (returns null if TelemetryConfiguration.getActive() is null).
+    - RepositoryFactory bean initialized via repositoryFactory() and reset based on ordering.storage.
+  - ConfigurationRule ensures a Spring ApplicationContext exists for tests.
+
+Frameworks and Architectural Patterns
+- Spring MVC for REST controllers.
+- Spring Boot/Actuator (implied by management.* properties).
+- Spring Data MongoDB for persistence with a wrapped MongoOperations for retries and telemetry.
+- Repository pattern with pluggable implementations (in-memory and MongoDB).
+- Static RepositoryFactory acting as a service locator to select storage backend based on configuration.
+- DTOs for API request/response bodies separate from Mongo persistence models.
+- Cross-repository coordination: QuoteRepository uses DealersRepository; OrderRepository uses QuoteRepository; ShipmentRepository uses OrderRepository; ShipmentController aggregates data from multiple repositories to build Delivery objects.
+
+Service Dependencies and Communication
+- External:
+  - MongoDB (primary data store).
+  - Application Insights (telemetry; requires instrumentation key).
+- Internal:
+  - Synchronous in-process calls between controllers and repositories.
+  - Cross-repo dependencies as noted above; no asynchronous messaging observed in this chunk.
+
+Notable Constraints and Considerations for Microservice Decomposition
+- Bounded contexts identifiable:
+  - Dealers (dealer contact management)
+  - Catalog (product items with inventory/lead time adjustment logic)
+  - Quotes (customer/dealer quote lifecycle; ensures dealer existence)
+  - Orders (created from quotes; immutable link via quoteId; status/events)
+  - Shipments (one-per-order; delivery details; events)
+  - Delivery Query/Aggregation (read model combining shipments + orders + quotes)
+- Coupling:
+  - Quotes depend on Dealers to ensure presence (soft coupling via name; upserts dealer).
+  - Orders depend on Quotes for creation and status filters by dealer.
+  - Shipments depend on Orders for existence and status filtering.
+  - Delivery view straddles Shipments, Orders, Quotes.
+- Potential microservices:
+  - Dealer Service, Catalog Service, Quote Service, Order Service, Shipment Service, and a Delivery/Tracking Query Service (composition).
+- Cross-service data access patterns (if decomposed):
+  - Avoid direct repository calls across services; would require API calls or event-driven denormalization.
+  - Current implementation uses in-process joins; decomposition would need careful design of APIs or materialized views.
+
+Error Handling and Status Codes
+- Controllers consistently map:
+  - 200 OK for successful reads/updates, 201 Created for new resources/events, 204 No Content for deletions.
+  - 400 Bad Request on validation errors or missing prerequisites.
+  - 404 Not Found when entities absent.
+  - 409 Conflict for duplicate/create conflicts (e.g., order already exists for quote; shipment already exists).
+  - 500 Internal Server Error on unhandled exceptions; exception details included in body in some places.
+
+Security and Auth
+- No authentication/authorization present in this chunk.
+
+Performance and Reliability Notes
+- DealerController GET /dealers has intentional extreme loop causing heavy DB traffic; should be removed/adjusted outside APM labs.
+- MongoOperationsWithRetry provides minimal retry resilience for socket timeouts and telemetry capture.
+- Some repository operations load entire collections for filtering (Quote search by customerName), which may be inefficient at scale.
+
+Interfaces and DTO Contracts (Schemas)
+- DealerInfo: { name*, contact, address, email, phone }
+- Quote: { quoteId?, validUntil, customerName*, dealerName*, quoteItems: [{ skuNumber, amount }], totalCost, discount, city, postalCode, state }
+- Order: { orderId, quoteId*, orderDate*, status, events: [{ date, comments }] }
+- OrderUpdateInfo: { status, eventInfo: { date?, comments } } (server sets date)
+- ShipmentRecord: { orderId*, deliveryDate*, deliveryAddress: { street, city*, state, postalCode*, specialInstructions }, contactName*, primaryContactPhone*, alternateContactPhone, events: [{ date, comments* }] }
+- Delivery: { quote, order, shipmentRecord }
+- CatalogItem: { skuNumber*, description*, price, inventory, leadTime } (leadTime interpreted as 0 if inventory > 0 in reads from Mongo).
+
+Configuration Switches
+- ordering.storage:
+  - “mongodb”: uses MongoDB repositories (default in application.properties).
+  - “memory”: uses in-memory mock repositories (useful for tests/local runs without DB).
+- Mongo host override via env var MONGO_PORT (Docker link) handled in tests.
+
+This structured summary preserves the essential architectural elements of the OrderService chunk for accurate microservice decomposition and system analysis.

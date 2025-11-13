@@ -1,0 +1,414 @@
+Architectural Summary – OrderService (Backend) and Web Client (Chunk 2 of 3)
+
+1) High-level architecture and responsibilities
+- Service: OrderService (Java, Spring Boot)
+  - Domain responsibilities:
+    - Catalog management (SKU-based products)
+    - Dealer management (partners/contacts)
+    - Quote lifecycle (create/update/search/delete)
+    - Order lifecycle (create from quote, status updates, events, list/filter)
+    - Shipment lifecycle (create/update, events, link to order; delivery aggregation)
+    - Health/ping and build info reporting
+  - Data persistence:
+    - Primary: MongoDB via Spring Data Mongo (with a custom retry/telemetry wrapper)
+    - Alternate (for tests): in-memory repositories
+    - A PostgreSQL schema is provided as reference (not used by runtime code in this chunk)
+  - Cross-cutting:
+    - Application Insights telemetry for web requests and MongoDB dependencies
+    - CORS enabled for all origins
+    - Configuration via Spring Boot application.properties and @ConfigurationProperties
+    - Can run as standalone Spring Boot app (port 8080) or as WAR in Tomcat
+
+- Client: Static Web App (WinJS-based single-page app)
+  - Consumes OrderService REST APIs for Dealers, Catalog, Quotes, Orders, Shipments
+  - Uses XHR to http://<hostname>:8080
+  - Pages: Dealers, Quotes, Orders, Deliveries (derived from shipments), Catalog, Settings, Home
+  - Provides create/update/delete and list/search flows aligned to server REST endpoints
+
+2) Components, classes, and responsibilities
+- Configuration/Bootstrapping
+  - OrderingConfiguration
+    - @Configuration, @EnableAutoConfiguration, @ComponentScan
+    - Beans:
+      - MongoTemplate:
+        - Uses MongoDBProperties (mongodb.host, mongodb.database)
+        - Supports comma-separated hosts
+        - Reads MONGO_PORT env (Docker linking format) to derive host
+        - MongoClientOptions socketKeepAlive(false)
+      - RepositoryFactory:
+        - Switches storage implementation (ordering.storage: memory|mongodb)
+      - OrderingServiceProperties bean exposure
+      - TelemetryClient:
+        - ThreadLocal TelemetryClient initialized from TelemetryConfiguration.getActive()
+        - Sets instrumentation key from ordering.instrumentationKey (if provided)
+    - ThreadLocal<TelemetryClient> for ambient telemetry per request thread
+  - OrderingInitializer (extends SpringBootServletInitializer)
+    - WAR deployment entry-point
+    - Captures servlet context path to prefix Location headers in REST responses
+  - MongoDBProperties (@ConfigurationProperties(prefix="mongodb"))
+    - host (default: localhost), database (default: ordering)
+  - OrderingServiceProperties (@ConfigurationProperties(prefix="ordering"))
+    - storage (default memory; production uses mongodb via application.properties)
+    - pingMessage, validationMessage, instrumentationKey
+  - PostgresqlProperties (unused in runtime here) – username, password, driverClass, url
+  - PropertyHelper – load properties from classpath application.properties (used in tests and PingController for buildinfo)
+
+- Filters and cross-cutting
+  - AppInsightsFilter (javax.servlet.Filter, @Component)
+    - Wraps every HTTP request
+    - Creates Application Insights RequestTelemetry with:
+      - Method, URL, session, operation id/name, duration, response code
+    - On exception:
+      - Tracks exception with ExceptionTelemetry, marks request as failed
+    - Relies on Utility.getTelemetryClient() – TelemetryClient bean from Spring context; no caching (thread-local)
+  - SimpleCORSFilter (@Component)
+    - Sets Access-Control-Allow-Origin: *, Allow-Methods: PUT, POST, GET, OPTIONS, DELETE
+    - Access-Control-Max-Age: 1
+    - Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Pragma, Cache-Control, If-Modified-Since
+
+- Utility
+  - Utility
+    - validateStringField helper (build JSON error arrays)
+    - isNullOrEmpty
+    - getTelemetryClient() – fetches from ApplicationContext (OrderingConfiguration)
+  - TestPath (interface) – a reset() hook for unit/integration tests to clear repositories
+
+- Controllers (REST API)
+  - Base URL paths and endpoints (JSON in/out; typical ResponseEntity patterns; Location headers use OrderingInitializer.getApplicationPath()):
+
+  - CatalogController (/catalog)
+    - GET /catalog → List<CatalogItem>; 404 if empty
+    - GET /catalog/{sku} → CatalogItem; 404 if not found
+    - POST /catalog → Create new CatalogItem
+      - Validates fields; 409 if SKU already exists
+      - Returns 201 Created (or 200 OK if repository reports update=true)
+    - PUT /catalog/{sku} → Update existing; 404 if missing
+    - DELETE /catalog/{sku} → 204 No Content or 404
+
+  - DealerController (/dealers)
+    - GET /dealers → List<DealerInfo>; 404 if empty
+      - Note: embedded performance test code loops getDealers() 100000 times (intended for APM lab) causing heavy DB load
+    - GET /dealers/{name} → DealerInfo; 404 if missing
+    - POST /dealers → Create; 409 if exists; 201 Created with Location
+    - PUT /dealers/{name} → Update; 404 if not found; 200 OK
+    - DELETE /dealers/{name} → 204 No Content or 404
+
+  - QuoteController (/quotes)
+    - GET /quotes/{quoteId} → Quote; 404 if not found
+    - GET /quotes?name=<fragment> → search by customerName (case-insensitive contains); 404 if none
+    - POST /quotes → Create Quote; validates; returns 201 Created with Location; 400 if duplicate id (BadRequest)
+    - PUT /quotes/{quoteId} → Update existing; 404 if missing; 200 OK
+    - DELETE /quotes/{quoteId} → 204 No Content or 404
+
+  - OrderController (/orders)
+    - GET /orders/{orderId} → Order; 404 if not found
+    - GET /orders?dealer=<name>&status=<OrderStatus> → List<Order>
+      - If dealer not provided (empty), returns by status only (default status=“None” → all)
+      - If dealer provided, filters orders linked to quotes of that dealer and by status
+      - 404 if none
+    - POST /orders?fromQuote=<quoteId> → Create new Order from Quote
+      - Validates quote existence
+      - Ensures idempotency: rejects if an Order already exists for that quote (409 conflict via ConflictingRequestException)
+      - Creates order with id "order-<quoteId>", status Created, current short date; returns 201 with Location and Order body
+    - POST /orders/{orderId}/events → Add OrderEventInfo
+      - Sets event date to current short date; returns 201 Created
+    - PUT /orders/{orderId} → Replace order (validates quoteId/orderDate fields)
+      - 200 OK or 404
+    - PUT /orders/{orderId}/status → Update status with OrderUpdateInfo (status + eventInfo)
+      - Injects current date into event; 200 OK or 400 if order missing
+    - DELETE /orders/{orderId} → 204 or 404
+
+  - ShipmentController (/shipments)
+    - GET /shipments?status=<OrderStatus> → List<ShipmentRecord> for orders matching status
+      - Joins by fetching orders via OrderRepository then “IN” orderIds within shipments
+      - 404 if none
+    - GET /shipments/deliveries → List<Delivery> (aggregate view)
+      - Delivery aggregates: ShipmentRecord + Order + Quote for orders with DeliveryConfirmed status
+    - GET /shipments/{orderId} → ShipmentRecord by orderId; 404 if not found
+    - POST /shipments → Create ShipmentRecord
+      - Validates order exists and uniqueness per order; 201 Created with Location; 400 on validation errors
+    - PUT /shipments/{orderId} → Update ShipmentRecord (full replace)
+      - Validates ID match; 404 if missing; 200 OK
+    - POST /shipments/{orderId}/events → Add ShipmentEventInfo (sets date to current short date); 200 OK or 201? (implementation returns OK or CREATED; created=false semantics)
+    - DELETE /shipments/{orderId} → 204 or 404
+
+  - PingController (/ping)
+    - HEAD /ping → 200 OK (liveness)
+    - GET /ping → Returns human-readable string:
+      - ordering.pingMessage + ordering.validationMessage + optional build.number and build.timestamp from buildinfo.properties
+
+- Repositories (interfaces)
+  - CatalogItemsRepository: getCatalogItems, getCatalogItem, upsertCatalogItem, removeCatalogItem
+  - DealersRepository: getDealers, getDealer, upsertDealer, removeDealer
+  - QuoteRepository: getQuote, getQuotesByCustomerName, getQuoteIdsByDealerName, createQuote, updateQuote, removeQuote
+  - OrderRepository: hasOrder, getOrder, getOrderByQuoteId, getOrdersByStatus, getOrdersByDealerName, createOrder(fromQuote), updateOrder(id, Order), updateOrder(id, OrderUpdateInfo), removeOrder
+  - ShipmentRepository: getShipments(status), getShipmentById, createShipment, addEvent, updateShipment, removeShipment
+
+- RepositoryFactory
+  - Static factory with storageKind switch:
+    - "memory" → mock.* repositories
+    - "mongodb" → mongodb.* repositories
+  - Provides static getters for each repository type
+  - Initializes MongoTemplate via Spring application context (if available)
+
+- MongoDB repositories and models
+  - MongoOperationsWithRetry (MongoOperations decorator)
+    - Wraps key methods (findAll, findOne, exists, find, save, dropCollection, findAndRemove, insert, etc.)
+    - On DataAccessResourceFailureException caused by SocketTimeoutException, retries once
+    - Sends Application Insights RemoteDependencyTelemetry with name "MongoDB.<operation>", duration, success=true/false
+  - MongoCatalogItemsRepository
+    - Collection: “catalog”
+    - Key fields: skuNumber (Indexed)
+    - toCatalogItem converts leadTime to 0 when inventory>0 (computed field)
+  - MongoDealersRepository
+    - Collection: “dealers”
+    - Key fields: name (Indexed)
+  - MongoQuoteRepository
+    - Collection: “quotes”
+    - Key fields: quoteId (Indexed), dealerName (Indexed)
+    - getQuotesByCustomerName: loads all quotes then filters in-memory (TODO noted in code)
+    - getQuoteIdsByDealerName: returns list of quoteIds used by MongoOrderRepository for join-like behavior
+  - MongoOrderRepository
+    - Collection: “orders”
+    - Key fields: orderId (Indexed), quoteId (Indexed), status (Indexed)
+    - createOrder: constructs "order-<quoteId>", date=DateFormat.SHORT, status=Created
+    - getOrdersByDealerName: builds Criteria "quoteId in <list-of-ids>" with optional status
+  - MongoShipmentRepository
+    - Collection: “shipments”
+    - Key field: orderId (Indexed)
+    - getShipments(status): fetches orders by status, then finds shipments where orderId in that set
+    - Ensures uniqueness: one shipment per orderId
+
+- Mock repositories (in-memory)
+  - MockCatalogItemsRepository: seeded with three SKUs
+  - MockDealersRepository: simple list
+  - MockQuoteRepository:
+    - generate quote ids if empty (random positive int)
+    - creates Dealer if missing
+  - MockOrderRepository:
+    - createOrder prevents duplicates based on quoteId; assigns "order-<quoteId>"
+  - MockShipmentRepository:
+    - requires order existence; one shipment per order
+
+3) Data models and schemas
+- Domain models (JSON fields mirror class fields):
+  - CatalogItem: skuNumber (String), description (String), price (double), inventory (int), leadTime (int); validate() checks skuNumber and description
+  - DealerInfo: name, contact, address, email, phone; validate() checks name
+  - Quote:
+    - quoteId, validUntil, customerName, dealerName, totalCost, discount, city, postalCode, state, List<QuoteItemInfo> quoteItems
+    - addQuoteItem(skuNumber, amount), validate() checks dealerName, customerName
+  - QuoteItemInfo: skuNumber, amount (double)
+  - Order:
+    - orderId, quoteId, orderDate (String), status (OrderStatus), List<OrderEventInfo> events
+    - addEvent, validate() checks quoteId and orderDate
+  - OrderEventInfo: date (String), comments (String)
+  - OrderStatus enum: None, Created, Confirmed, Started, Built, DeliveryConfirmed, Shipped, Delivered, Installed
+  - OrderUpdateInfo: status (OrderStatus), eventInfo (OrderEventInfo)
+  - ShipmentRecord:
+    - orderId, deliveryDate, List<ShipmentEventInfo> events, DeliveryAddress deliveryAddress, contactName, primaryContactPhone (PhoneInfo), alternateContactPhone (PhoneInfo)
+    - validate() enforces orderId, deliveryDate, non-empty deliveryAddress(city/postalCode), and contactName + primaryContactPhone
+  - ShipmentEventInfo: date, comments; validate() non-empty comments
+  - Delivery: aggregate container { quote, order, shipmentRecord }
+  - DeliveryAddress: street, city, state, postalCode, specialInstructions
+  - PhoneInfo: phoneNumber, kind
+
+- MongoDB document models (spring-data annotated @Document)
+  - repositories.mongodb.models.CatalogItem (collection "catalog"): id, skuNumber(@Indexed), description, price, inventory, leadTime
+  - Dealer ("dealers"): id, name(@Indexed), contact, address, email, phone
+  - QuoteDetails ("quotes"): id, quoteId(@Indexed), validUntil, customerName, dealerName(@Indexed), quoteItems[] (QuoteItemInfo), totalCost, discount, city, postalCode, state
+  - OrderDetails ("orders"): id, orderId(@Indexed), quoteId(@Indexed), orderDate, status(@Indexed), events[] (OrderEventInfo)
+  - ShipmentDetails ("shipments"): id, orderId(@Indexed), events[] (ShipmentEventInfo), deliveryAddress, contactName, primaryContactPhone, alternateContactPhone
+
+- PostgreSQL (reference DDL, not used by current runtime)
+  - Database: Fabrikant
+  - Tables: CatalogItems(sku_number, description, price), Dealers(name, contact, address, email, phone), Quotes(quote_id,...), QuoteAdditionalItemRecord, Orders(order_id, quote_id,...), OrderEvents, PhoneInfo, DeliveryAddress, ShipmentRecords, ShipmentEventInfo
+  - Foreign keys link quote/order/shipment/address/phone; mirrors the same domain model relationships
+
+4) Service dependencies and communication patterns
+- External dependencies:
+  - MongoDB (primary data store)
+    - MongoTemplate used for CRUD
+    - Operations wrapped by MongoOperationsWithRetry:
+      - Retries once on SocketTimeoutException (wrapped in Spring’s DataAccessResourceFailureException)
+      - Emits Application Insights RemoteDependencyTelemetry per operation
+  - Application Insights:
+    - Request-level telemetry via AppInsightsFilter
+    - Mongo dependency telemetry via MongoOperationsWithRetry
+    - Exception telemetry across controllers and filter
+    - Configuration via ApplicationInsights.xml; DeveloperMode=true (as provided); instrumentation key provided via ordering.instrumentationKey or ApplicationInsights.xml
+- Client interaction:
+  - Static Web app calls API endpoints with JSON; CORS open
+  - Client aggregates data (e.g., order and related quote fetched client-side; server also has /shipments/deliveries aggregate for delivery views)
+
+5) Key business logic and algorithms
+- Order creation:
+  - Derive orderId as "order-<quoteId>"
+  - Ensure quote exists and no prior Order for that quote (conflict)
+  - Initialize status=Created, orderDate=current short date
+- Order status update:
+  - Adds an order event with the current date and provided comments (OrderUpdateInfo.eventInfo.comments)
+  - Updates status
+- Quote creation:
+  - If dealer is unknown, auto-create the dealer placeholder (name only) to keep referential consistency
+  - Generate random positive integer id if none provided
+  - Enforce uniqueness of quoteId (BadRequest on duplicate)
+- Shipment creation:
+  - Enforce existence of Order
+  - Enforce one shipment per order
+- Catalog item: Mongo conversion sets leadTime=0 if inventory>0 (stock implies immediate)
+- Telemetry & resiliency:
+  - Request telemetry and exception capture for all endpoints
+  - Mongo retry on specific transient error (SocketTimeoutException)
+- Performance caveat (deliberate):
+  - DealerController.getDealers doubles as an APM exercise by invoking the repository up to 100000 times; treat this as test code not production behavior
+
+6) Configuration and deployment details
+- application.properties (prod/staging)
+  - server.port=8080
+  - management.port=8081; management.address=127.0.0.1
+  - ordering.storage=mongodb (switchable to memory)
+  - ordering.pingMessage, ordering.validationMessage
+  - mongodb.host=localhost, mongodb.database=ordering
+- tests application.properties
+  - ordering.storage=memory (by default for unit tests)
+  - mongodb.* configured for integration tests with @Category(IntegrationTests)
+- ApplicationInsights.xml
+  - Telemetry modules for web request/session/user tracking
+  - DeveloperMode=true (stdout/endpoints commented out)
+  - InstrumentationKey empty by default; can be set via ordering.instrumentationKey programmatically
+- Build pipeline
+  - Gradle wrapper (2.1)
+  - Custom tasks:
+    - BuildInformationTask: generates src/main/resources/buildinfo.properties with build.number (major.minor.BUILD_NUMBER), build.timestamp, build/git metadata (Jenkins env vars); read by PingController
+    - CleanBuildInformationTask: deletes buildinfo.properties
+  - version.properties (major/minor used in BuildInformationTask)
+- Deployment modes
+  - Standalone Spring Boot main (OrderingConfiguration.main)
+  - As WAR in Tomcat (OrderingInitializer); maintains contextPath for Location headers
+- Environment variables
+  - MONGO_PORT (Docker link format like tcp://host:port) → parsed to set Mongo host
+  - Jenkins build vars used by BuildInformationTask (BUILD_NUMBER, BUILD_ID, BUILD_URL, BUILD_TAG, GIT_COMMIT, GIT_URL, GIT_BRANCH)
+- Scripts
+  - scripts/setup.sh: seeds dealers and catalog, and creates a test quote; uses localhost:8080
+  - scripts/createorder.sh: POST order from a quote; list orders by dealer
+  - scripts/update.sh: PUT update a quote
+  - scripts/setupdocker.sh: similar seeding against a path /ordering-0.1.0 on a given host
+  - scripts/schema.psql: PostgreSQL schema
+- Security CORS
+  - CORS allows *, and headers include Pragma/Cache-Control/If-Modified-Since for client caching behavior
+  - No authentication/authorization present in this chunk
+
+7) Client (static WinJS web app)
+- Architecture
+  - Single page app using WinJS (ui-light.css, winjs.js)
+  - Navbar pages: main, dealers, quotes, orders, deliveries, catalog, settings
+  - serverconfig.js defines baseAddress as http://<window.location.hostname>:8080
+- Data access (js/data.js)
+  - Provides functions to GET/POST/PUT/DELETE server endpoints:
+    - dealersGet/save/delete/create
+    - catalogGet/save/delete/create
+    - quotesGet/getById/save/delete/create
+    - ordersGet/getById/save/delete/createFromQuote/delete, addEvent/status update
+    - deliveriesGet/save/delete/createFromOrder (maps to shipments), deliveryFindById
+  - Uses headers: Content-Type application/json; Pragma/Cache-Control no-cache; If-Modified-Since epoch
+  - Delivery aggregation:
+    - Client mainly uses /shipments endpoints; server also exposes /shipments/deliveries if needed
+- UI
+  - Controls.EditTools (custom control for save/delete/add/edit buttons)
+  - Pages: e.g., pages/catalog/catalog.html/js view for catalog items
+- Error handling
+  - reporterror() uses a ContentDialog popup
+
+8) Patterns, frameworks, and notable design decisions
+- Frameworks
+  - Spring Boot (auto-configuration, @ConfigurationProperties)
+  - Spring MVC (@Controller, @RequestMapping)
+  - Spring Data MongoDB (MongoTemplate)
+  - Application Insights Java SDK (custom Filter and dependency telemetry)
+  - WinJS (client SPA)
+  - JUnit tests (unit + integration categories)
+- Architectural patterns
+  - Repository pattern with a factory to swap implementations (in-memory vs MongoDB)
+  - Request/response REST controller pattern with explicit status codes
+  - Decorator for MongoOperations to add retry and telemetry (resilience + observability)
+  - Thread-local TelemetryClient for per-request trace correlation (operation id/name set in filter)
+  - Context-aware Location headers via servlet context path
+- Observability
+  - End-to-end telemetry:
+    - Web requests tracked (AppInsightsFilter) with operation context
+    - Mongo calls tracked as dependencies with durations and success/fail
+    - Exceptions tracked in controllers and filter
+- Validation strategy
+  - Lightweight server-side validate() methods on models return JSON list of validation errors; controllers return 400 on invalid input
+- Known pitfalls/hotspots
+  - DealerController GET artificially invokes repository in a tight loop (100000 calls) – for APM training; remove/guard for production
+  - QuoteRepository.getQuotesByCustomerName (Mongo implementation) fetches all and filters client-side – can be expensive; TODO in code
+  - CORS is fully open; no auth controls present
+
+9) Microservice decomposition hints (from current boundaries)
+- Natural service boundaries by domain:
+  - Catalog Service: CRUD SKUs, inventory/leadTime calculation
+  - Dealer Service: CRUD dealers
+  - Quote Service: CRUD quotes; depends on Dealer service (auto-create dealer or validate existence)
+  - Order Service: Manage orders, events, status; depends on Quote (and Dealer indirectly)
+  - Shipment Service: Manage shipments and events; depends on Order; Delivery aggregator could be a read-model/composer
+- Data boundaries:
+  - Current Mongo model keeps separate collections for catalog, dealers, quotes, orders, shipments, with references by business ids (not DBRefs)
+  - Services could own their respective collections; current code composes via query joins (quotes→orders; orders→shipments)
+- Cross-cutting:
+  - Shared telemetry and CORS filters
+  - Build information endpoint (/ping) could remain in each service or centralized
+
+10) API summary (paths, verbs, status codes)
+- /catalog
+  - GET → 200 [CatalogItem[]] | 404
+  - GET /{sku} → 200 [CatalogItem] | 404
+  - POST → 201 Created (Location /catalog/{sku}) | 409 if exists | 400 on validation
+  - PUT /{sku} → 200 OK | 404 if missing | 400 on validation
+  - DELETE /{sku} → 204 No Content | 404
+- /dealers
+  - GET → 200 [DealerInfo[]] | 404
+  - GET /{name} → 200 [DealerInfo] | 404
+  - POST → 201 Created (Location /dealers/{name}) | 409 if exists | 400 on validation
+  - PUT /{name} → 200 OK | 404 if missing | 400 on validation
+  - DELETE /{name} → 204 | 404
+- /quotes
+  - GET /{quoteId} → 200 [Quote] | 404
+  - GET ?name=<fragment> → 200 [Quote[]] | 404
+  - POST → 201 Created (Location /quotes/{id}) | 400 on duplicate or validation
+  - PUT /{quoteId} → 200 | 404 | 400 on validation
+  - DELETE /{quoteId} → 204 | 404
+- /orders
+  - GET /{orderId} → 200 [Order] | 404
+  - GET ?dealer=<name>&status=<OrderStatus> → 200 [Order[]] | 404
+  - POST ?fromQuote=<quoteId> → 201 Created (Location /orders/{orderId}) | 400 if quote missing | 409 if already has order
+  - POST /{orderId}/events → 201 Created | 400 on bad request
+  - PUT /{orderId} → 200 | 404 | 400 on validation
+  - PUT /{orderId}/status → 200 | 400 if order missing
+  - DELETE /{orderId} → 204 | 404
+- /shipments
+  - GET → 200 [ShipmentRecord[]] | 404
+  - GET /deliveries → 200 [Delivery[]] | 404
+  - GET /{orderId} → 200 [ShipmentRecord] | 404
+  - POST → 201 Created (Location /shipments/{orderId}) | 400 on validation or order not found | 409 (in Mongo impl) if duplicate
+  - PUT /{orderId} → 200 | 404 | 400 id mismatch or validation
+  - POST /{orderId}/events → 200 or 201 | 400 on validation
+  - DELETE /{orderId} → 204 | 404
+- /ping
+  - HEAD → 200
+  - GET → 200 Text (ping + validation + build info)
+
+11) Tests
+- Unit tests for controllers and mock repositories
+- Integration tests (@Category IntegrationTests) for Mongo repositories
+- TestOrderingConfiguration provides MongoTemplate and RepositoryFactory wired to test properties
+
+12) Notable configuration files and scripts
+- src/main/resources/application.properties (prod/staging defaults)
+- src/test/resources/application.properties (tests; memory storage)
+- ApplicationInsights.xml (DeveloperMode true; key configurable)
+- buildinfo.properties (generated; read by /ping)
+- scripts/*.sh for seeding and demo usage
+- scripts/schema.psql (PostgreSQL reference schema)
+
+This summary captures the components, contracts (REST endpoints), data models, repository boundaries, telemetry/resiliency mechanisms, and deployment/configuration for accurate microservice decomposition and further architectural analysis.

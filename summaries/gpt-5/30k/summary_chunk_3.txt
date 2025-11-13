@@ -1,0 +1,296 @@
+Architectural Summary (Part 3 of 6)
+
+Scope of this chunk
+- Contains:
+  - A Spring Boot IntegrationService that bridges Azure Storage Queues and an Ordering/MRP REST API.
+  - A Spring Boot OrderingService REST API (MRP-like), with controllers, persistence abstraction, telemetry, and CORS.
+  - Infrastructure-as-Code (Chef and Puppet) to deploy a Tomcat-based MRP WAR and a standalone ordering-service JAR, with MongoDB and Java setup.
+  - DevOps/education samples (Python CI with Travis CI; Flask + Locust load testing).
+- Intent: Demonstrates a microservice ecosystem where orders are ingested via a queue, integrated into an MRP system, and inventory updates are fed back to a website via another queue.
+
+1) Components and Responsibilities
+
+A) IntegrationService (Java, Spring Boot)
+- Purpose: Background integration/bridge service between website queues and the MRP/Ordering REST API.
+- Key responsibilities:
+  - Poll the Azure “orders” queue for new website orders, transform and create Quote -> Order -> Shipment in MRP via REST.
+  - Periodically fetch catalog from MRP and post a ProductMessage to the Azure “product” queue for website consumption.
+- Scheduling: Two scheduled tasks at a fixed delay of 30,000 ms (30 seconds).
+
+B) OrderingService (Java, Spring Boot)
+- Purpose: REST API for managing catalog items, dealers, quotes, orders, and shipments.
+- Storage abstraction: RepositoryFactory selects a backend (memory, MongoDB, PostgreSQL) via configuration.
+- HTTP filters:
+  - SimpleCORSFilter: Sets permissive CORS headers.
+  - AppInsightsFilter: Emits Application Insights telemetry per request (requests and exceptions).
+- Deployment: Can run as:
+  - Spring Boot standalone JAR (java -jar).
+  - WAR deployed to Tomcat via SpringBootServletInitializer (OrderingInitializer).
+
+C) Infrastructure as Code
+- Chef Cookbook (mrpapp-2/default.rb):
+  - Installs Java (OpenJDK 8), MongoDB, Tomcat7.
+  - Seeds MongoDB data from MongoRecords.js.
+  - Configures Tomcat HTTP connector port via sed (node['tomcat']['mrp_port']).
+  - Deploys mrp.war to Tomcat.
+  - Fetches and launches ordering-service-0.1.0.jar as a background process, ensuring any running instance is stopped first.
+- Puppet module (mrpapp):
+  - Classes for MongoDB setup and seeding, Java setup, Tomcat user/group and instance configuration (port 9080), WAR deployment, and ordering service lifecycle (download JAR, stop existing, start new, wait, notify Tomcat).
+
+D) Training/DevOps examples (not production services)
+- python-ci-example-master:
+  - Extremely simple Python app (my_function sums two numbers), unittest test, Travis CI config (.travis.yml) that runs tests on Python 3.5.
+- load_testing_locust-master:
+  - Simple Flask API with endpoints: GET / (hello), GET /tests, POST /tests (in-memory list).
+  - locustfile.py defines two load-test tasks: GET /tests and POST /tests.
+  - Intended for load testing training.
+
+2) APIs and Interfaces
+
+A) IntegrationService external interfaces
+- Consumes Azure Storage Queue:
+  - Queue names from application.properties:
+    - azure.storage.queue.orders = orders
+    - azure.storage.queue.inventory = product
+  - Visibility timeout: azure.storage.queue.message = 300 (seconds)
+- Consumes/produces JSON messages via Azure Queue:
+  - OrderMessage (from website; see models/website/OrderMessage)
+  - ProductMessage (to website; list of ProductItem with skuNumber, inventory, leadTime)
+- Calls Ordering/MRP REST API (host: mrp.endpoint; default http://127.0.0.1:8080/):
+  - POST /quotes (body: Quote derived from OrderMessage; returns Quote with quoteId)
+  - POST /orders?fromQuote={quoteId} (returns Order with orderId)
+  - POST /shipments (body: ShipmentRecord based on OrderMessage and orderId)
+  - GET /catalog (returns CatalogItem[])
+
+B) OrderingService REST API (from README and CatalogController)
+- Catalog:
+  - GET /catalog -> 200 with list of CatalogItem or 404 if empty
+  - GET /catalog/{sku} -> 200 with CatalogItem, or 404 if not found
+  - POST /catalog -> 201 Created with Location header /catalog/{sku} or 409 Conflict if exists; validation errors -> 400
+  - PUT /catalog/{sku} -> 200 OK if updated, 404 if SKU not found; validation errors -> 400
+  - DELETE /catalog/{sku} -> 204 No Content or 404 Not Found
+- Dealers:
+  - GET /dealers -> list
+  - POST /dealers -> create dealer
+- Quotes:
+  - GET /quotes/{id}
+  - GET /quotes?name={customerNameSubstr}
+  - POST /quotes -> create quote; Location header returns created ID
+  - PUT /quotes/{id} -> update quote
+  - DELETE /quotes/{id}
+- Orders:
+  - GET /orders/{id}
+  - GET /orders?dealer={name}[&status={status}]
+  - POST /orders?fromQuote={quoteId} -> create order from quote; Location header returns created ID
+- Shipments:
+  - GET /shipments
+  - GET /shipments?status={status}
+  - GET /shipments/{orderId}
+  - POST /shipments -> create shipment record (one per order)
+  - PUT /shipments/{orderId} -> modify shipment record
+  - POST /shipments/{orderId}/events -> add shipment comment/event
+- Content type: JSON for request/response bodies.
+- CORS: Access-Control-Allow-Origin: * and standard headers.
+
+3) Data Models and Schemas
+
+A) IntegrationService models (subset)
+- models.website.OrderMessage:
+  - customerName, dealerName, orderDate, address, country, phone, city, postalCode, state, totalCost, discount, items: List<OrderItem>
+- models.website.OrderItem:
+  - skuNumber, price
+- models.website.ProductItem:
+  - skuNumber, inventory, leadTime
+- models.website.ProductMessage:
+  - productList: List<ProductItem>
+- models.mrp.CatalogItem:
+  - skuNumber, description, unit, price (String), inventory (int), leadTime (int)
+- models.mrp.Quote:
+  - quoteId, customerName, dealerName, validUntil (computed: today + 1 day, ISO string), city, postalCode, state, totalCost, discount, quoteItems: List<QuoteItemInfo>
+  - constructor(OrderMessage) maps OrderMessage to Quote with QuoteItemInfo for each OrderItem
+- models.mrp.QuoteItemInfo:
+  - skuNumber, amount (from order item price)
+- models.mrp.Order:
+  - orderId, quoteId, orderDate, status
+- models.mrp.ShipmentRecord:
+  - orderId, deliveryDate (today + 14 days, ISO), events: List<ShipmentEventInfo>, deliveryAddress, contactName, primaryContactPhone, alternateContactPhone
+  - constructor(OrderMessage, orderId) builds from order/customer address details
+- models.mrp.DeliveryAddress:
+  - street, city, state, postalCode, specialInstructions
+- models.mrp.PhoneInfo:
+  - phoneNumber, kind
+
+B) OrderingService database schemas (PostgreSQL exemplar in scripts/schema.psql)
+- Tables:
+  - CatalogItems(sku_number PK, description, price NUMERIC(8,2))
+  - Dealers(name PK, contact, address, email, phone)
+  - Quotes(quote_id PK, valid_until, customer_name, dealer_name FK->Dealers, total_cost, discount, city, postal_code, state)
+  - QuoteAdditionalItemRecord(id PK serial, quote_id FK->Quotes, sku_number FK->CatalogItems, amount)
+  - Orders(order_id PK, quote_id FK->Quotes, order_date, status)
+  - OrderEvents(id PK serial, order_id FK->Orders, order_date, comments)
+  - PhoneInfo(phone PK, kind)
+  - DeliveryAddress(id PK serial, street, city, state, postal_code)
+  - ShipmentRecords(order_id PK FK->Orders, delivery_date, delivery_address FK->DeliveryAddress, contact_name, primary_phone FK->PhoneInfo, alternate_phone FK->PhoneInfo)
+  - ShipmentEventInfo(id PK serial, order_id FK->Orders, date, comments)
+- Note: The live OrderingService code in this chunk uses MongoDB via MongoTemplate. The schema file suggests an alternative PostgreSQL storage option also supported via RepositoryFactory.
+
+4) Service Dependencies and Communication Patterns
+
+A) IntegrationService
+- Depends on:
+  - Azure Storage (Queues): uses connection string, queue names; SDK com.microsoft.azure:azure-storage:2.0.0
+  - OrderingService HTTP endpoints (mrp.endpoint, default http://127.0.0.1:8080/)
+- Communication:
+  - Asynchronous consumption of “orders” queue messages (OrderMessage). For each message:
+    - POST /quotes -> POST /orders?fromQuote -> POST /shipments
+    - On success, deletes the queue message (at-least-once semantics; no explicit idempotency in code).
+    - On deserialization error, logs and deletes the malformed message.
+  - Periodic polling of MRP /catalog and publishing ProductMessage to “product” queue.
+- Concurrency:
+  - Two scheduled tasks using fixedDelay. Each task processes messages serially in a while loop until the queue is empty. QueueFactory caches CloudQueue instances in a ConcurrentHashMap for thread safety.
+
+B) OrderingService
+- Depends on:
+  - RepositoryFactory to choose storage: memory, MongoDB (default configured), or PostgreSQL (properties present; usage outside this chunk).
+  - MongoDB: configured via MongoDBProperties (mongodb.host, mongodb.database). Docker MARATHON-style MONGO_PORT env supported to derive host.
+  - Application Insights (optional): TelemetryClient bean with instrumentationKey from properties; AppInsightsFilter uses it per request.
+- Communication:
+  - REST endpoints over HTTP JSON.
+  - Optional telemetry to Azure Application Insights.
+- Cross-cutting:
+  - CORS headers are allowed for all origins and common methods/headers.
+
+C) Infrastructure as Code
+- Chef/Puppet install and wire:
+  - Java runtime
+  - MongoDB service (seed data via MongoRecords.js to the “ordering” database)
+  - Tomcat7 (HTTP connector port configurable; Chef reads node['tomcat']['mrp_port'], Puppet sets 9080)
+  - Deploy mrp.war to Tomcat webapps (unclear WAR app content in this chunk)
+  - Deploy ordering-service-0.1.0.jar and run as background Java process (ensures previous one is stopped)
+
+5) Key Business Logic and Algorithms
+
+A) IntegrationService
+- Transformation logic:
+  - OrderMessage -> Quote (with QuoteItemInfo list) with validUntil = current time + 1 day.
+  - Quote -> Order via POST /orders?fromQuote.
+  - OrderMessage + orderId -> ShipmentRecord with deliveryDate = current time + 14 days; address and phone composed from OrderMessage.
+- Queue processing:
+  - Poll “orders” queue and process messages until none remain, deleting messages after successful handling. Any JSON deserialization errors cause message deletion to prevent poison messages.
+  - Fetch catalog items and publish ProductMessage to “product” queue if non-empty.
+- Error handling:
+  - Surrounds scheduled tasks in try/catch; logs errors. No retry/backoff strategies; no idempotency keys to prevent duplication on partial failures.
+
+B) OrderingService
+- Catalog operations:
+  - Validation of CatalogItem (via CatalogItem.validate(), not shown in this chunk).
+  - Upsert semantics through repository; conflict detection on POST if SKU exists.
+  - Return Location header for created resources (uses Servlet context path via OrderingInitializer for WAR deployments).
+- Telemetry:
+  - For each HTTP request: logs start time, method, URL, session ID; on success/failure sets RequestTelemetry with duration and response code; sends ExceptionTelemetry on exceptions.
+
+6) Configuration and Deployment Details
+
+A) IntegrationService
+- Gradle wrapper 1.11; dependencies: Spring Boot 1.2.2, Jackson 2.4.x, Azure Storage 2.0.0.
+- Main class: integration.Main (starts Spring app with scheduled tasks).
+- Configuration (src/main/resources/application.properties):
+  - azure.storage.connectionstring: DefaultEndpointsProtocol=https;AccountName=datastoreleef;AccountKey=... (hard-coded secret; security risk)
+  - azure.storage.queue.orders: orders
+  - azure.storage.queue.inventory: product
+  - azure.storage.queue.message: 300
+  - mrp.endpoint: http://127.0.0.1:8080/
+  - logging.file: integration-service.log
+  - logging.level.org.springframework.web: INFO
+
+B) OrderingService
+- Spring Boot @EnableAutoConfiguration with OrderingConfiguration main.
+- Beans:
+  - MongoTemplate: builds MongoClient with mongodb.host and mongodb.database; honors MONGO_PORT env for Docker linking to determine host.
+  - RepositoryFactory: reset using ordering.storage property.
+  - TelemetryClient: ThreadLocal to avoid cross-request leakage; optionally sets instrumentationKey.
+- Properties classes:
+  - MongoDBProperties (prefix mongodb): host, database (defaults: localhost, ordering)
+  - OrderingServiceProperties (prefix ordering): storage (default "memory"), pingMessage, validationMessage, instrumentationKey
+  - PostgresqlProperties (prefix postgresql): username, password, driverClass, url
+- WAR deployment:
+  - OrderingInitializer extends SpringBootServletInitializer; onStartup stores contextPath for building Location headers.
+- CORS: SimpleCORSFilter sets permissive headers.
+- Build:
+  - Gradle wrapper 2.1; includes custom buildSrc tasks to embed build metadata (buildinfo.properties) from CI environment variables (Jenkins or VSO/Azure DevOps).
+- Scripts:
+  - scripts/*.json: sample payloads for catalog and quotes.
+  - scripts/setup.sh, update.sh, createorder.sh: cURL scripts to set up data and exercise endpoints.
+  - scripts/schema.psql: PostgreSQL schema.
+- Deployment via Chef/Puppet:
+  - Chef sets JAVA_HOME, PATH; configures Tomcat, deploys mrp.war to /var/lib/tomcat7/webapps/mrp.war; starts ordering-service-0.1.0.jar via explicit Java path.
+  - Puppet creates tomcat user/group, configures Tomcat instance with manager roles, connector at port 9080, deploys mrp.war via tomcat::war, downloads /opt/mrp/ordering-service.jar and starts it.
+
+C) Flask/Locust sample (training)
+- Flask app endpoints:
+  - GET / -> {"message":"hello"}
+  - GET /tests -> returns in-memory testing_types JSON list
+  - POST /tests -> appends posted JSON; returns 204
+- Locustfile tasks:
+  - GET /tests
+  - POST /tests with a sample load testing type payload
+- Not integrated with the Java services.
+
+D) Python CI sample (training)
+- my_function(param1, param2): returns sum.
+- unittest verifies a set of addition scenarios.
+- .travis.yml:
+  - language: python, python 3.5
+  - install: pip install -r requirements.txt (empty)
+  - script: export PYTHONPATH, run python app/tests/app-test.py
+
+7) Architectural Patterns and Frameworks Used
+- Spring Boot for both IntegrationService and OrderingService (REST, scheduling, DI).
+- Repository pattern for data access (RepositoryFactory abstracts storage backends).
+- Asynchronous integration via messaging queues (Azure Storage Queues); Poller/Worker pattern.
+- RESTful resource design for OrderingService.
+- Cross-cutting concerns implemented via Servlet Filters (CORS, telemetry).
+- Infrastructure as Code using Chef and Puppet for environment provisioning and deployment.
+- Telemetry/observability via Azure Application Insights (AppInsightsFilter) and SLF4J logging.
+- DevOps flow examples using Travis CI for Python, and Locust for load testing (educational).
+
+8) Service-to-Service and Data Flow Summary
+- Website -> Azure Queue ("orders"): publishes OrderMessage JSON.
+- IntegrationService:
+  - Polls "orders" queue -> transforms OrderMessage -> calls OrderingService sequence: POST /quotes -> POST /orders?fromQuote -> POST /shipments; then deletes message on success.
+  - Periodically calls OrderingService GET /catalog -> transforms list to ProductMessage -> enqueues to Azure Queue ("product").
+- Website (or another consumer) -> Azure Queue ("product"): consumes ProductMessage to update site inventory/lead times.
+- OrderingService persists state via configured repository backend (default in code suggests MongoDB; PostgreSQL schema provided for alternate persistence).
+
+9) Risks, Constraints, and Considerations
+- Security:
+  - Azure Storage connection string (including account key) is embedded in source control (application.properties), which is unsafe.
+  - CORS is fully open; no authentication/authorization on OrderingService endpoints shown.
+- Reliability:
+  - IntegrationService lacks explicit retry/backoff and idempotency across the Quote/Order/Shipment sequence; failures after partial creation may lead to inconsistencies or duplicates on reprocessing.
+- Scalability:
+  - IntegrationService scheduled tasks are single-threaded per task; throughput depends on 30s cadence and time inside the while loop; consider concurrency or queue-triggered scaling.
+  - Repository backends: MongoDB is default; PostgreSQL alternative requires appropriate configuration and repo implementations (not shown here).
+- Configuration drift:
+  - Chef and Puppet scripts use different Tomcat port defaults (Chef expects node['tomcat']['mrp_port']; Puppet sets fixed 9080). Ensure consistency with IntegrationService mrp.endpoint (default 8080).
+
+10) Notable Files
+- IntegrationService:
+  - src/Backend/IntegrationService/src/main/java/integration/Main.java (entrypoint)
+  - src/Backend/IntegrationService/src/main/java/integration/scheduled/*.java (scheduled tasks)
+  - src/Backend/IntegrationService/src/main/java/integration/services/*.java (MrpConnectService, QueueService, QueueFactory)
+  - src/Backend/IntegrationService/src/main/resources/application.properties (Azure queues, endpoint, logging)
+- OrderingService:
+  - src/Backend/OrderService/src/main/java/smpl/ordering/OrderingConfiguration.java (Spring Boot config, beans)
+  - src/Backend/OrderService/src/main/java/smpl/ordering/controllers/CatalogController.java (catalog API)
+  - src/Backend/OrderService/src/main/java/smpl/ordering/AppInsightsFilter.java, SimpleCORSFilter.java (filters)
+  - scripts/schema.psql (PostgreSQL schema)
+  - scripts/* (example payloads and cURL scripts)
+- IaC:
+  - DevOps200.2x-InfrastructureasCode/DeployusingChef/final/default.rb (Chef)
+  - DevOps200.2x-InfrastructureasCode/Puppet/final/init.pp (Puppet)
+- Training samples:
+  - Mod03/python-ci-example-master/.travis.yml, app/tests/app-test.py, app/src/app.py
+  - Mod04/load_testing_locust-master/app/app.py, locustfile.py
+
+This summary captures the microservice responsibilities, APIs, data contracts, storage schemas, deployment automation, dependencies, and integration patterns present in this chunk to support microservice decomposition and further design analysis.

@@ -1,0 +1,286 @@
+Architectural Summary (Chunk 1 of 6) – PartsUnlimited MRP
+
+1) System overview
+- Domain: Fictional Manufacturing Resource Planning (MRP) application used for DevOps training.
+- High-level architecture:
+  - Clients (Web UI): Static single-page site packaged as a WAR and served via Tomcat. Calls backend via REST.
+  - OrderService (Backend): Java service exposing REST endpoints for catalog, dealers, quotes, orders, shipments; persists to MongoDB.
+  - IntegrationService (Backend): Java service that integrates with external Parts Unlimited Website; consumes messages from a queue and calls OrderService to create/update data; has scheduled background tasks.
+  - Database: MongoDB database “ordering”.
+- Primary technologies and frameworks:
+  - Java 8, Gradle, MongoDB, Apache Tomcat 7 (for Clients).
+  - Likely Spring Boot/MVC style controllers (application.properties, controllers, filters, @Rest-style layout).
+  - Application Insights instrumentation filters in OrderService.
+- Deployment targets and tooling:
+  - Shell/PowerShell deployment scripts (copy artifacts, seed DB, start services).
+  - Dockerfiles for Clients, Order, and Database containers (multi-container option).
+  - Azure Resource Manager (ARM) templates for Azure Stack to provision VMs for MRP, Jenkins, Chef.
+  - CI via Travis CI (.travis.yml) builds all modules.
+
+2) Components and responsibilities
+- Clients/Web (src/Clients/Web and gradle-built WAR: mrp.war)
+  - Purpose: Static web frontend; HTML/CSS/JS pages for Catalog, Dealers, Orders, Quotes, Deliveries, Order Events, Extras, Main.
+  - Responsibility: Provides UI and uses AJAX/REST calls to OrderService endpoints. Deployed to Tomcat on port 9080 under /mrp.
+  - Key files:
+    - Web pages: pages/catalog, dealers, deliveries, extras, main, orderevents, orders, quotes.
+    - JavaScript: js/default.js, data.js, date.js, navigator.js, serverconfig.js; page-specific JS in each page folder.
+
+- OrderService (src/Backend/OrderService)
+  - Purpose: Core domain service for managing MRP catalog, dealers, quotes, orders, and shipments.
+  - Responsibilities:
+    - Host REST APIs for CRUD and workflow operations across the domain entities.
+    - Persist to MongoDB database “ordering”. Repository pattern with concrete Mongo implementations; Includes a retry helper for Mongo operations.
+    - Provide health endpoint (PingController).
+    - Enforce CORS policy (SimpleCORSFilter).
+    - Application insights integration (AppInsightsFilter) and build info injection.
+  - Packages/classes (partial list):
+    - Configuration and infrastructure:
+      - OrderingConfiguration, OrderingInitializer, OrderingServiceProperties, PropertyHelper, MongoDBProperties, PostgresqlProperties (PostgreSQL appears supported historically; Mongo is used in current code).
+      - AppInsightsFilter, SimpleCORSFilter, Utility, TestPath.
+    - Controllers (API surface):
+      - CatalogController, DealerController, OrderController, PingController, QuoteController, ShipmentController.
+    - Models (service-level DTOs or domain models):
+      - CatalogItem, DealerInfo, Delivery, DeliveryAddress, Order, OrderEventInfo, OrderStatus, OrderUpdateInfo, PhoneInfo, Quote, QuoteItemInfo, ShipmentEventInfo, ShipmentRecord.
+    - Repositories:
+      - Interfaces: CatalogItemsRepository, DealersRepository, OrderRepository, QuoteRepository, ShipmentRepository, RepositoryFactory.
+      - Mongo implementations: MongoCatalogItemsRepository, MongoDealersRepository, MongoOrderRepository, MongoQuoteRepository, MongoShipmentRepository, MongoOperationsWithRetry.
+      - Mongo models (persistence-specific): CatalogItem, Dealer, OrderDetails, QuoteDetails, ShipmentDetails.
+      - Mocks for testing: MockCatalogItemsRepository, MockDealersRepository, MockOrderRepository, MockQuoteRepository, MockShipmentRepository.
+    - Scripts: schema.psql (legacy), setup.sh, setupdocker.sh, update.sh, createorder.sh; sample JSON payloads for catalog and quotes.
+  - Porting/Runtime:
+    - In deployment scripts and NSGs, OrderService is on port 8080.
+    - Runs as executable JAR ordering-service-0.1.0.jar.
+
+- IntegrationService (src/Backend/IntegrationService)
+  - Purpose: Integrates with the external Parts Unlimited Website; ingests messages (e.g., product updates, orders) and synchronizes with MRP via OrderService’s REST APIs.
+  - Responsibilities:
+    - Periodically process incoming messages (scheduled tasks).
+    - Translate website messages to MRP models and call OrderService (MrpConnectService).
+    - Priors around queue ingestion via configurable QueueService/QueueFactory (queue type is abstracted; exact provider not shown in this chunk).
+  - Packages/classes:
+    - integration.Constants, Main.
+    - infrastructure: ConfigurationHelpers, ConfigurationManager (load and manage app configuration and environment properties).
+    - models.website: OrderItem, OrderMessage, ProductItem, ProductMessage (external message formats).
+    - models.mrp: CatalogItem, DeliveryAddress, Order, PhoneInfo, Quote, QuoteItemInfo, ShipmentEventInfo, ShipmentRecord (MRP internal model formats).
+    - scheduled: CreateOrderProcessTask, UpdateProductProcessTask (background tasks).
+    - services: MrpConnectService (HTTP client to OrderService), QueueFactory, QueueService (queue abstraction), QueueResponse (queue result).
+  - Configuration: application.properties (not shown; likely includes queue, ordering service URL, and schedule settings).
+
+- Database (MongoDB)
+  - Purpose: Persistence for OrderService.
+  - Database: “ordering”.
+  - Collections and seed data (deploy/MongoRecords.js):
+    - catalog: fields skuNumber, description, price, inventory, leadTime. Sample inventory and lead times included.
+    - dealers: fields name, address, email, phone.
+    - quotes: fields quoteId, validUntil (ISO timestamp), customerName, dealerName, city, state, postalCode, totalCost, discount, quoteItems [{skuNumber, amount}].
+    - orders: fields orderId, quoteId, orderDate, status (e.g., Created, DeliveryConfirmed), events [OrderEventInfo entries].
+    - shipments: fields orderId, contactName, primaryContactPhone {phoneNumber, kind}, deliveryAddress {street, city, state, postalCode, specialInstructions}, events [].
+  - The OrderService Mongo repositories map service models to these collections. MongoOperationsWithRetry introduces retry policies for resilience.
+
+3) API endpoints and interfaces (inferred from controllers and usage)
+Note: Exact routes and signatures are not present in this chunk. The following is based on standard REST naming and class responsibilities:
+- CatalogController: likely endpoints to list/get catalog items, create/update items (GET /catalog, GET /catalog/{sku}, POST/PUT for items).
+- DealerController: endpoints for dealer listing and details (GET /dealers, GET /dealers/{id}).
+- QuoteController: endpoints to create/get quotes and compute totals (POST /quotes, GET /quotes/{id}, maybe GET /quotes).
+- OrderController: endpoints to create orders from quotes, retrieve orders, update order status or events (POST /orders, GET /orders/{id}, PUT /orders/{id}/status or /events).
+- ShipmentController: endpoints to manage deliveries and shipment events (GET /shipments/{orderId}, POST /shipments/{orderId}/events, etc.).
+- PingController: health/heartbeat (e.g., GET /ping).
+- IntegrationService interfaces:
+  - MrpConnectService: client methods for the above endpoints.
+  - QueueService: abstraction for receiving messages (methods to dequeue/acknowledge). QueueFactory creates QueueService instances based on config.
+
+4) Service dependencies and communication patterns
+- Clients → OrderService:
+  - The web WAR uses JavaScript to call REST endpoints exposed by OrderService to render catalogs, quotes, orders, deliveries, etc.
+  - Port configuration: Clients (Tomcat) on 9080; OrderService on 8080; CORS filter allows cross-origin requests when needed.
+- IntegrationService → OrderService:
+  - Scheduled tasks consume messages from a queue and call OrderService via HTTP through MrpConnectService to create orders, update products/catalog, or append shipment events.
+- OrderService → MongoDB:
+  - Direct communication using repository layer with retry logic. Database name ordering and collections detailed above.
+- External systems:
+  - “Website” domain is external to this repo; IntegrationService models “website” message formats and uses queue ingestion to integrate.
+  - Queue provider is abstracted; QueueFactory/QueueService define the interface. Concrete provider configuration is likely set via application.properties.
+
+5) Key business logic and algorithms
+- Catalog management:
+  - Items have skuNumber, price, inventory, leadTime; exposed via repositories and controllers.
+  - IntegrationService UpdateProductProcessTask consumes ProductMessage from website and updates catalog in MRP via OrderService APIs.
+- Quote lifecycle:
+  - Quote contains quoteItems array with skuNumber and amount; totalCost and discount fields present; likely validated against catalog inventory and price; controller manages creation and retrieval.
+- Order lifecycle:
+  - Order references quoteId; has status (e.g., Created, DeliveryConfirmed) and events list (OrderEventInfo).
+  - IntegrationService CreateOrderProcessTask consumes website order messages and creates Orders in MRP.
+- Shipment lifecycle:
+  - ShipmentRecord includes orderId, contact info, deliveryAddress, events; ShipmentController likely allows adding shipment events and confirming delivery.
+- Resilience:
+  - MongoOperationsWithRetry suggests retryable DB operations.
+- Cross-cutting:
+  - SimpleCORSFilter allows browser-based frontend access.
+  - AppInsightsFilter adds telemetry to backend requests.
+  - BuildInformationTask/Groovy scripts embed build metadata into resources.
+
+6) Configuration and deployment details
+- Configuration files:
+  - OrderService: src/Backend/OrderService/src/main/resources/application.properties (not included). Likely holds Mongo connection, server port, CORS, telemetry.
+  - IntegrationService: src/Backend/IntegrationService/src/main/resources/application.properties (not included). Likely holds queue settings, OrderService base URL, schedule intervals.
+  - ApplicationInsights.xml present in OrderService resources.
+- Ports:
+  - Clients/Tomcat: configured to 9080 (deployment scripts sed 8080->9080 in /etc/tomcat7/server.xml) and WAR deployed as /mrp.
+  - OrderService: 8080 (in ARM NSG rules and Docker folder naming).
+  - SSH: 22 exposed for VM access.
+- Build:
+  - Gradle wrappers in each module; .travis.yml runs:
+    - IntegrationService: ./gradlew build
+    - OrderService: ./gradlew build test
+    - Clients: ./gradlew build
+  - Build outputs:
+    - IntegrationService JAR: integration-service-0.1.0.jar (stated in docs).
+    - OrderService JAR: ordering-service-0.1.0.jar.
+    - Clients WAR: mrp.war.
+- Deployment scripts:
+  - deploy/deploy_mrp_app.sh and install_mrp_dependencies.sh:
+    - Kill running Java, clean prior artifacts under /var/lib/partsunlimited.
+    - Copy JAR/WAR artifacts and MongoRecords.js.
+    - Seed Mongo DB: mongo ordering MongoRecords.js.
+    - Switch Tomcat port 8080→9080; deploy mrp.war; restart Tomcat.
+    - Start OrderService as background process: java -jar ordering-service-0.1.0.jar.
+    - Output: “Go to http://<YourDNSname>:9080/mrp”
+  - deploy/Install-Build-Dependencies.sh: Installs gradle, OpenJDK 8, MongoDB, Node/npm; sets JAVA_HOME.
+  - Windows deployment via SSH with PuTTY utilities:
+    - SSH-MRP-Artifacts.ps1: Uses psftp/plink to upload artifacts (WAR/JARs and MongoRecords.js) to Linux VM and execute deploy script remotely.
+    - SSH-MRP-BDD-Security.ps1: Remote runs bdd-security test suite; pulls test results (external to core app).
+- Dockerization (deploy/docker):
+  - BuildAndRun.sh and StopAndRemove.sh are provided to orchestrate containers.
+  - Clients Docker image expects a WAR in Clients/drop; Database image seeds Mongo with MongoRecords.js; Order image expects JAR and run.sh in Order/drop.
+  - Suggests a three-container composition: MongoDB, OrderService, Clients/Tomcat.
+- Azure Stack ARM templates:
+  - Standalone Jenkins, standalone Chef Server, and combined Jenkins+MRP solution.
+  - MRP base VM template (Ubuntu 16.04):
+    - Installs OpenJDK 8, MongoDB, Tomcat7; sets JAVA_HOME; restarts Tomcat.
+    - NSGs open ports: SSH (22), MRP (9080), OrderingService (8080).
+  - VM sizing: Typical Standard_A2/A3; public IP with DNS labels; boot diagnostics enabled.
+  - Extensions: CustomScriptForLinux used to install dependencies, Jenkins, Chef; VMAccess for credential setting.
+- Labs and IaC samples:
+  - Ansible playbooks and ARM templates for generic VM provisioning (not directly used for app runtime).
+  - Chef/Puppet scripts available for lab automation.
+
+7) Database schemas and data models (as seeded)
+- Database: ordering
+- Collections and exemplary document shapes:
+  - catalog:
+    - { skuNumber: string, description: string, price: number, inventory: number, leadTime: number }
+  - dealers:
+    - { name: string, address: string, email: string, phone: string }
+  - quotes:
+    - {
+        quoteId: string,
+        validUntil: ISO timestamp,
+        customerName: string,
+        dealerName: string,
+        city: string,
+        state: string,
+        postalCode: string,
+        totalCost: string (note: stored as string in seed),
+        discount: string (optional),
+        quoteItems: [ { skuNumber: string, amount: number }, ... ]
+      }
+  - orders:
+    - { orderId: string, quoteId: string, orderDate: ISO timestamp, status: string, events: [OrderEventInfo] }
+  - shipments:
+    - {
+        orderId: string,
+        contactName: string,
+        primaryContactPhone: { phoneNumber: string, kind: string },
+        deliveryAddress: { street: string, city: string, state: string, postalCode: string, specialInstructions: string },
+        events: [ShipmentEventInfo]
+      }
+- Service model classes align with these fields and add typed representations (e.g., OrderStatus enum, UpdateInfo objects).
+
+8) Service dependencies and configuration knobs
+- OrderService:
+  - Depends on MongoDB; connection and retry policy configured via MongoDBProperties and MongoOperationsWithRetry.
+  - Optionally has PostgresqlProperties indicating potential dual support; Mongo is the active repository in this code layout.
+  - Exposes CORS and telemetry settings.
+- IntegrationService:
+  - Depends on a message queue; QueueFactory/QueueService provide pluggable backend (technology unspecified here).
+  - Depends on OrderService base URL and credentials if any (not shown) in application.properties.
+  - Schedules tasks via Java scheduling (CreateOrderProcessTask, UpdateProductProcessTask).
+- Clients:
+  - serverconfig.js likely holds the API base URL pointing to OrderService; front-end JS must be configured to target correct host and port (8080 by default for OrderService).
+
+9) Communication and deployment topology
+- Default single-VM deployment (from deploy scripts):
+  - MongoDB and Tomcat (Clients) on same host.
+  - OrderService runs as background Java process on the same VM.
+  - Tomcat serves UI at http://<host>:9080/mrp; UI calls OrderService at http://<host>:8080.
+- Docker deployment:
+  - Separate containers: MongoDB (seeded), OrderService (JAR), Clients (WAR/Tomcat). Inter-container networking required; config must point Clients and IntegrationService to OrderService container.
+- Azure Stack deployments:
+  - VM NSGs expose only required ports 22, 8080, 9080 (and 80/443/8443 for Chef/Jenkins VMs).
+  - Combined Jenkins+MRP template provisions two VMs with a shared VNet.
+
+10) Architectural patterns and practices
+- Microservice-aligned separation:
+  - OrderService and IntegrationService are separate processes with clear bounded contexts (core MRP vs integration).
+  - Clients is an independent static UI package deployable separately.
+- Repository pattern with concrete MongoDB implementations and mock repositories for testability.
+- Message-driven integration:
+  - IntegrationService processes messages from a queue and invokes the core domain service via REST, supporting eventual consistency with scheduled/polling tasks.
+- Twelve-factor style configuration:
+  - application.properties and ConfigurationManager suggest externalized configuration. Queue and service URLs likely configurable via environment/properties.
+- Observability:
+  - Application Insights filter hooks in OrderService.
+  - PingController for health checking.
+- CI/CD:
+  - Travis CI builds; deployment scripts for SSH-based push; ARM templates for infra; Dockerfiles for containerization.
+
+11) Ports, endpoints, and security groups (from templates and scripts)
+- Ports exposed:
+  - 22 SSH (VM access).
+  - 8080 Ordering Service (REST API).
+  - 9080 Clients/Tomcat (web UI under /mrp).
+  - Jenkins VMs: 8080 (Jenkins), Chef VMs: 80/443/8443 as needed for Chef Server UI.
+- NSG rules in ARM templates explicitly allow these ports; no other public ingress.
+
+12) Configuration and deployment artifacts inventory
+- Build and CI:
+  - .travis.yml builds IntegrationService, OrderService (including tests), Clients.
+  - OrderService build includes buildSrc Gradle tasks for embedding build metadata.
+- Deployment scripts:
+  - deploy/Install-Build-Dependencies.sh – installs toolchain.
+  - deploy/deploy_mrp_app.sh and deploy/install_mrp_dependencies.sh – artifact deployment and service startup.
+  - deploy/MongoRecords.js – seed DB records.
+  - deploy/SSH-MRP-Artifacts.ps1 – artifact upload and remote deployment execution.
+  - deploy/SSH-MRP-BDD-Security.ps1 – remote security tests execution and result retrieval.
+- Docker:
+  - deploy/docker/Clients/Dockerfile – builds image to run mrp.war (WAR placed under drop folder).
+  - deploy/docker/Order/Dockerfile – builds image to run ordering-service-0.1.0.jar (JAR and run.sh under drop).
+  - deploy/docker/Database/Dockerfile – builds MongoDB image that seeds “ordering” DB with MongoRecords.js.
+  - Scripts: BuildAndRun.sh, StopAndRemove.sh orchestrate the containers.
+- Azure Stack ARM:
+  - Templates for MRP base VM (Ubuntu 16.04), Jenkins standalone (Ubuntu 16.04), Chef Server standalone (Ubuntu 16.04), Jenkins+MRP dual VM (Ubuntu 14.04 in that template).
+  - Custom scripts to install dependencies: install_mrp_dependencies_1604.sh, install_jenkins_1604.sh, install_jenkins_1404.sh (referenced), install_chef.sh, install_updates.sh.
+  - VMAccess extensions used to set credentials; boot diagnostics enabled.
+
+13) Testing
+- OrderService unit and integration tests present under src/Backend/OrderService/src/test:
+  - Tests for controllers and repositories, with both mock and Mongo-backed integration tests.
+- BDD-Security integration (optional) via SSH script to run tests remotely (not part of core app artifacts but used in labs/pipelines).
+
+14) Notable gaps/assumptions in this chunk
+- Exact REST endpoint URIs, request/response payloads, and error semantics are not shown; inferred from controller names and models.
+- IntegrationService queue provider and detailed message formats are abstract; only model class names are visible.
+- application.properties content is not included; ports, base URLs, and credentials must be confirmed in other chunks or environment settings.
+- Although PostgresqlProperties exists, the active persistence layer is MongoDB based on repositories and deployment scripts.
+
+15) Implications for microservice decomposition
+- Logical microservices already present:
+  - UI (Clients) can be hosted separately (static content) and is decoupled except for REST calls.
+  - OrderService is a cohesive domain service around ordering, quotes, shipments, dealers, catalog, backed by MongoDB.
+  - IntegrationService is an anti-corruption layer for external website integration, message-driven and loosely coupled with OrderService via HTTP.
+- Potential further decomposition opportunities:
+  - Break OrderService into separate microservices by subdomain if needed (e.g., Catalog Service, Quote Service, Order Service, Shipment Service, Dealer Service) with separate data stores and APIs; would require data ownership and API boundaries refactoring.
+  - Externalize telemetry, configuration, and circuit-breaking; the Mongo retry helper exists but consider broader resilience for OrderService and MrpConnectService (timeouts, retries, bulkheads).
+  - Replace monolithic Tomcat-hosted static site with CDN/static hosting and API gateway routing, if moving to cloud-native deployment.
+
+This summary consolidates component responsibilities, communication, data models, deployment artifacts, and patterns from the provided repository chunk to support accurate microservice decomposition analysis.

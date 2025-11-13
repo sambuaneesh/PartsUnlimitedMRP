@@ -1,0 +1,281 @@
+Architectural summary for PartsUnlimited MRP (chunk 1 of 3)
+
+Overview
+- Purpose: Training application simulating an outsourced Manufacturing Resource Planning (MRP) environment. Composed of a web front end (Clients), an Order service (OrderService), and an Integration service (IntegrationService). MongoDB provides persistence. Azure Storage Queues enable integration with an external website. Extensive deployment automation provided (Docker, ARM/Azure Stack templates, Chef/Puppet/Ansible scripts, Travis CI).
+
+Key components and responsibilities
+1) Clients (static web app)
+- Location: src/Clients/Web
+- Built as a single WAR (mrp.war) to be deployed to Tomcat.
+- Purpose: Human-facing UI to interact with OrderService (browse catalog, dealers, quotes, orders, shipments). JavaScript client assets under js/pages; config in js/serverconfig.js points UI to backend.
+- Runtime: Tomcat 7 (default 8080; deployment scripts change to 9080 on VM-based deployments).
+
+2) OrderService (Java)
+- Location: src/Backend/OrderService
+- Purpose: Core MRP service exposing REST APIs for catalog, dealers, quotes, orders, shipments, and health ping.
+- Frameworks/libraries: Spring (controllers, configuration), Application Insights (telemetry; ApplicationInsights.xml), MongoDB Java driver (Mongo* repositories), Gradle build/test, SLF4J logging.
+- Persistence: MongoDB “ordering” database with multiple collections (see Data models).
+- API controllers (package smpl.ordering.controllers): CatalogController, DealerController, QuoteController, OrderController, ShipmentController, PingController.
+- Repositories: RepositoryFactory, Mongo*Repository implementations, mock repos for tests.
+- Configuration: application.properties, OrderingConfiguration, MongoDBProperties, PostgresqlProperties (Postgres appears present but Mongo is primary).
+- Build artifacts: ordering-service-0.1.0.jar (executable JAR).
+- Tests: extensive unit and integration tests for controllers and repos.
+
+3) IntegrationService (Java)
+- Location: src/Backend/IntegrationService
+- Purpose: Bridges the MRP service and an external Parts Unlimited website via Azure Storage Queues. Runs scheduled jobs to:
+  - Consume new orders from queue “orders”, create a quote, order, and shipment in MRP (OrderService), then delete the queue message.
+  - Query MRP catalog and publish inventory updates to queue “product” for the website.
+- Frameworks/libraries:
+  - Spring Boot 1.2.2 (scheduling)
+  - Spring Web (RestTemplate)
+  - Jackson (JSON serialization)
+  - Azure Storage SDK 2.0.0 (queues)
+  - SLF4J + logback
+- Scheduling: @EnableScheduling; @Scheduled(fixedDelay = 30000 ms).
+- Services:
+  - MrpConnectService: REST client to OrderService endpoints (quotes, orders, shipments, catalog).
+  - QueueService<T>: generic Azure queue client with JSON serialization/deserialization (Jackson).
+  - QueueFactory: thread-safe queue initializer/cache (ConcurrentHashMap) using connection string in config.
+- Models:
+  - MRP domain: CatalogItem, Quote(+QuoteItemInfo), Order, ShipmentRecord(+DeliveryAddress, PhoneInfo, ShipmentEventInfo).
+  - Website domain: OrderMessage(+OrderItem), ProductMessage(+ProductItem).
+  - QueueResponse<T>: wraps CloudQueueMessage + typed payload.
+- Configuration (src/main/resources/application.properties):
+  - azure.storage.connectionstring
+  - azure.storage.queue.orders = orders
+  - azure.storage.queue.inventory = product
+  - azure.storage.queue.message = 300 (visibility timeout seconds)
+  - mrp.endpoint = http://127.0.0.1:8080/ (OrderService base URL)
+  - logging.file, logging levels
+
+4) Database (MongoDB)
+- Used by OrderService as primary data store (database name: ordering).
+- Seed data provided in deploy/MongoRecords.js and deploy/docker/Database/drop/MongoRecords.js.
+
+5) Deployment and automation
+- Docker (deploy/docker):
+  - Images:
+    - Database: FROM mongo; copies MongoRecords.js; starts mongod; seeded via docker exec.
+    - Order: FROM openjdk:8-jre; runs Ordering JAR; waits for Mongo (http check on mongo:27017).
+    - Clients: FROM tomcat:7-jre8; copies WAR; runs catalina.
+  - Run script (BuildAndRun.sh): builds all three images, runs and links (order ↔ db), maps ports: db 27017/28017; order 8080; web 80→8080; seeds Mongo.
+  - StopAndRemove.sh: stops/removes containers and images.
+
+- VM-based deployment:
+  - deploy/Install-Build-Dependencies.sh: installs Java 8, MongoDB, Gradle, Node/npm (for lab tooling), sets JAVA_HOME.
+  - deploy/deploy_mrp_app.sh and install_mrp_dependencies.sh: kill current java, copy .jar/.war + MongoRecords.js to /var/lib/partsunlimited; seed Mongo; change Tomcat port 8080→9080; deploy mrp.war to Tomcat; restart Tomcat; run ordering-service-0.1.0.jar in background.
+  - SSH deployment (Windows agents): deploy/SSH-MRP-Artifacts.ps1 uses psftp/plink to push artifacts and execute deploy script.
+
+- Azure Stack/ARM templates (deploy/azurestack/...):
+  - Multiple ready-to-deploy templates for:
+    - Standalone Jenkins, Chef, Puppet VMs.
+    - Combined Jenkins + MRP two-VM deployment.
+    - MRP base VM (Ubuntu 16.04, Java 8, MongoDB, Tomcat 7 installed via CustomScriptExtension).
+    - SSH-based MRP base variant.
+    - Ubuntu 14.04/16.04 base VMs.
+  - Common NSG ports: 22 (SSH), 9080 (Clients), 8080 (OrderService).
+  - CustomScriptExtensions fetch shell scripts from this repo to install dependencies (openjdk-8, mongodb, tomcat7, Jenkins, Chef, Puppet).
+  - VMAccess extensions configure credentials.
+
+- Configuration management samples:
+  - Chef cookbook (Labfiles/.../DeployusingChef/final/default.rb): installs Java 8, MongoDB, Tomcat 7; seeds Mongo; updates Tomcat port; deploys mrp.war; downloads and restarts ordering-service-0.1.0.jar.
+  - Puppet manifest (Labfiles/.../Puppet/final/init.pp): equivalent setup with classes (configuremongodb, configurejava, configuretomcat, deploywar, orderingservice).
+
+- CI (Travis CI):
+  - .travis.yml builds IntegrationService JAR, OrderService JAR (with tests), and Clients WAR using Gradle on JDK 8.
+
+Service APIs and interfaces (OrderService; inferred from README and code layout)
+Base URL: default http://<host>:8080/
+- /ping or similar (PingController): health check (exact path not shown; typical GET /ping).
+- Catalog:
+  - GET /catalog → list all catalog items.
+  - POST /catalog → add catalog item (JSON: skuNumber, description, price, inventory, leadTime).
+- Dealers:
+  - GET /dealers → list dealers.
+  - POST /dealers → add dealer (name, contact, address, email, phone).
+- Quotes:
+  - GET /quotes/{quoteId} → retrieve quote.
+  - GET /quotes?name=<customerNameSubstring> → search by customer name.
+  - POST /quotes → create quote (returns Location header with new quote id).
+  - PUT /quotes/{quoteId} → update quote.
+  - DELETE /quotes/{quoteId} → delete quote.
+- Orders:
+  - GET /orders/{orderId} → retrieve order.
+  - GET /orders?dealer=<dealerName>[&status=<status>] → list orders filtered.
+  - POST /orders?fromQuote=<quoteId> → create order from a quote (returns Location header; body contains Order with orderId).
+- Shipments:
+  - GET /shipments → list all shipments.
+  - GET /shipments?status=<status> → list shipments by status.
+  - GET /shipments/{orderId} → get shipment for an order.
+  - POST /shipments → create shipment record (orderId, contactName, deliveryAddress, primaryContactPhone, alternateContactPhone, events).
+  - PUT /shipments/{orderId} → update shipment.
+  - POST /shipments/{orderId}/events → append event (comments).
+
+IntegrationService external interfaces
+- OrderService REST endpoints:
+  - POST /quotes, POST /orders?fromQuote=..., POST /shipments
+  - GET /catalog
+- Azure Storage Queue (via Azure Storage SDK):
+  - Input queue (orders): messages are Website OrderMessage JSON.
+  - Output queue (product): messages are ProductMessage JSON containing list of ProductItem updates.
+
+Data models and database schema
+MongoDB database: ordering
+- Collections (from seed script deploy/MongoRecords.js):
+  - catalog
+    - Example document:
+      { "skuNumber": "LIG-0001", "description": "...", "price": 38.99, "inventory": 10, "leadTime": 3 }
+  - dealers
+    - Example:
+      { "name": "Terry Adams", "address": "...", "email": "terry@adams.com", "phone": "425-..." }
+  - quotes
+    - Example:
+      {
+        "quoteId": "0",
+        "validUntil": "2015-05-01T00:00:00+0000",
+        "customerName": "Walter Harp",
+        "dealerName": "Terry Adams",
+        "city": "Seattle",
+        "state": "WA",
+        "postalCode": "98023",
+        "totalCost": "51.97",
+        "discount": "0.0",
+        "quoteItems": [ { "skuNumber": "LIG-0001", "amount": 1 }, ... ]
+      }
+  - orders
+    - Example:
+      { "orderId": "0", "quoteId": "0", "orderDate": "2015-03-02T20:43:37+0000", "status": "Created", "events": [] }
+  - shipments
+    - Example:
+      {
+        "orderId": "0",
+        "contactName": "Walter Harp",
+        "primaryContactPhone": { "phoneNumber": "...", "kind": "Mobile" },
+        "deliveryAddress": { "street": "...", "city": "...", "state": "WA", "postalCode": "...", "specialInstructions": "" },
+        "events": []
+      }
+- OrderService Mongo models (smpl.ordering.repositories.mongodb.models):
+  - CatalogItem, Dealer, QuoteDetails, OrderDetails, ShipmentDetails (exact fields align with above example documents).
+- IntegrationService models (JSON contracts for REST/queue):
+  - Website input OrderMessage: customerName, dealerName, orderDate, address, country, phone, city, postalCode, state, totalCost, discount, items: [OrderItem{skuNumber, price}]
+  - MRP generated:
+    - Quote: quoteId, customerName, dealerName, validUntil, city, postalCode, state, totalCost, discount, quoteItems: [QuoteItemInfo{skuNumber, amount}]
+    - Order: orderId, quoteId, orderDate, status
+    - ShipmentRecord: orderId, deliveryDate (current date + 14 days), deliveryAddress, contactName, primaryContactPhone, alternateContactPhone, events: [ShipmentEventInfo{date, comments}]
+  - Product update outbound:
+    - ProductItem: skuNumber, inventory, leadTime
+    - ProductMessage: productList: [ProductItem]
+  - Integration CatalogItem: skuNumber, description, unit, price (String), inventory (int), leadTime (int)
+
+Service dependencies and communication patterns
+- Clients → OrderService (HTTP/JSON REST):
+  - Stateless REST calls from browser via AJAX to endpoints listed above. Served from Tomcat, separate port (9080 in VM deployments, 80 in docker via reverse mapping).
+- OrderService → MongoDB:
+  - Direct repository access using Mongo Java driver. Collections “catalog”, “dealers”, “quotes”, “orders”, “shipments”.
+- External Website → Azure Queue “orders” (producer, not part of this code) → IntegrationService (consumer).
+- IntegrationService → OrderService:
+  - REST workflow for each new website order: Create Quote → Create Order (from Quote) → Create Shipment.
+- IntegrationService → Azure Queue “product” (producer) → External Website (consumer) for inventory updates.
+- Message formats: JSON defined by IntegrationService models; serialized/deserialized via Jackson.
+- Queue semantics: retrieveMessage with visibility timeout (azure.storage.queue.message seconds). On deserialization failure, message is deleted to avoid poison looping (logged).
+
+Key business logic and algorithms
+- Integration flow (order ingestion):
+  - Poll “orders” queue every 30 seconds.
+  - For each message:
+    - Deserialize to OrderMessage.
+    - Build Quote from OrderMessage (populate fields; QuoteItemInfo created from OrderItems).
+    - POST to MRP /quotes to obtain a quoteId.
+    - POST to MRP /orders?fromQuote=<quoteId> to get orderId.
+    - Compose ShipmentRecord (delivery date = now + 14 days; address/contacts from OrderMessage).
+    - POST to MRP /shipments to create shipment record.
+    - Delete the message from the queue.
+- Inventory update (product feed):
+  - Every 30 seconds:
+    - GET /catalog from MRP; build ProductMessage(productList) with skuNumber, inventory, leadTime.
+    - Enqueue product update to “product” queue for the website to consume.
+- Error handling:
+  - IO/deserialization errors on queue messages → log error and delete message.
+  - REST calls use RestTemplate; exceptions logged at error level; scheduled loops continue.
+- Expected consistency: Eventual; integration is asynchronous via queues; MRP order/shipment creation upon queue processing.
+
+Configuration and deployment details
+- Ports:
+  - OrderService: 8080
+  - Clients (Tomcat): default 8080; deployment scripts change to 9080 on VMs; Docker maps to host 80.
+  - MongoDB: 27017 (and 28017 REST port in Docker).
+- VM install scripts install:
+  - openjdk-8-jdk/jre, mongodb, tomcat7; configure JAVA_HOME and Tomcat defaults; seed Mongo via MongoRecords.js; deploy WAR to /var/lib/tomcat7/webapps/mrp.war; run JAR in background.
+- Docker:
+  - db container started first; order container waits with curl to mongo:27017 before starting.
+  - web container runs mrp.war on Tomcat; exposed to host port 80 (mapped from 8080).
+- Azure Stack ARM:
+  - Open NSG rules for SSH 22, MRP 9080, OrderingSvc 8080. Templates can install Jenkins/Chef/Puppet and a base MRP VM via CustomScript for environment bootstrap.
+- Secrets:
+  - IntegrationService application.properties contains an Azure Storage connection string (credentials). For production, externalize/secrets manager recommended.
+
+Architectural patterns and frameworks
+- Microservice-style separation:
+  - OrderService (domain core) with its own database (MongoDB).
+  - IntegrationService (integration microservice) decoupled via Azure queues and REST to MRP.
+  - Clients (UI) as a separately deployable static web app.
+- Event-driven integration pattern:
+  - Queues for website↔MRP decoupling; scheduled polling (pull-based) with idempotent processing guarded by queue visibility.
+- RESTful resource-oriented APIs for OrderService.
+- Frameworks:
+  - Spring Boot/Spring Web for IntegrationService (scheduling, REST client).
+  - Spring (controllers, filters) for OrderService; Application Insights instrumentation; SLF4J/logback logging.
+  - MongoDB as document store; Jackson for JSON.
+  - Build: Gradle (wrappers committed). CI: Travis CI on Oracle JDK 8.
+
+Non-functional and operational considerations
+- Logging:
+  - IntegrationService writes to integration-service.log; logs INFO/ERROR; OrderService includes AppInsights filter and SimpleCORSFilter.
+- Health checks:
+  - PingController likely exposes a simple liveness endpoint.
+- Testing:
+  - OrderService contains unit/integration tests for controllers and repositories (including Mongo integration tests).
+- Configuration management:
+  - Chef and Puppet recipes/manifests provided to provision environment and deploy artifacts.
+- Infrastructure as Code:
+  - Azure ARM/Azure Stack templates (Ubuntu 14.04/16.04), Jenkins/Chef/Puppet one-click deployments.
+  - Ansible playbooks for labs (VM creation, HTTPD/NGINX install, cron).
+
+Potential service decomposition insights
+- Current boundaries:
+  - OrderService encapsulates catalog, dealers, quotes, orders, and shipments (single service with multiple bounded contexts). Could be further decomposed by domain (e.g., Catalog Service, Quote Service, Order Service, Shipment Service) if needed for scale/ownership.
+  - IntegrationService is already a dedicated integration microservice; it could be extended to support additional channels (webhooks, event hubs).
+  - Clients is a static front-end; can be hosted separately on CDN or reverse-proxied.
+- Data ownership:
+  - MongoDB “ordering” database is owned by OrderService; IntegrationService does not access DB directly (uses REST), which is aligned with microservice autonomy.
+- Communication:
+  - UI → OrderService (sync REST).
+  - External website ↔ IntegrationService (async via Azure queues).
+  - IntegrationService → OrderService (sync REST).
+- Contracts:
+  - Documented REST endpoints (above).
+  - Queue message schemas defined by IntegrationService models (important for compatibility with external website).
+
+Build and run quick reference
+- Build:
+  - IntegrationService: cd src/Backend/IntegrationService; ./gradlew build
+  - OrderService: cd src/Backend/OrderService; ./gradlew build test
+  - Clients: cd src/Clients; ./gradlew build
+- Run (Docker):
+  - deploy/docker/BuildAndRun.sh builds images and runs containers; seeds Mongo; access UI at http://localhost/.
+- Run (VM/manual):
+  - Use deploy/deploy_mrp_app.sh to deploy artifacts, seed Mongo, set Tomcat port to 9080, start services.
+  - IntegrationService JAR can be run separately (not shown in scripts here; configure application.properties accordingly).
+
+Known configuration defaults and environment coupling
+- IntegrationService assumed OrderService at mrp.endpoint http://127.0.0.1:8080/. Adjust for containerized or remote deployments (e.g., use service discovery or environment variables).
+- Clients default Tomcat port changed to 9080 on VM deployments; ensure UI JS points to the correct backend base URL (serverconfig.js).
+- Azure Storage connection string currently baked in application.properties; move to environment variables or secret store for non-demo deployments.
+
+Security
+- No explicit authN/authZ on REST endpoints in this chunk.
+- ARM templates open needed ports; ensure security group rules are tightened in production.
+- Sensitive secrets (Azure Storage key) present in source for lab; in production, externalize.
+
+This summary reflects all key pieces necessary to analyze and decompose into microservices: component boundaries and responsibilities, API contracts, storage schemas, inter-service communication, and deployment/configuration topology.

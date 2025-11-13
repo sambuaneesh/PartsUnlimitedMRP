@@ -1,0 +1,394 @@
+Architectural Summary (Codebase Chunk 4 of 4) – Web Client (WinJS) UI Layer
+
+Overview
+- This chunk contains the web client for a Parts Unlimited MRP system built using WinJS (Windows Library for JavaScript). It implements a multi-page SPA-style front-end with navigation, data binding, dialogs, and list/detail editing workflows for Dealers, Catalog, Quotes, Orders, Deliveries, Extras, and Order Events.
+- Data access is abstracted behind a Data* namespace (not in this chunk). This UI depends on Data.* methods for CRUD and lookup operations against a backend (configured via serverconfig.js).
+- A third-party Date library (DateJS) augments Date parsing/formatting capabilities used primarily by Order Events.
+
+Key Frameworks/Patterns
+- WinJS: UI.Page architecture, Navigation, ListView, ContentDialog, AppBar icons, Data Binding (WinJS.Binding).
+- MVVM-like binding:
+  - ViewModels are created via WinJS.Binding.as(), with backingData preserved to compute deltas on save.
+  - Custom two-way binding initializer Binding.Mode.twoway extends WinJS binding to propagate input changes back to the model.
+- SPA Navigation via Application.PageControlNavigator (custom navigator), which handles rendering, cleanup/disposal, and page enter animations.
+- Dialog hosting pattern popup(id, title, page, state) that dynamically renders a “subpage” inside a WinJS ContentDialog (used for Extras and Order Events management).
+
+Configuration and Deployment
+- serverconfig.js: baseAddress = 'http://' + window.location.hostname + ':8080'
+  - Backend service base URL is dynamically configured for the current host on port 8080.
+- Third-party dependencies:
+  - Google Maps Places API (autocomplete) for address inputs (requires maps JS to be loaded elsewhere).
+  - DateJS (date.js) from Coolite/DateJS for date parsing/formatting.
+
+Global Utilities/Infrastructure Components
+
+1) default.js (App bootstrap and shared utilities)
+- Responsibilities:
+  - App activation (Windows.ApplicationModel.Activation), navigation history restoration.
+  - Disable animations during load, then enable post-drain.
+  - Hook up nav bar commands (.navigationButton) to app.navbarInvoked.
+  - showProgress/hideProgress: overlay handling with delayed show and underlay opacity animations.
+  - confirm(title, message, primary, secondary): generic ContentDialog prompt with primary/secondary buttons.
+  - reporterror(title, message, err): displays error in ContentDialog (OK only).
+  - Binding.Mode.twoway: adds two-way binding for INPUT/SELECT via event handlers (oninput/onclick/onchange).
+  - popup(id, title, page, state): creates and renders a page inside a ContentDialog, wires unload/dispose, returns Promise.
+  - addTextChangeEventHandler: wires multiple events to treat text change uniformly.
+  - addAddressHandler(input, setDataItem): attaches Google Places Autocomplete to an input, sets VM field with formatted address on place change.
+  - getPostCodeFromPlace(place): extracts postal_code from a Google place result.
+  - clone(obj): deep clone via JSON serialization (used to store original state).
+  - logmessage: console.log wrapper.
+- External dependencies used:
+  - WinJS.Application, WinJS.Navigation, WinJS.UI, WinJS.Utilities.Scheduler.
+  - ContentDialog element with id #confirmdialog in DOM (not shown in this chunk but required).
+
+2) navigator.js (PageControlNavigator)
+- Application.PageControlNavigator class:
+  - Manages page creation, rendering (WinJS.UI.Pages.render), transitions (enterPage), and cleanup/disposal when navigating.
+  - Subscribes to WinJS.Navigation navigating/navigated events.
+  - Provides home button behavior (page-header-home click navigates back to root of backStack).
+  - Handles window.onresize and calls pageControl.updateLayout when present.
+  - Ensures only one page element exists; disposes previous page controls.
+- Assigns itself as Application.navigator for global access.
+
+3) date.js (DateJS library)
+- Enhances Date with parsing/formatting, arithmetic (addX), comparison, and culture info (en-US defaults).
+- Provides Date.parseExact, Date.getParseFunction, Date.Grammar for flexible date expressions.
+- Used by orderevents.js to format default event dates: Date.now().toString("M/d/yyyy hh:mm:ss tt").
+
+Global UI Patterns/Controls
+- Controls.EditTools (external/custom control): not defined here, but referenced heavily.
+  - Provides an AppBar-like set of buttons: add, edit, save, delete (and possibly others).
+  - Methods used:
+    - cacheControlTemplate() on startup.
+    - getButtons() to access button elements (for enabling/disabling/relabelling).
+    - Emits “click” events with args.label matching the button action.
+- ListView pattern with itemDataSource provided by Data.* lists (WinJS.Binding.List), item templates rendered via WinJS.Binding.Template or custom renderer with WinJS.Binding.processAll.
+
+Pages/Components
+
+A) Main Page (pages/main)
+- main.html/.js
+- Responsibilities:
+  - Landing page with launch tiles to navigate to modules: dealers, quotes, orders, deliveries, catalog.
+  - launchtileInvoked computes page URL and uses WinJS.Navigation.navigate to go to the selected module; toggles .nav-trigger checkbox to close nav drawer (if present).
+
+B) Dealers (pages/dealers)
+- dealers.html/.js
+- Data binding model (inferred):
+  - Dealer: { name, contact, address, email, phone }
+- UI:
+  - WinJS.UI.ListView (.dealerListView) bound to Data.dealers.dataSource.
+  - Detail panel (.dealerDetail) with two-way bound inputs.
+  - Controls.EditTools bar.
+- Logic:
+  - On ready: Data.dealersGet(), build UI, wire selection changed to bind details to currentItem (WinJS.Binding.processAll).
+  - addAddressHandler on #address to attach Google Places Autocomplete; updates currentItem.address.
+  - Button handlers:
+    - save: Data.dealerSave(currentItem); reselection of saved item.
+    - delete: confirm, Data.dealerDelete(currentItem); reselect previous index if exists.
+    - add: currentItem = Data.dealerCreate(); bind and focus name.
+
+C) Catalog (pages/catalog)
+- catalog.html/.js
+- Data binding model:
+  - CatalogItem: { skuNumber, description, unit, unitPrice }
+- UI:
+  - ListView bound to Data.catalog.dataSource.
+  - Detail panel with two-way binding.
+  - Controls.EditTools bar.
+- Logic:
+  - Data.catalogGet(), bind selection to detail.
+  - Buttons:
+    - save: Data.catalogSave(currentItem).
+    - delete: confirm, Data.catalogDelete(currentItem).
+    - add: currentItem = Data.catalogCreate().
+
+D) Quotes (pages/quotes)
+- quotes.html/.js
+- Data binding model:
+  - Quote: {
+      dealerName, validUntil, customerName, city, postalCode, comments,
+      purpose ('Refrigerator'|'Freezer'), unitDescription,
+      width, height, depth, ambientAverage, ambientPeak,
+      terms, totalCost, discount,
+      additionalItems?, events? (extras/events handled via popups)
+    }
+- UI:
+  - ListView bound to Data.quotes.dataSource.
+  - Detail panel with two-way binding and “Manage Extras” button, address and postcode fields wired to Google Places Autocomplete.
+  - Controls.EditTools bar; edit button repurposed to “New Window” icon (WinJS.UI.AppBarIcon.newwindow).
+- Logic:
+  - Data.quotesGet(), bind selection to detail.
+  - addAddressHandler on address and postcode: update currentItem.city and currentItem.postalCode.
+  - Buttons:
+    - save: Data.quoteSave(currentItem).
+    - edit: navigate to Orders page with { quote: currentItem } (Order creation workflow from Quote).
+    - delete: confirm then Data.quoteDelete(currentItem).
+    - add: currentItem = Data.quoteCreate().
+  - _extrasHandler: opens Extras popup with this.currentItem passed as state; actual update to quote.additionalItems happens in Extras page unload.
+
+E) Orders (pages/orders)
+- orders.html/.js
+- Data model (Order) inferred:
+  - Order: {
+      orderId, quoteId, orderDate, status (enum),
+      events?, __quote (for display only; injected client-side),
+    }
+  - Quote linked via quoteId is fetched and attached as __quote for binding.
+- Status values: Created, Confirmed, Started, Built, DeliveryConfirmed, Shipped, Delivered, Installed.
+- UI:
+  - ListView bound to Data.orders.dataSource; item template shows nested __quote data.
+  - Full detail panel includes order detail with status and Manage Events, plus full quote details (two-way bound to __quote).
+  - Controls.EditTools bar; edit button labeled as Deliver/“newwindow”.
+  - “Manage Extras” button opens Extras popup in context of __quote.
+- Logic:
+  - If navigated with { quote }, create order from quote via Data.orderCreateFromQuote(quote).
+  - On render: custom item renderer _itemRenderer(itemPromise) calls Data.quoteGetById(data.quoteId) to fetch linked quote, sets data.__quote, then binds template.
+  - Selection change: set currentItem, save originalItem = clone(backingData) for update delta, bind details.
+  - Buttons:
+    - save: Data.orderSave(currentItem, originalItem) then reselect saved item.
+    - edit (Deliver): navigate to Deliveries with { order: currentItem }.
+    - delete: confirm then Data.orderDelete(currentItem).
+    - add: currentItem = Data.orderCreate(); originalItem = null.
+  - _eventsHandler: opens Order Events popup with the Order object (orderevents page reads options.state.events).
+
+F) Deliveries (pages/deliveries)
+- deliveries.html/.js
+- Data model (Delivery) inferred:
+  - Delivery: {
+      orderId (links to Order), deliveryDate,
+      deliveryAddress: { city, postalCode },
+      primaryContactPhone: { phoneNumber },
+      alternateContactPhone: { phoneNumber },
+      events?,
+      __order (for display only; injected client-side),
+      __quote (for display only; from __order)
+    }
+- UI:
+  - ListView bound to Data.deliveries.dataSource; custom renderer fetches related Order/Quote to show nested fields.
+  - Full detail with Delivery detail (including Manage Delivery Events), Order detail (including Manage Order Events), and Quote detail (including Manage Extras).
+  - Controls.EditTools bar; add button hidden; edit button hidden.
+- Logic:
+  - If navigated with { order }, create a Delivery via Data.deliveryCreateFromOrder(order).
+  - On render: _itemRenderer resolves Data.orderGetById(data.orderId), sets data.__order and data.__quote = order.__quote, binds template.
+  - Selection change: set currentItem, originalItem deep-cloned including nested __order and __quote backingData; bind detail panel.
+  - Address fields (#deliveryAddress, #deliveryPostcode, #quoteAddress, #quotePostcode) wired to Google Places Autocomplete with post code extraction and syncing of fields.
+  - Buttons:
+    - save: Data.deliverySave(currentItem, originalItem).
+    - delete: confirm then Data.deliveryDelete(currentItem).
+  - _extrasHandler: opens Extras popup with currentItem.__quote.
+  - _deliveryEventsHandler: opens Order Events popup with currentItem (delivery events).
+  - _orderEventsHandler: opens Order Events popup with currentItem.__order.
+
+G) Extras (pages/extras)
+- extras.html/.js
+- Context:
+  - Hosted via popup() from Quotes and Orders/Deliveries pages.
+  - options.state is the parent object (__quote or similar) including additionalItems array.
+- Data model (Extras/Additional Items) inferred:
+  - additionalItems: array of { skuNumber, shouldPreInstall, amount }, simplified in UI to skuNumber-driven Catalog items.
+- UI:
+  - ListView shows only catalog items referenced by additionalItems (filtered catalog).
+  - Detail panel with catalog item fields (two-way bound): skuNumber, description, unit, unitPrice.
+  - Controls.EditTools bar.
+- Logic:
+  - On ready: that.additionalItems = options.state.additionalItems.
+  - Fetch full catalog via Data.catalogGet(), then build extras list via _getCatalogEntriesForExtras(additionalItems):
+    - Creates a sorted WinJS.Binding.List by skuNumber and populates with matches from Data.catalogFindSku(skuNumber).
+  - Two-way editing:
+    - addTextChangeEventHandler on sku field triggers _populateExtraDetails(skuNumber), which copies properties from catalog to the current extra except skuNumber.
+  - Buttons:
+    - save: Data.catalogSave(currentItem). If currentItem.__new, push into extrasData (list).
+    - delete: removes from extrasData; does not call Data.catalogDelete by default (code commented out).
+    - add: currentItem = Data.catalogCreate(); set addingItem = true.
+  - unload:
+    - If addingItem, auto-save then proceed.
+    - Then rewrite options.state.additionalItems from the current extrasData list (mapping to minimal entries: skuNumber, shouldPreInstall = true, amount = 1).
+
+H) Order Events (pages/orderevents)
+- orderevents.html/.js
+- Context:
+  - Hosted via popup() from Orders (order events) and Deliveries (delivery events).
+  - options.state.events is an array of event objects { date, comments }.
+- UI:
+  - ListView bound to local ordereventsData (sorted Binding.List).
+  - Detail panel with date, comments.
+  - Controls.EditTools bar.
+- Logic:
+  - On ready: build ordereventsData via _getOrderEventsDataSource(events):
+    - Sorted descending by date. Handles both Date objects and string dates; adjusts years < 1970 by +100 years to order them sensibly.
+  - Buttons:
+    - save: if new, push to list; reselect saved; does not invoke backend directly.
+    - delete: remove from list after confirm.
+    - add: create new event currentItem = { date: Date.now().toString("M/d/yyyy hh:mm:ss tt"), comments: "" }, mark __new = true.
+  - unload:
+    - If addingItem, auto-save then proceed.
+    - Replace options.state.events with current ordereventsData backingData to persist results back to parent VM.
+
+UI Components/Elements Used Across Pages
+- Controls.EditTools: Buttons referenced by label keys 'add', 'edit', 'save', 'delete' (plus id/class attributes); code customizes visibility and icons (e.g., 'edit' becomes “Deliver” or newwindow icon).
+- WinJS.UI.ListView: Heavily used; itemDataSource provided by Data.* lists; custom item renderer when nested data required (orders/deliveries).
+- ContentDialog Popups: Reused for confirmation, errors, and hosting sub-pages (Extras, OrderEvents).
+- Address Inputs: Enhanced with Google Places Autocomplete; extracted fields:
+  - place.formatted_address -> city fields.
+  - postal_code -> postalCode (via getPostCodeFromPlace).
+
+Client-Side Interface to Data Layer (Expected Methods)
+Note: Data.* namespace is referenced but not defined in this chunk. Based on UI code, the following methods and lists are expected. These represent the client-side interface contract with the data/service layer:
+
+- Catalog:
+  - Data.catalog: WinJS.Binding.List (catalog items)
+  - Data.catalogGet(): Promise<[CatalogItem]>
+  - Data.catalogSave(item): Promise<SavedItem>
+  - Data.catalogDelete(item): Promise
+  - Data.catalogCreate(): CatalogItem (new VM, likely with __new flag)
+  - Data.catalogFindSku(skuNumber): CatalogItem or null
+
+- Dealers:
+  - Data.dealers: WinJS.Binding.List
+  - Data.dealersGet(): Promise<[Dealer]>
+  - Data.dealerSave(item): Promise<SavedDealer>
+  - Data.dealerDelete(item): Promise
+  - Data.dealerCreate(): Dealer
+
+- Quotes:
+  - Data.quotes: WinJS.Binding.List
+  - Data.quotesGet(filter): Promise<[Quote]>
+  - Data.quoteSave(item): Promise<SavedQuote>
+  - Data.quoteDelete(item): Promise
+  - Data.quoteCreate(): Quote
+  - Data.quoteGetById(quoteId): Promise<Quote>
+
+- Orders:
+  - Data.orders: WinJS.Binding.List
+  - Data.ordersGet(filter): Promise<[Order]>
+  - Data.orderSave(currentItem, originalItem): Promise<SavedOrder>
+  - Data.orderDelete(item): Promise
+  - Data.orderCreate(): Order
+  - Data.orderCreateFromQuote(quote): Promise<Order>
+  - Data.orderFindById(orderId): number (index in Data.orders)
+  - Data.quoteGetById(quoteId): Promise<Quote> (used in item renderer)
+
+- Deliveries:
+  - Data.deliveries: WinJS.Binding.List
+  - Data.deliveriesGet(): Promise<[Delivery]>
+  - Data.deliverySave(currentItem, originalItem): Promise<SavedDelivery>
+  - Data.deliveryDelete(item): Promise
+  - Data.deliveryCreateFromOrder(order): Promise<Delivery>
+  - Data.deliveryFindById(orderId): number (index in deliveries)
+  - Data.orderGetById(orderId): Promise<Order>
+
+Data Models (Inferred from Bindings)
+- Dealer:
+  - name, contact, address, email, phone
+
+- CatalogItem:
+  - skuNumber, description, unit, unitPrice
+
+- Quote:
+  - dealerName, validUntil, customerName, city, postalCode, comments
+  - purpose ('Refrigerator'|'Freezer')
+  - unitDescription
+  - width, height, depth
+  - ambientAverage, ambientPeak
+  - terms, totalCost, discount
+  - additionalItems: array of { skuNumber, shouldPreInstall, amount } (managed in Extras)
+  - events?: [Event] (if used for quotes, not explicitly bound here)
+  - backingData: original plain object backing a WinJS.Binding.as proxy
+
+- Order:
+  - orderId
+  - quoteId
+  - orderDate
+  - status: Created | Confirmed | Started | Built | DeliveryConfirmed | Shipped | Delivered | Installed
+  - events: [Event]
+  - __quote: Quote (view-only augmentation populated client-side)
+  - backingData
+
+- Delivery:
+  - orderId
+  - deliveryDate
+  - deliveryAddress: { city, postalCode }
+  - primaryContactPhone: { phoneNumber }
+  - alternateContactPhone: { phoneNumber }
+  - events: [Event]
+  - __order: Order (view-only augmentation)
+  - __quote: Quote (view-only augmentation)
+  - backingData
+
+- Event:
+  - date (string or Date; gets formatted/parses via DateJS)
+  - comments
+  - __new (flag for newly added in UI)
+
+Navigation and Communication Patterns
+- Page-to-page navigation via WinJS.Navigation.navigate:
+  - Main -> dealers/quotes/orders/deliveries/catalog (by tiles).
+  - Quotes -> Orders (edit action) with navigation options carrying the selected quote (order creation).
+  - Orders -> Deliveries (edit action) with navigation options carrying the selected order (delivery creation).
+- Popups (ContentDialog-hosted subpages):
+  - Quotes/Orders/Deliveries -> Extras popup: manage __quote.additionalItems.
+  - Orders -> Order Events popup: manage order.events.
+  - Deliveries -> Order Events popup: manage delivery.events.
+- Data loading & dynamic augmentation:
+  - Orders page item renderer fetches quote per order and injects as data.__quote for UI.
+  - Deliveries page item renderer fetches order per delivery and injects data.__order and data.__quote = order.__quote.
+
+Key Business Logic/Workflows
+- CRUD with optimistic UI:
+  - On save, currentItem and originalItem are passed to Data.*.Save (for Orders/Deliveries). This allows backend to compute changes/deltas if supported.
+  - Post-save UI reselects and ensures visible the modified item.
+- “Create from” flows:
+  - orderCreateFromQuote(quote): invoked when navigating from quote’s edit button.
+  - deliveryCreateFromOrder(order): invoked when navigating from order’s edit button.
+  - Newly created items are added into respective lists and auto-selected when ListView viewport is loaded.
+- Extras management:
+  - The Extras page maps additionalItems (sku list) to a filtered list of Catalog items for editing/display, and on unload writes back additionalItems as minimal entries (skuNumber, shouldPreInstall=true, amount=1). New extras can be created via Data.catalogCreate/Save if not in catalog.
+- Events management:
+  - Order/Delivery Events are sorted descending by date. New event default date uses DateJS formatting.
+  - On popup unload, the events array on the parent object is replaced with current ordereventsData contents.
+
+Error Handling and Edge Cases
+- Address autocomplete handlers are wrapped in try/catch to avoid breaking if Google Maps API is unavailable.
+- showProgress/hideProgress handle asynchronous load delays and ensure flicker-free display (0.5s throttle).
+- Several guards prevent actions when currentItem is null (unless adding).
+- Confirm dialogs use a shared ContentDialog with configurable labels; deletion only proceeds on primary result.
+
+External Service Dependencies
+- Backend REST/HTTP services (port 8080, baseAddress in serverconfig.js): All Data.* calls presumed to communicate with backend endpoints. While endpoints are not defined in this chunk, the client-side methods suggest REST resources for dealers, catalog, quotes, orders, deliveries, and related lookups.
+- Google Maps Places API: Used for address autocomplete, obtains formatted address and postal code. Inputs wired:
+  - Dealers: #address.
+  - Orders/Deliveries: quote address (#address/#postcode), delivery address (#deliveryAddress/#deliveryPostcode).
+- DateJS: date/time parsing and formatting; critical for Order Events default date string and sorting robustness.
+
+Security/State
+- Session history stored in app.sessionState.history on checkpoint (suspension) for resumption.
+- No authentication/authorization code in this chunk.
+
+Assumptions/Integration Points for Microservice Decomposition
+- Data.* methods represent the Client Adapter to microservices; they likely map to the following services:
+  - Catalog Service: CRUD on Catalog items, catalog search by SKU.
+  - Dealer Service: CRUD on Dealers.
+  - Quote Service: CRUD on Quotes; may need to support additionalItems, pricing totals.
+  - Order Service: CRUD on Orders; link to Quotes; status transitions; events management.
+  - Delivery Service: CRUD on Deliveries; link to Orders; events management.
+- Cross-service join logic (client-side):
+  - UI composes Orders with Quotes, and Deliveries with Orders and Quotes by fetching linked resources separately (e.g., orderGetById, quoteGetById). In microservices, these would be separate calls; consider providing composite endpoints to reduce chattiness.
+- Events and Extras are modeled as collections within parent resources:
+  - Events: stored on Orders and Deliveries; UI replaces entire array on popup close. The backend should support replacing or patching sub-collections.
+  - Extras: stored as Quote.additionalItems; UI expects minimal schema (skuNumber, shouldPreInstall, amount). If product pricing logic depends on Extras, consider a Pricing microservice and server-side validation.
+
+Summary of Expected Backend API Shapes (inferred)
+- GET /catalog, POST /catalog, PUT /catalog/{id}, DELETE /catalog/{id}, GET /catalog/bySku?sku=...
+- GET /dealers, POST /dealers, PUT /dealers/{id}, DELETE /dealers/{id}
+- GET /quotes, POST /quotes, PUT /quotes/{id}, DELETE /quotes/{id}, GET /quotes/{id}
+- GET /orders, POST /orders (supports createFromQuote), PUT /orders/{id}, DELETE /orders/{id}, GET /orders/{id}
+- GET /deliveries, POST /deliveries (supports createFromOrder), PUT /deliveries/{id}, DELETE /deliveries/{id}, GET /deliveries/{id}
+- Events and additionalItems likely nested under orders/{id}/events and quotes/{id}/additionalItems, or included in the parent resource documents.
+
+Notes/Constraints
+- UI strongly relies on WinJS.Binding.List for observable collections and expects Data.* lists to be WinJS-aware for proper UI updates.
+- Page lifecycle cleanup is carefully implemented to avoid memory leaks; any microservice-backed Data layer should not hold on to disposed elements or pages.
+- The client manipulates “view-only” augmentation fields __quote and __order for display; these should not be persisted as-is by the backend.
+
+This summary encapsulates the UI architecture, the interfaces it expects from the data layer, the data models and relationships implied by the UI, and the relevant configuration/dependencies required to consider when mapping to microservices.

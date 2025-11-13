@@ -1,0 +1,243 @@
+Architectural Summary (Codebase Chunk 2 of 6)
+
+Overview
+- Purpose: Infrastructure-as-code, containerization, and config-management assets to deploy the Parts Unlimited MRP training application on Azure/Azure Stack or Docker. This chunk defines the stack’s infrastructure, security rules, deployment automation, and the application’s runtime composition (Web UI, Ordering Service, MongoDB), plus optional Puppet Enterprise infrastructure and Ansible/Chef/Puppet automation examples.
+
+Core Components and Responsibilities
+- MRP Web Front End (Clients)
+  - Technology: Java web application deployed to Tomcat 7.
+  - Packaging: WAR file (mrp.war).
+  - Responsibilities: User-facing UI for the MRP system; likely orchestrates interactions with the Ordering Service.
+  - Default ports:
+    - VM/Tomcat deployments: 9080 (Tomcat HTTP connector, per Puppet and Chef configs).
+    - Docker deployment: runs in Tomcat container, exposed internally on 8080; host port mapped to 80 by default in provided run script.
+
+- Ordering Service
+  - Technology: Java JAR (ordering-service-0.1.0.jar).
+  - Responsibilities: Handles domain logic for orders, quotes, catalog access, shipments, and related events (inferred from DB schema).
+  - Default port: 8080 (NSG rules and Dockerfile).
+  - Dependencies: MongoDB for persistence (DB: “ordering”).
+
+- Database
+  - Technology: MongoDB.
+  - DB Name: ordering.
+  - Responsibilities: Persistent storage for catalog, dealers, quotes, orders, shipments.
+  - Ports: 27017 (Mongo), 28017 (Mongo REST interface enabled in Docker image).
+  - Provisioning: Seeded via MongoRecords.js.
+
+- Puppet Enterprise (optional)
+  - Technology: Puppet Master deployed on Ubuntu 16.04.
+  - Responsibilities: Configuration management and orchestration for VMs/nodes.
+  - Ports: 22 (SSH), 443 (HTTPS console), 8140 (Puppet agent traffic), 61613 (MCollective).
+  - Version: 2017.2.1 (variable in ARM template).
+
+- Puppet Nodes (optional)
+  - Technology: Ubuntu 16.04 VMs provisioning to puppetVNET.
+  - Responsibilities: Managed agent nodes that can be controlled by Puppet Master.
+
+- Base Ubuntu Servers (14.04 and 16.04) with Docker Extension
+  - Purpose: Provide base VM images on Azure Stack/Azure with Docker and basic configuration for labs and possible container-based deployment.
+
+APIs, Endpoints, and Interfaces
+- Web Front End:
+  - VM-based Tomcat: HTTP on port 9080 (open to Internet in NSG).
+  - Docker: Tomcat container internal 8080; mapped to host port 80 by run script.
+- Ordering Service:
+  - HTTP on port 8080 (open in NSG; container exposes 8080).
+- MongoDB:
+  - Native: 27017.
+  - REST: 28017 (enabled in Docker image with --rest).
+- Puppet Enterprise:
+  - HTTPS console: 443.
+  - Puppet Agent: 8140.
+  - MCollective: 61613.
+- SSH:
+  - 22 on all VMs (open in NSG).
+
+Data Models and Database Schema (MongoDB, DB: ordering)
+- catalog (products)
+  - Fields: skuNumber (string), description (string), price (number), inventory (number), leadTime (number).
+- dealers
+  - Fields: name (string), address (string), email (string), phone (string).
+- quotes
+  - Fields: quoteId (string), validUntil (ISO timestamp string), customerName (string), dealerName (string), city (string), totalCost (string), discount (string, optional), state (string), postalCode (string).
+  - Nested: quoteItems (array of { skuNumber: string, amount: number }).
+- orders
+  - Fields: orderId (string), quoteId (string), orderDate (ISO timestamp string), status (string), events (array).
+- shipments
+  - Fields: orderId (string), contactName (string), primaryContactPhone (object: phoneNumber, kind), deliveryAddress (object: street, city, state, postalCode, specialInstructions), events (array).
+- Notes:
+  - Id fields are strings.
+  - No explicit unique constraints defined.
+  - events arrays are present but undefined schema.
+
+Service Dependencies and Communication Patterns
+- Web Front End -> Ordering Service (HTTP calls; endpoints not enumerated here; UI triggers order/quote/catalog actions).
+- Ordering Service -> MongoDB:
+  - In Docker: waits for Mongo at http://mongo:27017 (service link alias “mongo”); blocks until reachable (curl loop) before starting the JAR.
+  - In VM (Chef/Puppet) setups: Mongo runs on the same host; ordering service connects to local MongoDB.
+- MongoDB is the central persistence for all business entities.
+- Puppet Master <- Puppet nodes (8140); Master console exposed on 443.
+
+Key Business Logic and Algorithms
+- Business logic is encapsulated in ordering-service JAR (not included in this chunk).
+- Bootstrap logic:
+  - Database seeding via MongoRecords.js (catalog, quotes, orders, shipments, dealers).
+  - Ordering-service startup gate: run.sh loops until Mongo port responds, then runs java -jar.
+- No other algorithms are visible in this chunk.
+
+Configuration and Deployment Details
+
+Azure Stack/Azure ARM Templates (Infrastructure)
+- Common resources created by templates:
+  - Storage Accounts (Standard_LRS) for VHDs and boot diagnostics.
+  - Virtual Networks (10.0.0.0/16 or similar space) and subnets (10.0.0.0/24).
+  - Network Security Groups (NSG) with open inbound rules (22, 9080, 8080; plus Pupppet-specific ports where relevant).
+  - Public IP addresses with DNS labels; allocation: Dynamic.
+  - NICs associated with NSGs and public IPs.
+  - Ubuntu VMs (Ubuntu 16.04 or 14.04), typical sizes: Standard_A2 (MRP), Standard_A3 (Puppet).
+  - VM Extensions:
+    - CustomScriptForLinux: runs shell scripts (install_updates.sh; install_mrp_dependencies_1604.sh; install_puppet_1604.sh).
+    - VMAccessForLinux: sets username/password/SSH keys.
+    - DockerExtension (on base Ubuntu 14.04 and 16.04 templates).
+
+- Azure Stack MRP base VM (Ubuntu 16.04):
+  - Open ports via NSG: 22 (SSH), 9080 (MRP Web), 8080 (Ordering Service).
+  - CustomScriptForLinux runs install_updates.sh (general updates).
+  - SSH variant also runs install_mrp_dependencies_1604.sh (installs app dependencies; presumed to install Java/Tomcat/Mongo and configure services).
+
+- Puppet Enterprise Deployment:
+  - Parameters: pmAdminUsername, pmAdminPassword, pmDnsNameForPublicIP, pmConsolePassword.
+  - Installs Puppet Enterprise version specified (default 2017.2.1), via install_puppet_1604.sh with console admin password.
+  - NSG opens 22, 443, 8140, 61613.
+  - VNET: puppetVNET is created with a Subnet.
+
+- Puppet Node Deployment:
+  - Adds individual Ubuntu nodes to existing puppetVNET with similar NSG (22, 9080, 8080).
+  - Each node gets its own public IP and DNS label.
+
+- Ubuntu 14.04 and 16.04 Base Templates:
+  - NSG allowing SSH.
+  - CustomScriptForLinux installs updates.
+  - DockerExtension installs Docker.
+  - VMAccessForLinux sets login.
+
+Docker Deployment Assets
+- Build and Run script (deploy/docker/BuildAndRun.sh):
+  - Builds three images:
+    - mypartsunlimitedmrp/db (from mongo image, seeds data).
+    - mypartsunlimitedmrp/order (Java JRE8 base; runs ordering-service; exposes 8080).
+    - mypartsunlimitedmrp/web (Tomcat 7 JRE8; WAR dropped to webapps; exposes 8080).
+  - Runs containers:
+    - db: ports 27017 and 28017 exposed on host.
+    - order: ports 8080 exposed; linked to “db” as “mongo”.
+    - web: host 80 mapped to container 8080.
+  - Seeds database via docker exec db mongo ordering /tmp/MongoRecords.js.
+
+- Stop and cleanup script (deploy/docker/StopAndRemove.sh): Stops and removes containers and images.
+
+- Dockerfiles:
+  - Database: FROM mongo; copies MongoRecords.js to /tmp; runs mongod with --rest.
+  - Order: FROM openjdk:8-jre; copies run.sh and JAR into /usr/local/app; ENTRYPOINT sh run.sh; EXPOSE 8080.
+  - Clients: FROM tomcat:7-jre8; copies WAR(s) to Tomcat webapps; ENTRYPOINT catalina.sh run; EXPOSE 8080.
+
+Chef and Puppet Configuration (VM-based deployment)
+- Chef Recipe (mrpapp-2 default.rb):
+  - Installs OpenJDK 8 (JDK/JRE) via PPA.
+  - Installs MongoDB and Tomcat7.
+  - Seeds MongoDB with MongoRecords.js (triggers mongo ordering MongoRecords.js).
+  - Sets Tomcat port (sed on /etc/tomcat7/server.xml, using node['tomcat']['mrp_port']).
+  - Deploys mrp.war to /var/lib/tomcat7/webapps and restarts Tomcat as needed.
+  - Downloads ordering-service-0.1.0.jar, kills existing ordering-service process if running, starts it with Java.
+
+- Puppet Manifest (init.pp):
+  - Classes and roles:
+    - configuremongodb: installs MongoDB, fetches MongoRecords.js, seeds DB once (idempotent via /tmp/initcomplete).
+    - configurejava: adds openjdk-r PPA, installs OpenJDK 8 (JDK and JRE).
+    - createuserandgroup: creates tomcat user/group (uid/gid 1003/10003).
+    - configuretomcat: installs tomcat7 and admin, sets users (tomcat/tomcat7 with password “password” and manager roles), configures HTTP connector on port 9080, sets service tomcat7.
+    - deploywar: downloads mrp.war into Tomcat webapps; ensures permissions (777) on webapps directory.
+    - orderingservice: ensures JRE installed, downloads ordering-service.jar to /opt/mrp, stops any running ordering-service, stops tomcat7, runs ordering-service, waits 20 sec, then starts tomcat7.
+
+Ansible Automation (Lab files)
+- VM creation and configuration playbooks:
+  - new_vm_web.yml: Creates CentOS VM (OpenLogic 7.2/7.3), with public IP/DNS, NSG (SSH/HTTP), NIC, and injects SSH key.
+  - httpd.yml / nginx.yml: Installs and configures Apache or Nginx; downloads a sample index.html.
+  - delete_vm.yml: Deletes VM and associated resources.
+  - new_ARM_deployment.yml: Deploys an ARM template from a URL.
+  - cron.yml: Schedules periodic execution of an Ansible playbook for httpd configuration.
+- ARM templates for sample infrastructure (availability set, vnet/subnets, NICs, load balancer, CentOS VM).
+
+Service Dependencies and Communication (Summary)
+- External client -> Web UI (Tomcat):
+  - Access via HTTP on VM: 9080 (or 80 for Docker-mapped port).
+- Web UI -> Ordering Service:
+  - Assumed internal REST calls to port 8080.
+- Ordering Service -> MongoDB:
+  - Reads/writes to “ordering” DB; requires Mongo up before service start (startup probe implemented in run.sh).
+- Puppet agents (Puppet Nodes) -> Puppet Master:
+  - Uses 8140 for catalog/report; console on 443 for operators; MCollective on 61613.
+
+Configuration, Secrets, and Parameters
+- ARM template parameters:
+  - VM admin credentials (mrpAdminUsername/mrpAdminPassword or SSH key), DNS name label, puppet console password.
+- Ports and security:
+  - NSGs typically open to “*” source; inbound 22, 9080, 8080 (MRP stack).
+  - Puppet Master NSG opens 22, 443, 8140, 61613.
+  - Mongo ports exposed in Docker-only scenario (27017/28017) to host; unsecured by default.
+- Tomcat users (Puppet config):
+  - Users “tomcat” and “tomcat7”, both with password “password”, with manager roles (manager-gui, manager-jmx, manager-script, manager-status). This is for training but is insecure in production.
+
+Deployment/Packaging and Cloud Resources
+- Azure providers/API versions:
+  - Storage: 2015-05-01-preview.
+  - Network: 2015-05-01-preview, 2016-03-30, 2017-06-01.
+  - Compute: 2015-06-15, 2017-03-30.
+- VMs:
+  - Sizes: Standard_A2 (MRP), Standard_A3 (Puppet Master), Standard_A0 (lab examples).
+  - OS: Ubuntu 16.04.3-LTS, Ubuntu 14.04-LTS (labs), CentOS 7.x (Ansible lab).
+- Boot diagnostics enabled using storage accounts.
+- Extensions:
+  - CustomScriptForLinux to run bash scripts fetched from GitHub.
+  - VMAccessForLinux for credential/SSH management.
+  - DockerExtension to install Docker on base images.
+
+Architectural Patterns and Frameworks
+- Microservice-aligned decomposition (partial):
+  - Web Front End (Tomcat) separated from Ordering Service (Java JAR) and Database (Mongo).
+  - Containerized development workflow using Docker (3 containers).
+  - VM-based deployment with config management via Chef and Puppet (monolithic node hosting all three services).
+- Infrastructure as Code:
+  - ARM templates for Azure/Azure Stack.
+  - Azure Stack Gallery manifests for marketplace offerings.
+- Configuration Management:
+  - Chef (recipe) and Puppet (manifests) to install and configure the full stack.
+  - Ansible playbooks for VM provisioning and basic web server configuration (training).
+- Continuous Delivery Enablers:
+  - WAR/JAR artifacts fetched from GitHub URLs (simple artifact distribution).
+
+Notable Implementation Details and Observations
+- Startup sequencing handled in Docker for Ordering Service via wait loop on Mongo port.
+- MongoDB REST interface enabled in Docker (-–rest) and port 28017 exposed; not recommended for production.
+- Tomcat HTTP connector reconfigured to port 9080 in VM-based deployments; NSGs open 9080 to Internet.
+- Puppet manifest configures Tomcat manager users with weak credentials (training only).
+- Azure Stack MRP SSH template references install_mrp_dependencies_1604.sh to install prerequisites (not included here).
+- Potential variable mismatch in SSH MRP template (mrpNSGName vs mrpNsgName) that could break NIC-NSG association; ensure consistency in deployment.
+
+Implications for Microservice Decomposition
+- Evident service boundaries (aligned with Mongo collections and stack components):
+  - Catalog (catalog collection).
+  - Quotes (quotes collection).
+  - Orders (orders collection).
+  - Shipments (shipments collection).
+  - Dealers (dealers collection).
+  - Web UI as a separate client service.
+- Current ordering-service likely bundles multiple domains (catalog/quotes/orders/shipments). For a microservice model, consider splitting them by bounded contexts, each with:
+  - Own REST API (distinct ports/routes).
+  - Own data store or at least own collections with strict ownership.
+  - Independent deployment and scaling (Docker/Kubernetes friendly).
+- Externalize configuration (DB connection strings, ports) via environment variables for container deployments to remove hardcoded defaults (e.g., sed edits to server.xml).
+- Secure NSGs and remove Mongo REST exposure; restrict management ports.
+- Replace Docker --link with user-defined networks or service discovery for scalability.
+
+This chunk contains no direct business logic methods or REST endpoint definitions; those are encapsulated in the ordering-service JAR and the WAR. However, it fully defines the deployment topology, ports, data schema, and automation pathways to stand up the environment for both VM-based and containerized operation.

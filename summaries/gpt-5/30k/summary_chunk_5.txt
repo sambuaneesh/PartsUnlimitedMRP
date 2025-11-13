@@ -1,0 +1,267 @@
+Architectural Summary – OrderService (Chunk 5/6)
+
+Overview
+- Domain: Ordering system for “Parts Unlimited/Fabrikam” covering Dealers, Catalog, Quotes, Orders, and Shipments.
+- Implementation style: Spring Boot REST service exposing JSON APIs, backed by pluggable repositories (in-memory and MongoDB).
+- Clients: Static WinJS web app (MRP) using AJAX (WinJS.xhr) to call the REST APIs.
+- Persistence: Repository pattern with factory-based selection of storage: memory (for unit tests and default) or MongoDB (integration tests).
+
+Key Components and Responsibilities
+1) REST Controllers (Spring Boot)
+- DealerController
+  - CRUD for dealer entities.
+  - Input validation (name required).
+  - Handles duplicate conflicts and empty-store behaviors.
+
+- CatalogController
+  - CRUD for catalog items (products/components).
+  - Validates SKU and handles duplicates.
+  - Supports upsert semantics via PUT.
+
+- QuoteController
+  - CRUD for quotes.
+  - Supports server-side quote ID generation when missing/empty (random integer string).
+  - Search by customer name (substring/prefix match).
+  - Enforces duplicate-creation rejection semantics.
+
+- OrderController
+  - Create order from quote (idempotency behavior documented below).
+  - Get order by ID; list orders filtered by dealer (case-insensitive) and status (optional filters).
+  - Update order status (adds an event) and update full order.
+  - Add order events.
+  - Delete order.
+
+- ShipmentController
+  - Create, read, update shipments keyed by orderId.
+  - Add shipment events.
+  - List shipments filtered by order status (shipment status inferred from the related order’s status rather than a separate shipment status field).
+  - Delete shipment (implied by client usage).
+
+2) Repository Interfaces (via RepositoryFactory)
+- DealersRepository
+  - getDealers(), getDealer(name)
+  - upsertDealer(DealerInfo, etag)
+  - removeDealer(name, etag)
+  - upsert semantics return true if update, false if create.
+
+- CatalogItemsRepository
+  - getCatalogItems(), getCatalogItem(sku)
+  - upsertCatalogItem(sku, CatalogItem, etag)
+  - removeCatalogItem(sku, etag)
+  - upsert returns true if update, false if create.
+
+- QuoteRepository
+  - getQuote(id), getQuotesByCustomerName(nameFilter)
+  - createQuote(Quote)
+  - updateQuote(id, Quote, etag)
+  - removeQuote(id, etag)
+  - Duplicate creation throws BadRequestException.
+
+- OrderRepository
+  - hasOrder(orderId), getOrder(orderId)
+  - getOrderByQuoteId(quoteId)
+  - getOrdersByStatus(status)
+  - getOrdersByDealerName(dealerName, status)
+  - createOrder(quoteId) – throws ConflictingRequestException if duplicate
+  - updateOrder(orderId, Order or OrderUpdateInfo, etag)
+
+- ShipmentRepository
+  - getShipments(orderStatusFilter)
+  - getShipmentById(orderId)
+  - createShipment(ShipmentRecord) – throws BadRequestException if duplicate or invalid
+  - updateShipment(ShipmentRecord)
+  - addEvent(orderId, ShipmentEventInfo)
+
+Repository Implementations
+- Memory-backed repositories for unit tests.
+- MongoDB-backed repositories for integration tests.
+- RepositoryFactory.reset("memory"|"mongodb") selects the backend per test or runtime configuration.
+- ETag parameters appear in repository signatures (for optimistic concurrency), though tests pass null.
+
+Data Models (selected fields)
+- DealerInfo
+  - name (ID), contact, address, email, phone.
+
+- CatalogItem
+  - skuNumber (ID), description, price, additional numeric attrs (e.g., dimensions: height/width/etc. as seen in constructors).
+
+- Quote
+  - quoteId (ID), dealerName, customerName, quoteItems (List<QuoteItemInfo>), validUntil, comments, terms, unitDescription, unitCost, additionalItems, totalCost, discount, height, width, depth, unit, purpose, ambientPeak, ambientAverage, buildOnSite, city, postalCode, state.
+
+- QuoteItemInfo
+  - skuNumber, amount.
+
+- Order
+  - orderId (pattern: “order-” + quoteId), quoteId, status (OrderStatus enum: None, Created, Confirmed, Started, Built, Shipped, Delivered), events (List<OrderEventInfo>).
+
+- OrderEventInfo
+  - date (string), comments.
+
+- OrderUpdateInfo
+  - status (OrderStatus), eventInfo (OrderEventInfo).
+
+- ShipmentRecord
+  - orderId (ID), deliveryDate (string), contactName, primaryContactPhone (PhoneInfo), alternateContactPhone (PhoneInfo), deliveryAddress (DeliveryAddress), events (List<ShipmentEventInfo>).
+
+- ShipmentEventInfo
+  - date, comments.
+
+- PhoneInfo
+  - phoneNumber, kind (e.g., Mobile, Work).
+
+- DeliveryAddress
+  - street, city, state, postalCode, specialInstructions.
+
+REST API Endpoints and Behavior
+Base: configured in client via serverconfig.js; JSON over HTTP; “Content-type: application/json”.
+
+Dealers
+- GET /dealers -> 200 OK [DealerInfo[]] or 404 Not Found if empty.
+- GET /dealers/{name} -> 200 OK [DealerInfo] or 404 Not Found.
+- POST /dealers -> 201 Created on success; 400 Bad Request if name null/empty; 409 Conflict on duplicate.
+- PUT /dealers/{name} -> 200 OK on success; 400 Bad Request if invalid payload (e.g., missing/empty name); 404 Not Found if dealer doesn’t exist.
+- DELETE /dealers/{name} -> 204 No Content on success; 404 Not Found if missing.
+
+Catalog
+- GET /catalog -> 200 OK [CatalogItem[]] or 404 Not Found if empty.
+- GET /catalog/{sku} -> 200 OK [CatalogItem] or 404 Not Found.
+- POST /catalog -> 201 Created; 400 Bad Request if SKU empty; 409 Conflict if SKU already exists (client then falls back to PUT).
+- PUT /catalog/{sku} -> 200 OK on update; 404 Not Found if item doesn’t exist (controller upsert tests indicate a first-time PUT returns 404).
+- DELETE /catalog/{sku} -> 204 No Content on delete; 404 Not Found if missing.
+
+Quotes
+- GET /quotes?name={customerNameFilter} -> 200 OK [Quote[]] matching filter (prefix/substring); 404 Not Found if none.
+- GET /quotes/{id} -> 200 OK [Quote] or 404 Not Found.
+- POST /quotes -> 201 Created [Quote], Location: /quotes/{id}; if id is null/empty, server generates a random integer string id; 400 Bad Request if duplicate ID.
+- PUT /quotes/{id} -> 200 OK on update; 404 Not Found if quote doesn’t exist.
+- DELETE /quotes/{id} -> 204 No Content; 404 Not Found if missing.
+
+Orders
+- GET /orders?dealer={name}&status={OrderStatus}:
+  - dealer is optional and case-insensitive; status optional (None means “no filter”).
+  - 200 OK [Order[]], or 404 Not Found if none.
+- GET /orders/{orderId} -> 200 OK [Order] or 404 Not Found.
+- POST /orders?fromQuote={quoteId} or POST /orders with body { fromQuote: quoteId }:
+  - 201 Created [Order], Location: /orders/{orderId}.
+  - 409 Conflict if order already exists for that quote (client reacts by GET existing order).
+- PUT /orders/{orderId} -> 200 OK after updating full order.
+- PUT /orders/{orderId}/status with body { status, eventInfo }:
+  - 200 OK; appends an order event with today’s date (overrides any provided date) and the provided comments.
+- POST /orders/{orderId}/events with body { date, comments }:
+  - 201 Created; controller overrides event date to today’s date, ignoring provided date.
+- DELETE /orders/{orderId} -> 204 No Content on success (client expects this).
+
+Shipments
+- GET /shipments?status={OrderStatus}:
+  - 200 OK [ShipmentRecord[]]; filters by the related Order’s current status (i.e., shipment status is derived from order status).
+  - 404 Not Found if none match.
+- GET /shipments -> equivalent to status=None (return all shipments).
+- GET /shipments/{orderId} -> 200 OK [ShipmentRecord]; 404 Not Found if missing.
+- POST /shipments with body ShipmentRecord (must include orderId):
+  - 201 Created if order exists and shipment not already created.
+  - 400 Bad Request if order does not exist or duplicate shipment.
+- PUT /shipments/{orderId} -> 200 OK after updating shipment record.
+- POST /shipments/{orderId}/events with body { date, comments } -> 201 Created; appends to shipment events.
+- DELETE /shipments/{orderId} -> 204 No Content on success (client expects this).
+
+Key Business Logic and Algorithms
+- Order creation
+  - Order IDs are derived as “order-” + quoteId; initial status = Created; events list starts empty.
+  - Duplicate order for a quote yields 409 Conflict (controller) or ConflictingRequestException (repository).
+
+- Order event handling (controller)
+  - For both addEvent and status updates, the controller sets event date to the current date (ignores provided dates), and persists the comment.
+  - Updating status also appends an event recording the change; clients may send a comments string which is stored.
+
+- Listing/filtering
+  - getOrdersByDealerName: dealer filter is case-insensitive; empty dealer and/or status allowed (status=None disables status filtering).
+  - Quote search: getQuotesByCustomerName returns matches for a name substring/prefix.
+
+- Duplicate and validation semantics
+  - Dealers: POST fails with 400 for invalid name, 409 on duplicate.
+  - Catalog: POST returns 409 on duplicate; client catches 409 and uses PUT to update (idempotent upsert pattern).
+  - Quotes: POST returns 400 on duplicate; unlike Catalog, 409 is not used here.
+  - Shipments: POST returns 400 on duplicate or if the associated order does not exist.
+
+- Shipments and status:
+  - ShipmentRepository.getShipments(status) filters based on the associated order’s status (not an independent shipment status).
+  - Creating shipment doesn’t automatically set order status; but tests often set OrderStatus.Shipped and then query shipped shipments.
+
+Internal Service Dependencies and Interactions
+- Controllers rely on RepositoryFactory to obtain repositories; no DI seen in tests (controllers constructed with default constructors).
+- QuoteRepository depends on DealersRepository and CatalogItemsRepository to resolve references/validate when creating quotes (test setups ensure these repos are initialized).
+- OrderRepository depends on QuoteRepository (to create orders from quotes) and DealersRepository (to filter by dealer).
+- ShipmentRepository depends on OrderRepository (validation on createShipment; status filtering through order status).
+- Repositories accept etag parameter (unused in tests) indicating intended support for optimistic concurrency.
+
+Database and Storage
+- MongoDB integration
+  - Integration test classes use RepositoryFactory.reset("mongodb") and a ConfigurationRule for test configuration.
+  - application.properties for tests:
+    - mongodb.host: localhost
+    - mongodb.database: orderingtest
+- Collections/entities (inferred):
+  - dealers (key: name)
+  - catalog (key: skuNumber)
+  - quotes (key: quoteId)
+  - orders (key: orderId; contains quoteId and events/status)
+  - shipments (key: orderId; contains address, phones, events)
+- In-memory repositories exist with equivalent behavior for unit testing.
+
+Configuration and Deployment
+- Spring Boot application
+  - application.properties (test):
+    - server.port: 8080
+    - management.port: 8081 (Actuator)
+    - management.address: 127.0.0.1
+    - ordering.storage: memory (selects repo backend)
+    - ordering.pingMessage / ordering.validationMessage: Testing
+  - For integration tests: ordering.storage: mongodb (via RepositoryFactory.reset).
+- Client (MRP)
+  - Static WinJS site packaged as mrp.war (built with Gradle).
+  - Deployed on Tomcat/static host, interacts with backend via baseAddress in serverconfig.js.
+  - Uses Google Maps Places API (for address UI), date.js for date handling.
+  - Performs AJAX calls to the REST endpoints; uses Pragma/Cache-Control “no-cache” headers and a unique query param to bypass caching.
+  - Manages binding lists for Dealers, Catalog, Quotes, Orders, Deliveries with create/save/delete behaviors mapped to REST endpoints.
+
+Frameworks/Patterns
+- Spring Boot REST with ResponseEntity and standard HTTP status codes.
+- Repository pattern with swappable storage implementations (memory/MongoDB) via RepositoryFactory.
+- Domain-driven bounded contexts represented as modules/endpoints: Dealers, Catalog, Quotes, Orders, Shipments.
+- Integration test categorization using JUnit @Category(IntegrationTests.class).
+- Client-side WinJS MVVM-like binding and REST integration.
+
+Notable Error Handling and Status Codes
+- 404 Not Found commonly used when no entities exist (both for single entity and some list endpoints in empty state).
+- 201 Created with Location headers for created resources (Orders, Quotes).
+- 409 Conflict used for duplicate Orders and Catalog creation; 400 Bad Request for duplicate Quotes and Shipments.
+- 204 No Content for successful deletes.
+
+Potential Microservice Decomposition Candidates (bounded contexts)
+- Dealer Service: CRUD on dealers.
+- Catalog Service: CRUD on catalog items.
+- Quote Service: CRUD and search on quotes; relies on catalog and dealer validity.
+- Order Service: Create/update/list orders from quotes; eventing; status transitions.
+- Shipment Service: Shipment records and events; depends on Orders for validation and status filtering.
+
+Interfaces and Communication Patterns
+- External client: synchronous REST/JSON over HTTP.
+- Internal (current monolith): direct repository calls through RepositoryFactory; if decomposed, these would become inter-service HTTP calls (or messaging) with similar payloads.
+
+Testing Strategy
+- Unit tests target controllers and repositories using in-memory backends (RepositoryFactory.reset("memory")) and assert HTTP statuses, Location headers, and entity states.
+- Integration tests target MongoDB backends (RepositoryFactory.reset("mongodb")) with a separate test database.
+- TestPath interface used to reset repositories between tests.
+
+Security/Authentication
+- Not present in this chunk; no auth or role-based access is shown or enforced in tests.
+
+Summary of Critical Behaviors to Preserve
+- Strict ID semantics per entity: Dealers.name, CatalogItem.skuNumber, Quote.quoteId (auto-generation support), Order.orderId (“order-” + quoteId), ShipmentRecord.orderId.
+- Event handling in Orders: controller overwrites event dates with current date for both added events and status updates.
+- Order status transitions add events; events’ dates are set to today.
+- Duplicate semantics per entity type (409 vs 400 as above).
+- Case-insensitive dealer filtering and optional parameters for listing orders.
+- Shipment filtering by order status, not a separate shipment status field.
+
+This summary captures the controllers’ APIs, data models, repositories, storage backends, business rules, interactions, client usage patterns, and deployment/configuration details needed for microservice decomposition and integration design.
