@@ -1,0 +1,6 @@
+| Component Name | Language | Frameworks | Database | Communication | Patterns |
+|---|---|---|---|---|---|
+| Web Client (Clients/Web) | HTML, CSS, JavaScript | WinJS (Windows Library for JavaScript), Apache Tomcat (WAR packaging) | None | REST over HTTP/JSON to OrderService (baseAddress http://<host>:8080) | Single-Page Application (SPA), Data binding, Page navigation (PageControlNavigator) |
+| OrderService (Backend/OrderService) | Java | Spring Boot, Spring MVC, Spring Data MongoDB, Application Insights (telemetry) | MongoDB (database: ordering) | Exposes REST/HTTP JSON endpoints (/catalog, /dealers, /quotes, /orders, /shipments); MongoDB driver | Controller-Service-Repository layering, Repository pattern (in-memory vs Mongo via RepositoryFactory), DTOs, Dependency Injection |
+| IntegrationService (Backend/IntegrationService) | Java | Spring Boot, Spring Scheduling, Azure Storage SDK (queues), Jackson, RestTemplate | None | Consumes/produces Azure Storage Queues (orders, product); REST/HTTP to MRP/OrderService | Scheduled polling worker, Queue consumer/producer, Factory pattern (QueueFactory), DTOs |
+| Database (MongoDB) | N/A | MongoDB Server | MongoDB (ordering) | MongoDB protocol (27017); seeded via MongoRecords.js | Document-oriented store, Data seeding |
