@@ -1,0 +1,7 @@
+| Component Name | Language | Frameworks | Database | Communication | Patterns |
+|---|---|---|---|---|---|
+| Clients (Web SPA) | HTML, CSS, JavaScript | WinJS; packaged as WAR on Tomcat 7 | None | AJAX over HTTP/JSON to OrderService (CORS) | SPA; MVVM/data binding (WinJS.Binding); REST client |
+| OrderService | Java 8 | Spring Boot, Spring MVC, Spring Data MongoDB; Application Insights; SLF4J/logback | MongoDB (“ordering”) via MongoTemplate (in-memory repos for tests; PostgreSQL DDL reference only) | Exposes HTTP/JSON REST; MongoDB Java driver | RESTful controllers; Repository + Factory; Decorator (Mongo ops retry + telemetry); Idempotent create; CORS; Health check (/ping) |
+| IntegrationService | Java 8 | Spring Boot (scheduling), Spring Web (RestTemplate), Jackson, Azure Storage SDK; SLF4J/logback | None | Azure Storage Queues (“orders”, “product”) JSON; HTTP/JSON REST to OrderService | Scheduled polling; Event-driven/queue-based integration; Producer/consumer; Translator/adapter; Eventually consistent workflow |
+| MongoDB (Ordering DB) | n/a | MongoDB Server | MongoDB document store (collections: catalog, dealers, quotes, orders, shipments) | Mongo wire protocol via MongoDB Java driver | Database-per-service; Document model; Aggregate-per-collection; Seeded data |
+| Deployment & Automation | Bash, PowerShell, Dockerfile, YAML, JSON | Docker; Azure ARM/Azure Stack templates; Chef; Puppet; Travis CI | n/a | SSH; Docker daemon; Azure Resource Manager APIs | Infrastructure as Code (IaC); Immutable images; CI/CD pipeline |

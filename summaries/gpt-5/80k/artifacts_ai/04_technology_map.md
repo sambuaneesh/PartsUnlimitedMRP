@@ -1,0 +1,5 @@
+| Component Name | Language | Frameworks | Database | Communication | Patterns |
+|---|---|---|---|---|---|
+| Clients (Web SPA) | JavaScript (HTML/CSS) | WinJS (UI, Binding, Navigation), packaged as WAR on Tomcat 7 | None | HTTP/JSON REST to OrderService (CORS-enabled) | SPA, MVVM-style binding, REST client |
+| OrderService (REST API) | Java 8 | Spring Boot, Spring MVC (REST), Spring Data MongoDB, Jackson, Application Insights SDK | MongoDB (ordering) | Exposes HTTP/JSON REST; DB access via Spring Data; AppInsights telemetry | RESTful API, Repository + Factory (storage selector), Decorator (Mongo retry), Servlet Filter (telemetry), Idempotency (create-from-quote), Aggregation (/deliveries read model) |
+| IntegrationService (Worker) | Java 8 | Spring Boot (Scheduling), Spring Web (RestTemplate), Azure Storage SDK (Queues) 2.0.0, Jackson, SLF4J/Logback | None | Azure Storage Queues (“orders” in, “product” out); HTTP/JSON REST to OrderService | Scheduled worker, Queue-based integration, Adapter/Gateway to OrderService, Poison-message handling, Eventual consistency, Idempotency delegated to OrderService |

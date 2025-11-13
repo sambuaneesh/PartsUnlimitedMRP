@@ -1,0 +1,387 @@
+Comprehensive Architectural Summary – PartsUnlimited MRP (Merged view across all chunks)
+
+1) System Overview and Purpose
+- Purpose: Training/reference MRP application that demonstrates a small set of backend services, a static web client, and infra automation for deploying on VMs or containers. The core business domain includes catalog items, dealers, quotes, orders, shipments/deliveries, and an integration pipeline that connects to a website via a message queue.
+- Deployable units:
+  - Web Front End (static HTML/JS/CSS packaged as a WAR, served by Tomcat).
+  - OrderService (Java/Spring Boot REST API; core domain).
+  - IntegrationService (Java/Spring Boot headless worker; Azure Storage Queue integration with the website; calls OrderService via REST).
+  - MongoDB (primary persistence; sample data seeded).
+  - Optional infrastructure and automation for CI/CD and provisioning (Travis CI, ARM, Ansible, Chef, Puppet, Jenkins demo).
+
+2) Runtime Topology and Communication
+- Primary flows:
+  - Browser (Web client) → OrderService: HTTP/JSON (AJAX via Data.* client methods).
+  - IntegrationService → Azure Storage Queues: polls “orders” queue (website → integration), publishes to “product” queue (integration → website).
+  - IntegrationService → OrderService: synchronous REST/JSON calls to create quotes, orders, and shipments; reads catalog for product updates.
+  - OrderService → MongoDB: CRUD via Spring Data MongoTemplate with a retry/telemetry wrapper.
+- Ports (as implemented in code/scripts):
+  - OrderService HTTP: 8080.
+  - OrderService management (Actuator): 8081 (bound to 127.0.0.1).
+  - Web Front End/Tomcat: default 8080; in VM scripts rewritten to 9080; in Docker mapped to host 80:8080.
+  - MongoDB: 27017 (and 28017 REST when Docker used).
+  - Jenkins (optional lab): 8080.
+- CORS: Global permissive CORS filter in OrderService allows cross-origin calls from the Web client.
+
+3) Detailed Components
+
+A) OrderService (Backend REST API)
+- Location/Packaging:
+  - Source: src/Backend/OrderService.
+  - Built by Gradle as an executable fat JAR (ordering-service-0.1.0.jar). Can also run as a WAR on Tomcat (OrderingInitializer provides SpringBootServletInitializer).
+- Responsibilities:
+  - Implements RESTful resources for:
+    - Catalog items (/catalog)
+    - Dealers (/dealers)
+    - Quotes (/quotes)
+    - Orders (/orders)
+    - Shipments and aggregated deliveries (/shipments, /shipments/deliveries)
+    - Health (/ping)
+  - Validates inputs and enforces domain rules (one order per quote, shipment requires order, etc.).
+  - Persists domain data with pluggable repository backends (memory, MongoDB default, optional PostgreSQL schema provided).
+  - Cross-cutting: CORS and Application Insights telemetry for each request; ping endpoint returns build metadata.
+- REST API surface (status codes and behaviors based on controllers/tests):
+  - /ping
+    - HEAD /ping → 200 OK.
+    - GET /ping → Returns configured ping/validation messages and build info (build number, timestamp).
+  - /catalog
+    - GET /catalog → 200 [CatalogItem] or 404 if empty.
+    - GET /catalog/{sku} → 200 CatalogItem or 404.
+    - POST /catalog → 201 Created (Location: /catalog/{sku}) or 409 if SKU exists; 400 on validation error.
+    - PUT /catalog/{sku} → 200 OK or 404 if not found; 400 on validation error.
+    - DELETE /catalog/{sku} → 204 No Content or 404.
+  - /dealers
+    - GET /dealers → 200 [DealerInfo] or 404. Note: intentionally expensive code path calling repository 100000 times (APM lab).
+    - GET /dealers/{name} → 200 DealerInfo or 404.
+    - POST /dealers → 201 Created (Location: /dealers/{name}) or 409 if exists; 400 on validation error.
+    - PUT /dealers/{name} → 200 OK or 404; 400 on validation error.
+    - DELETE /dealers/{name} → 204 No Content or 404.
+  - /quotes
+    - GET /quotes/{quoteId} → 200 Quote or 404.
+    - GET /quotes?name={nameFragment} → 200 [Quote] or 404 (search by customer name contains; case-insensitive).
+    - POST /quotes → 201 Created (Location: /quotes/{quoteId}) with created Quote; 409 conflict for duplicate create; 400 on validation error.
+    - PUT /quotes/{quoteId} → 200 OK or 404; 400 on validation error.
+    - DELETE /quotes/{quoteId} → 204 No Content or 404.
+  - /orders
+    - GET /orders/{orderId} → 200 Order or 404.
+    - GET /orders?dealer={name}&status={OrderStatus} → 200 [Order] or 404; filters by dealer and/or status.
+    - POST /orders?fromQuote={quoteId} → 201 Created with Order (Location: /orders/{orderId}); 400 if no such quote; 409 if order already exists for quote.
+    - POST /orders/{orderId}/events → 201 Created; body: OrderEventInfo{comments}; server sets event date.
+    - PUT /orders/{orderId} → 200 OK or 404; 400 on validation error.
+    - PUT /orders/{orderId}/status → 200 OK; body: OrderUpdateInfo{status, eventInfo{comments}}; server sets event date; 400 on invalid request.
+    - DELETE /orders/{orderId} → 204 No Content or 404.
+  - /shipments
+    - GET /shipments?status={OrderStatus} → 200 [ShipmentRecord] or 404.
+    - GET /shipments/deliveries → 200 [Delivery] where each aggregates ShipmentRecord + Order + Quote for shipments with DeliveryConfirmed.
+    - GET /shipments/{orderId} → 200 ShipmentRecord or 404.
+    - POST /shipments → 201 Created (Location: /shipments/{orderId}); 409 if a shipment already exists for order; 400 on validation error or missing order.
+    - PUT /shipments/{orderId} → 200 OK or 404; 400 on validation error/mismatched ids.
+    - POST /shipments/{orderId}/events → 200/201 to add event; 404 if shipment not found; 400 on validation error.
+    - DELETE /shipments/{orderId} → 204 No Content or 404.
+- Domain models (smpl.ordering.models; summarized):
+  - CatalogItem: skuNumber, description, price, inventory, leadTime. Validation on SKU/description. Lead time resolved to 0 when inventory > 0 in Mongo mapping.
+  - DealerInfo: name, contact, address, email, phone. Validation on name.
+  - Quote: quoteId, validUntil, customerName, dealerName, quoteItems[{skuNumber, amount}], totalCost, discount, city, postalCode, state. Validation on dealer/customer. Sorting of quoteItems in equals; known equals bug on validUntil comparison (see Risks).
+  - Order: orderId, quoteId, orderDate, status (OrderStatus enum: None, Created, Confirmed, Started, Built, DeliveryConfirmed, Shipped, Delivered, Installed), events[{date, comments}]. Validation requires quoteId and orderDate.
+  - ShipmentRecord: orderId, deliveryDate, deliveryAddress{street, city, state, postalCode, specialInstructions}, contactName, primaryContactPhone{phoneNumber, kind}, alternateContactPhone, events[{date, comments}].
+  - Delivery: Aggregate view composed for /shipments/deliveries.
+- Persistence and repositories:
+  - Repository interfaces:
+    - CatalogItemsRepository, DealersRepository, QuoteRepository, OrderRepository, ShipmentRepository. Support CRUD plus domain-specific queries (e.g., getOrdersByDealerName, getShipments by status).
+    - ETag arguments exist in signatures but not enforced (no optimistic concurrency).
+  - Storage backends (selected via ordering.storage property via RepositoryFactory):
+    - memory: In-memory mock repos with seeded data; used in unit tests and optionally for dev.
+    - mongodb: Default for production; uses Spring Data MongoTemplate via a custom MongoOperationsWithRetry wrapper for resilience and telemetry.
+    - postgresql: DDL provided; properties exist but default codepaths use Mongo or memory. No complete Postgres impl in default runtime.
+  - Cross-repo dependencies (synchronous calls within service process):
+    - QuoteRepository depends on DealersRepository (ensure dealer exists on create/update).
+    - OrderRepository depends on QuoteRepository (validate quote; operator joins for dealer-based queries).
+    - ShipmentRepository depends on OrderRepository (validate order; status-based filtering).
+  - MongoDB document schemas/collections:
+    - catalog: {id, skuNumber (indexed), description, price, inventory, leadTime}.
+    - dealers: {id, name (unique index), contact, address, email, phone}.
+    - quotes: {id, quoteId (index), validUntil, customerName, dealerName (index), quoteItems[{skuNumber, amount}], totalCost, discount, city, postalCode, state}.
+    - orders: {id, orderId (index), quoteId (index), orderDate, status (index), events[{date, comments}]}.
+    - shipments: {id, orderId (index), events[{date, comments}], deliveryAddress, contactName, primaryContactPhone, alternateContactPhone}.
+    - Known mapping quirk: ShipmentRecord.deliveryDate is not persisted in ShipmentDetails (data loss risk).
+  - MongoOperationsWithRetry (resilience + Application Insights):
+    - Wraps MongoOperations; retries once on DataAccessResourceFailureException caused by SocketTimeoutException for operations like findOne, findAll, insert, save, etc.
+    - Emits RemoteDependencyTelemetry (name like MongoDB.findOne) with duration/success.
+- Configuration:
+  - application.properties (service defaults shown across chunks):
+    - server.port=8080
+    - management.port=8081
+    - management.address=127.0.0.1
+    - ordering.storage: memory or mongodb (varies by environment; test uses memory; production samples show mongodb).
+    - ordering.pingMessage, ordering.validationMessage, ordering.instrumentationKey (for Application Insights).
+    - mongodb.host=localhost, mongodb.database=ordering (MongoTemplate bean honors MONGO_PORT env when Docker-linked).
+    - postgresql.{username,password,driverClass,url} optional.
+  - Build metadata: buildinfo.properties generated by Gradle BuildInformationTask (build number, timestamp, SCM), consumed by PingController.
+- Observability:
+  - Filters:
+    - SimpleCORSFilter: Access-Control-Allow-Origin: * and related headers.
+    - AppInsightsFilter: Tracks request telemetry and exceptions with a TelemetryClient (optional instrumentation key).
+  - Health: /ping endpoint for liveness and metadata.
+- Known behaviors and technical debt:
+  - Dealers GET: intentionally heavy loop (100000 iterations) to demonstrate APM; must be removed/guarded in production.
+  - Quote.equals bug: validUntil comparison condition inverted; risk of incorrect equality logic.
+  - ShipmentDetails omits deliveryDate persistence.
+  - getQuotesByCustomerName loads all quotes then filters in memory (unscalable).
+  - No authentication/authorization; permissive CORS.
+  - ETags not enforced; no optimistic concurrency.
+  - OrderId convention hard-coded as "order-{quoteId}".
+  - Mongo retry strategy limited to SocketTimeoutException.
+
+B) IntegrationService (Backend Integration Worker)
+- Location/Packaging:
+  - Source: src/Backend/IntegrationService.
+  - Built by Gradle as integration-service-0.1.0.jar; Spring Boot 1.2.2 application with @EnableScheduling.
+- Purpose:
+  - Continuously integrates with Azure Storage Queues to ingest Website orders and to publish product inventory updates.
+  - Calls OrderService REST endpoints to materialize Quote → Order → Shipment and to read catalog for product messages.
+- Scheduling:
+  - Two @Scheduled fixedDelay tasks every 30 seconds (Constants.SCHEDULED_INTERVAL = 30000 ms). Default single-thread scheduler; tasks may serialize unless configured otherwise.
+- Queue integration (Azure Storage):
+  - Library: com.microsoft.azure:azure-storage:2.0.0.
+  - QueueFactory: Thread-safe cache (ConcurrentHashMap) of CloudQueue clients by queue name; uses storage connection string from properties.
+  - QueueService<T>:
+    - getQueueMessage(): retrieves message with visibility timeout azure.storage.queue.message (seconds), JSON-deserializes to T; deletes malformed messages to avoid poison loops.
+    - addQueueMessage(T): JSON-serializes object and enqueues.
+    - deleteQueueMessage(CloudQueueMessage): removes processed message.
+- OrderService integration (MrpConnectService; RestTemplate):
+  - Endpoints used (mrp.endpoint default http://127.0.0.1:8080/):
+    - POST {mrp.endpoint}/quotes with Quote JSON → returns Quote with quoteId.
+    - POST {mrp.endpoint}/orders?fromQuote={quoteId} → returns Order with orderId.
+    - POST {mrp.endpoint}/shipments with ShipmentRecord JSON (orderId included).
+    - GET {mrp.endpoint}/catalog → [CatalogItem] for product updates.
+- Scheduled tasks:
+  - CreateOrderProcessTask:
+    - Loop fetch messages from “orders” queue while available.
+    - Deserialize to website.OrderMessage.
+    - Build mrp.Quote; call POST /quotes → quoteId.
+    - Call POST /orders?fromQuote={quoteId} → orderId.
+    - Build mrp.ShipmentRecord from OrderMessage + orderId (deliveryDate ~ now+14d, address, contact, phone); POST /shipments.
+    - Delete queue message; log errors/progress via SLF4J.
+  - UpdateProductProcessTask:
+    - GET /catalog; if not empty, map to website.ProductMessage with productList [{skuNumber, inventory, leadTime}] and enqueue to “product” queue.
+- Data models:
+  - Website messages:
+    - OrderMessage: {customerName, dealerName, orderDate, address, country, phone, city, postalCode, state, totalCost, discount, items: [{skuNumber, price}]}.
+    - ProductMessage: {productList: [{skuNumber, inventory, leadTime}]}.
+  - MRP models (mirroring OrderService): CatalogItem, Quote (derived from OrderMessage; validUntil = now+1 day; dealerName typically "Website"), Order, ShipmentRecord (deliveryDate now+14d).
+- Configuration (application.properties):
+  - azure.storage.connectionstring: example hardcoded string (security risk; should be externalized).
+  - azure.storage.queue.orders=orders
+  - azure.storage.queue.inventory=product
+  - azure.storage.queue.message=300 (visibility timeout seconds)
+  - mrp.endpoint=http://127.0.0.1:8080/
+  - logging.file=integration-service.log, logging.level.org.springframework.web=INFO
+- Security considerations:
+  - Hardcoded storage connection string in properties; should be stored in KeyVault or environment variables.
+- Deployment:
+  - Spring Boot fat JAR; no HTTP controllers; logs to integration-service.log.
+
+C) Web Client (Static Front End)
+- Location/Packaging:
+  - Source: src/Clients/Web (HTML/JS/CSS; WinJS SPA style).
+  - Built via Gradle into mrp.war and served by Tomcat 7 (Java 8).
+- Configuration:
+  - serverconfig.js: baseAddress = 'http://' + window.location.hostname + ':8080' (points to OrderService port).
+- Frameworks/Patterns:
+  - WinJS for navigation, pages, data binding, ListView, ContentDialog.
+  - MVVM-like binding using WinJS.Binding.as(); custom two-way binding initializer (Binding.Mode.twoway).
+  - DateJS (Date parsing/formatting) and Google Maps Places API for address autocompletion.
+  - Controls.EditTools (custom control for add/edit/save/delete workflow).
+- Navigation and pages:
+  - Main: launch tiles to Dealers, Quotes, Orders, Deliveries, Catalog.
+  - Dealers: list/detail CRUD; address input with Places autocomplete.
+  - Catalog: list/detail CRUD.
+  - Quotes: list/detail CRUD; “Manage Extras” popup; “Edit” navigates to Orders to create order from quote; address/postcode with Places autocomplete; extras are managed via popup that maps SKU list to catalog items.
+  - Orders: list/detail; joins with Quote client-side by fetching quote for each order and assigning __quote; status management; “Manage Events” popup; “Deliver” navigates to Deliveries (create from order).
+  - Deliveries: list/detail; joins with Order and Quote client-side (__order, __quote); address and postcode inputs with Places autocomplete; “Manage Delivery Events” and “Manage Order Events” popups.
+  - Extras popup: works against quote.additionalItems; maps SKU list to Catalog entries; saves additionalItems as minimal schema {skuNumber, shouldPreInstall=true, amount=1}.
+  - Order Events popup: manage events array [{date, comments}] for orders or deliveries; default event date uses DateJS formatting; sorted descending.
+- Data layer (expected Data.* methods; frontend adapter to REST):
+  - Catalog: catalog list; catalogGet/save/delete/create; find by SKU.
+  - Dealers: dealers list; dealersGet; dealerSave/delete/create.
+  - Quotes: quotes list; quotesGet(filter); quoteSave/delete/create; quoteGetById(id).
+  - Orders: orders list; ordersGet(filter); orderSave(current, original); orderDelete; orderCreate; orderCreateFromQuote(quote); orderFindById; quoteGetById(quoteId).
+  - Deliveries: deliveries list; deliveriesGet; deliverySave(current, original); deliveryDelete; deliveryCreateFromOrder(order); deliveryFindById; orderGetById(orderId).
+- Client-side joining:
+  - Orders page resolves and attaches __quote (fetched by quoteId).
+  - Deliveries page resolves __order by orderId then sets __quote from __order.
+- UX utilities:
+  - Global progress overlay (show/hide).
+  - Generic confirm and error dialogs.
+  - Popup hosting for subpages.
+  - Address input helpers with Google Places Autocomplete and postal code extraction.
+
+D) Database (MongoDB primary; optional PostgreSQL schema)
+- MongoDB as primary storage:
+  - Seed data via deploy/MongoRecords.js and deploy/docker/Database/drop/MongoRecords.js (database: ordering; collections: catalog, dealers, quotes, orders, shipments).
+  - Docker DB image runs mongod with --rest; ports 27017/28017 exposed.
+- Optional PostgreSQL schema (DDL provided for alternative backend):
+  - Tables and FKs: CatalogItems, Dealers, Quotes, QuoteAdditionalItemRecord, Orders, OrderEvents, PhoneInfo, DeliveryAddress, ShipmentRecords, ShipmentEventInfo. Mirrors the domain with normalized schema.
+
+4) Infrastructure, Deployment, and DevOps
+
+A) Build & CI
+- Build: Gradle for services and client; custom tasks embed build metadata into resources/buildinfo.properties consumed by the /ping endpoint.
+- Travis CI (.travis.yml):
+  - Builds IntegrationService and OrderService.
+  - Runs OrderService tests (unit + Mongo integration).
+  - Builds Clients WAR.
+- Tests:
+  - Unit tests use in-memory repositories; integration tests switch RepositoryFactory to MongoDB and spin a MongoTemplate for database tests.
+
+B) VM-based deployment (Linux)
+- Script: deploy/deploy_mrp_app.sh
+  - Stops Java processes; prepares /var/lib/partsunlimited; seeds Mongo ordering DB with MongoRecords.js.
+  - Rewrites Tomcat server.xml 8080 → 9080 for the web app; deploys mrp.war to Tomcat webapps and restarts Tomcat.
+  - Launches ordering-service-0.1.0.jar in background.
+- Dependencies installer: deploy/Install-Build-Dependencies.sh (Gradle, JDK 8, MongoDB, Node/npm).
+
+C) Docker
+- Images:
+  - Database: FROM mongo; seeds sample data; CMD with mongod --smallfiles --rest.
+  - Order: FROM openjdk:8-jre; copies jar/run.sh; EXPOSE 8080; run.sh waits for Mongo host “mongo” (Docker link alias) then runs java -jar ordering-*.jar.
+  - Clients: FROM tomcat:7-jre8; copies mrp.war to webapps; EXPOSE 8080.
+- Run script: deploy/docker/BuildAndRun.sh
+  - Builds images; runs containers:
+    - db: -p 27017:27017 -p 28017:28017
+    - order: -p 8080:8080 --link db:mongo
+    - web: -p 80:8080
+  - Seeds DB via docker exec db mongo ordering /tmp/MongoRecords.js.
+- Stop script: deploy/docker/StopAndRemove.sh.
+
+D) Azure/Azure Stack ARM templates and IaC
+- ARM templates:
+  - Multiple scenarios (Ubuntu 14.04/16.04) for base VMs, MRP app, Jenkins, Chef, Puppet. MRP VM opens inbound ports: 22 (SSH), 9080 (Web), 8080 (OrderService).
+  - Example ARMtemplate-newVM.json includes internal load balancer, NSG, VNet/subnets, NIC, and a CentOS VM with a hardcoded admin password "Microsoft123!" (security risk; for lab only).
+- Ansible playbooks:
+  - Create VMs (Ubuntu/CentOS), NSGs/firewall rules, public IPs, NICs, and install Apache/nginx with demo content. Playbook for ARM deployment via azure_rm_deployment. Cron example to run periodic tasks.
+- Chef cookbook (mrpapp-2):
+  - Installs OpenJDK 8, MongoDB, Tomcat7; seeds Mongo; sets Tomcat port; deploys mrp.war; launches OrderService jar.
+- Puppet manifest (init.pp):
+  - Similar provisioning: MongoDB, Java, Tomcat7 instance; deploys mrp.war; controls OrderService lifecycle and Tomcat service ordering.
+- Jenkins scripts and optional environments are included for training/demos.
+
+E) Observability and Security Testing
+- Application Insights:
+  - AppInsightsFilter on HTTP requests; TelemetryClient configured via ordering.instrumentationKey; Mongo operations tracked as RemoteDependencyTelemetry.
+- BDD-Security:
+  - SECURITY.md and a script (SSH-MRP-BDD-Security.ps1) to trigger Gradle Cucumber tests in a separate bdd-security project.
+
+5) Data Contracts and Message Schemas
+
+A) REST payloads (OrderService)
+- CatalogItem: { skuNumber, description, price, inventory, leadTime }.
+- DealerInfo: { name, contact, address, email, phone }.
+- Quote: { quoteId, validUntil, customerName, dealerName, quoteItems: [{skuNumber, amount}], totalCost, discount, city, postalCode, state }.
+- Order: { orderId, quoteId, orderDate, status, events: [{date, comments}] }.
+- OrderUpdateInfo: { status, eventInfo: { comments } } (server sets event date).
+- ShipmentRecord: { orderId, deliveryDate, deliveryAddress: { street, city, state, postalCode, specialInstructions }, contactName, primaryContactPhone: { phoneNumber, kind }, alternateContactPhone, events: [{date, comments}] }.
+- Delivery aggregate (read-only): composed from shipment+order+quote for DeliveryConfirmed shipments.
+- Status enum OrderStatus: { None, Created, Confirmed, Started, Built, DeliveryConfirmed, Shipped, Delivered, Installed }.
+
+B) IntegrationService messages (Azure Storage Queues)
+- Website → IntegrationService (“orders” queue) OrderMessage:
+  { customerName, dealerName, orderDate, address, country, phone, city, postalCode, state, totalCost, discount, items: [{ skuNumber, price }] }.
+- IntegrationService → OrderService (REST):
+  - Quote JSON derived from OrderMessage (dealerName often "Website", validUntil = now + 1 day, quoteItems derived from items).
+  - Order creation via POST /orders?fromQuote={quoteId}.
+  - ShipmentRecord JSON derived from OrderMessage + orderId (deliveryDate = now + 14 days).
+- IntegrationService → Website (“product” queue) ProductMessage:
+  { productList: [{ skuNumber, inventory, leadTime }] }.
+
+6) Security, Compliance, and Risks
+- No authentication/authorization implemented in OrderService; CORS is open to all origins/methods. Consider API gateway and auth in real deployments.
+- Hardcoded secrets:
+  - IntegrationService application.properties contains a hardcoded Azure Storage connection string.
+  - ARM template example includes a hardcoded VM admin password "Microsoft123!".
+  These must be externalized (Key Vault, environment variables, secret stores) for production.
+- MongoDB REST port (28017) exposed in Docker image; disable in production.
+- Technical debt:
+  - DealerController GET performance hotspot (100000-loop).
+  - Quote.equals bug on validUntil; potential NPE with null quoteItems.
+  - ShipmentDetails does not persist deliveryDate (data loss).
+  - No ETag/optimistic concurrency implemented despite interface hints.
+  - In-memory filtering for getQuotesByCustomerName; not scalable.
+
+7) Resilience and Performance
+- Mongo resilience: MongoOperationsWithRetry retries once on socket timeouts; emits dependency telemetry. Broaden failure handling if needed.
+- IntegrationService scheduling: default single-thread scheduling; if CreateOrder and UpdateProduct tasks become heavy, they may serialize; configure a TaskScheduler for parallelism if necessary.
+- Cross-entity queries (e.g., Orders by dealer, Shipments by order status) involve joins via repository coordination; in Mongo, implemented via multiple queries with criteria (quoteId in …); potential performance bottlenecks at scale.
+- Known lab-only performance anomaly in Dealers GET to demonstrate APM.
+
+8) Microservice Decomposition Guidance
+
+A) Suggested service boundaries (as-is domains → potential services)
+- CatalogService: CRUD for catalog items; owns CatalogItem data store.
+- DealerService: CRUD for dealers; owns DealerInfo store.
+- QuoteService: CRUD for quotes; depends on DealerService for dealer validation/association.
+- OrderService: CRUD for orders; depends on QuoteService for quote existence; handles status transitions and order events.
+- ShipmentService: CRUD for shipments/deliveries; depends on OrderService for order existence; publishes and queries shipment events; may expose /deliveries aggregation.
+- IntegrationService: Split into:
+  - OrderIngestionWorker: consumes “orders” queue; orchestrates Quote → Order → Shipment creation.
+  - ProductSyncWorker: periodically publishes product/inventory updates to “product” queue.
+
+B) Data ownership and denormalization
+- Avoid cross-service synchronous joins:
+  - Include dealerName/dealerId denormalized into Quote and Order at creation time (or rely on IDs only).
+  - Include order status denormalized into Shipment documents to support shipment filtering by status without calling OrderService.
+- Events and extras:
+  - Order and Shipment events can be modeled as nested subresources inside respective services or as separate EventService stream with event sourcing.
+  - Quote.additionalItems (extras) should be validated against CatalogService; maintain SKU references not full catalog objects.
+
+C) Inter-service contracts and integration patterns
+- Replace internal repository calls with API calls or asynchronous domain events:
+  - QuoteService should call DealerService to validate dealer existence or react to DealerCreated/Updated events; alternatively, require dealerId reference.
+  - OrderService should validate the presence of quote via Quotes API or subscribe to QuoteCreated events with eventual consistency; to support “orders by dealer”, prefer denormalized dealerId on Order.
+  - ShipmentService should validate order existence/status via Orders API or via events; consider denormalized order status on Shipment for filtering.
+- Messaging backbone:
+  - Continue using Azure Storage Queues for website integration; consider expanding internal eventing (e.g., Service Bus/Event Grid) for inter-service communication.
+- Composite endpoints:
+  - Provide read-only composite endpoints (e.g., /deliveries with quote/order enrichment) at a gateway or BFF layer to reduce client chattiness (web client currently fetches linked resources separately).
+
+D) API implications and migration steps
+- Extract controllers and datastore per domain into separate deployables.
+- Introduce contracts:
+  - DealerService: /dealers CRUD.
+  - CatalogService: /catalog CRUD, search by SKU.
+  - QuoteService: /quotes CRUD; requires dealerId.
+  - OrderService: /orders CRUD; requires quoteId; status updates and events.
+  - ShipmentService: /shipments CRUD; /deliveries aggregate (or handled by read model in a gateway).
+- Backfill denormalized fields and migration scripts for existing MongoDB collections.
+- Implement authentication/authorization and rate limiting at a gateway (frontend uses open CORS today).
+
+9) Gaps and Assumptions to Validate
+- Exact authentication/authorization requirements; none implemented.
+- Final canonical REST paths/verbs are inferred; ensure controllers align across modules during decomposition.
+- IntegrationService queue provider: current implementation uses Azure Storage Queues; confirm production target and credentials management.
+- Error handling and status code contracts in edge cases (e.g., conflict vs bad request) across all endpoints.
+- DeliveryDate persistence discrepancy: update persistence layer to store deliveryDate.
+- Whether IntegrationService is part of all deployments (base scripts do not start it by default).
+- Management/Actuator use beyond port binding; monitoring endpoints are not currently exposed externally.
+
+10) File and Path Index (key artifacts for traceability)
+- Web Front End: src/Clients/Web (pages, js, css); serverconfig.js; data.js (client adapter), default.js, navigator.js; third-party date.js.
+- OrderService: src/Backend/OrderService/src/main/java/smpl/ordering (controllers, models, repositories, filters); application.properties; ApplicationInsights.xml; scripts under src/Backend/OrderService/scripts; build tasks in buildSrc.
+- IntegrationService: src/Backend/IntegrationService/src/main/java/integration (scheduled tasks, services, queue integration, models); application.properties.
+- Mongo seed: deploy/MongoRecords.js; deploy/docker/Database/drop/MongoRecords.js.
+- Dockerfiles: deploy/docker/Database/Dockerfile; deploy/docker/Order/Dockerfile; deploy/docker/Clients/Dockerfile; run scripts under deploy/docker.
+- VM deployment scripts: deploy/deploy_mrp_app.sh; deploy/Install-Build-Dependencies.sh.
+- Azure Stack/ARM: deploy/azurestack/instances/*/*/DeploymentTemplates/*.json; install_mrp_dependencies_1604.sh; Jenkins/Chef/Puppet installers.
+- CI: .travis.yml; test resources in src/test/resources (OrderService).
+
+11) Summary of Technology Stack and Patterns
+- Java 8, Spring Boot (1.2.x).
+- REST controllers with JSON payloads; RestTemplate for service-to-service calls.
+- Repository pattern with pluggable backends (memory, MongoDB; PostgreSQL schema provided).
+- Spring Data MongoDB with custom retry wrapper (MongoOperationsWithRetry).
+- WinJS client for SPA-like front-end; DateJS; Google Maps Places Autocomplete.
+- Messaging: Azure Storage Queues for external website integration.
+- Observability: Application Insights for request/exception telemetry; Mongo dependency telemetry.
+- DevOps: Gradle builds with embedded build metadata; Dockerized deployment; ARM/Ansible/Chef/Puppet automation for VM scenarios; Travis CI.
+
+This consolidated summary preserves the complete architecture, interfaces, models, deployment and configuration details, known issues, and provides actionable guidance for microservice decomposition and further analysis. It should be sufficient to design, decompose, and operate the system in a microservices architecture while addressing the identified gaps and risks.

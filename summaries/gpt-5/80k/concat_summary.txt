@@ -1,0 +1,984 @@
+=== summary_chunk_1.txt ===
+
+Architectural summary for PartsUnlimited MRP (chunk 1 of 3)
+
+Overview
+- Purpose: Training application simulating an outsourced Manufacturing Resource Planning (MRP) environment. Composed of a web front end (Clients), an Order service (OrderService), and an Integration service (IntegrationService). MongoDB provides persistence. Azure Storage Queues enable integration with an external website. Extensive deployment automation provided (Docker, ARM/Azure Stack templates, Chef/Puppet/Ansible scripts, Travis CI).
+
+Key components and responsibilities
+1) Clients (static web app)
+- Location: src/Clients/Web
+- Built as a single WAR (mrp.war) to be deployed to Tomcat.
+- Purpose: Human-facing UI to interact with OrderService (browse catalog, dealers, quotes, orders, shipments). JavaScript client assets under js/pages; config in js/serverconfig.js points UI to backend.
+- Runtime: Tomcat 7 (default 8080; deployment scripts change to 9080 on VM-based deployments).
+
+2) OrderService (Java)
+- Location: src/Backend/OrderService
+- Purpose: Core MRP service exposing REST APIs for catalog, dealers, quotes, orders, shipments, and health ping.
+- Frameworks/libraries: Spring (controllers, configuration), Application Insights (telemetry; ApplicationInsights.xml), MongoDB Java driver (Mongo* repositories), Gradle build/test, SLF4J logging.
+- Persistence: MongoDB “ordering” database with multiple collections (see Data models).
+- API controllers (package smpl.ordering.controllers): CatalogController, DealerController, QuoteController, OrderController, ShipmentController, PingController.
+- Repositories: RepositoryFactory, Mongo*Repository implementations, mock repos for tests.
+- Configuration: application.properties, OrderingConfiguration, MongoDBProperties, PostgresqlProperties (Postgres appears present but Mongo is primary).
+- Build artifacts: ordering-service-0.1.0.jar (executable JAR).
+- Tests: extensive unit and integration tests for controllers and repos.
+
+3) IntegrationService (Java)
+- Location: src/Backend/IntegrationService
+- Purpose: Bridges the MRP service and an external Parts Unlimited website via Azure Storage Queues. Runs scheduled jobs to:
+  - Consume new orders from queue “orders”, create a quote, order, and shipment in MRP (OrderService), then delete the queue message.
+  - Query MRP catalog and publish inventory updates to queue “product” for the website.
+- Frameworks/libraries:
+  - Spring Boot 1.2.2 (scheduling)
+  - Spring Web (RestTemplate)
+  - Jackson (JSON serialization)
+  - Azure Storage SDK 2.0.0 (queues)
+  - SLF4J + logback
+- Scheduling: @EnableScheduling; @Scheduled(fixedDelay = 30000 ms).
+- Services:
+  - MrpConnectService: REST client to OrderService endpoints (quotes, orders, shipments, catalog).
+  - QueueService<T>: generic Azure queue client with JSON serialization/deserialization (Jackson).
+  - QueueFactory: thread-safe queue initializer/cache (ConcurrentHashMap) using connection string in config.
+- Models:
+  - MRP domain: CatalogItem, Quote(+QuoteItemInfo), Order, ShipmentRecord(+DeliveryAddress, PhoneInfo, ShipmentEventInfo).
+  - Website domain: OrderMessage(+OrderItem), ProductMessage(+ProductItem).
+  - QueueResponse<T>: wraps CloudQueueMessage + typed payload.
+- Configuration (src/main/resources/application.properties):
+  - azure.storage.connectionstring
+  - azure.storage.queue.orders = orders
+  - azure.storage.queue.inventory = product
+  - azure.storage.queue.message = 300 (visibility timeout seconds)
+  - mrp.endpoint = http://127.0.0.1:8080/ (OrderService base URL)
+  - logging.file, logging levels
+
+4) Database (MongoDB)
+- Used by OrderService as primary data store (database name: ordering).
+- Seed data provided in deploy/MongoRecords.js and deploy/docker/Database/drop/MongoRecords.js.
+
+5) Deployment and automation
+- Docker (deploy/docker):
+  - Images:
+    - Database: FROM mongo; copies MongoRecords.js; starts mongod; seeded via docker exec.
+    - Order: FROM openjdk:8-jre; runs Ordering JAR; waits for Mongo (http check on mongo:27017).
+    - Clients: FROM tomcat:7-jre8; copies WAR; runs catalina.
+  - Run script (BuildAndRun.sh): builds all three images, runs and links (order ↔ db), maps ports: db 27017/28017; order 8080; web 80→8080; seeds Mongo.
+  - StopAndRemove.sh: stops/removes containers and images.
+
+- VM-based deployment:
+  - deploy/Install-Build-Dependencies.sh: installs Java 8, MongoDB, Gradle, Node/npm (for lab tooling), sets JAVA_HOME.
+  - deploy/deploy_mrp_app.sh and install_mrp_dependencies.sh: kill current java, copy .jar/.war + MongoRecords.js to /var/lib/partsunlimited; seed Mongo; change Tomcat port 8080→9080; deploy mrp.war to Tomcat; restart Tomcat; run ordering-service-0.1.0.jar in background.
+  - SSH deployment (Windows agents): deploy/SSH-MRP-Artifacts.ps1 uses psftp/plink to push artifacts and execute deploy script.
+
+- Azure Stack/ARM templates (deploy/azurestack/...):
+  - Multiple ready-to-deploy templates for:
+    - Standalone Jenkins, Chef, Puppet VMs.
+    - Combined Jenkins + MRP two-VM deployment.
+    - MRP base VM (Ubuntu 16.04, Java 8, MongoDB, Tomcat 7 installed via CustomScriptExtension).
+    - SSH-based MRP base variant.
+    - Ubuntu 14.04/16.04 base VMs.
+  - Common NSG ports: 22 (SSH), 9080 (Clients), 8080 (OrderService).
+  - CustomScriptExtensions fetch shell scripts from this repo to install dependencies (openjdk-8, mongodb, tomcat7, Jenkins, Chef, Puppet).
+  - VMAccess extensions configure credentials.
+
+- Configuration management samples:
+  - Chef cookbook (Labfiles/.../DeployusingChef/final/default.rb): installs Java 8, MongoDB, Tomcat 7; seeds Mongo; updates Tomcat port; deploys mrp.war; downloads and restarts ordering-service-0.1.0.jar.
+  - Puppet manifest (Labfiles/.../Puppet/final/init.pp): equivalent setup with classes (configuremongodb, configurejava, configuretomcat, deploywar, orderingservice).
+
+- CI (Travis CI):
+  - .travis.yml builds IntegrationService JAR, OrderService JAR (with tests), and Clients WAR using Gradle on JDK 8.
+
+Service APIs and interfaces (OrderService; inferred from README and code layout)
+Base URL: default http://<host>:8080/
+- /ping or similar (PingController): health check (exact path not shown; typical GET /ping).
+- Catalog:
+  - GET /catalog → list all catalog items.
+  - POST /catalog → add catalog item (JSON: skuNumber, description, price, inventory, leadTime).
+- Dealers:
+  - GET /dealers → list dealers.
+  - POST /dealers → add dealer (name, contact, address, email, phone).
+- Quotes:
+  - GET /quotes/{quoteId} → retrieve quote.
+  - GET /quotes?name=<customerNameSubstring> → search by customer name.
+  - POST /quotes → create quote (returns Location header with new quote id).
+  - PUT /quotes/{quoteId} → update quote.
+  - DELETE /quotes/{quoteId} → delete quote.
+- Orders:
+  - GET /orders/{orderId} → retrieve order.
+  - GET /orders?dealer=<dealerName>[&status=<status>] → list orders filtered.
+  - POST /orders?fromQuote=<quoteId> → create order from a quote (returns Location header; body contains Order with orderId).
+- Shipments:
+  - GET /shipments → list all shipments.
+  - GET /shipments?status=<status> → list shipments by status.
+  - GET /shipments/{orderId} → get shipment for an order.
+  - POST /shipments → create shipment record (orderId, contactName, deliveryAddress, primaryContactPhone, alternateContactPhone, events).
+  - PUT /shipments/{orderId} → update shipment.
+  - POST /shipments/{orderId}/events → append event (comments).
+
+IntegrationService external interfaces
+- OrderService REST endpoints:
+  - POST /quotes, POST /orders?fromQuote=..., POST /shipments
+  - GET /catalog
+- Azure Storage Queue (via Azure Storage SDK):
+  - Input queue (orders): messages are Website OrderMessage JSON.
+  - Output queue (product): messages are ProductMessage JSON containing list of ProductItem updates.
+
+Data models and database schema
+MongoDB database: ordering
+- Collections (from seed script deploy/MongoRecords.js):
+  - catalog
+    - Example document:
+      { "skuNumber": "LIG-0001", "description": "...", "price": 38.99, "inventory": 10, "leadTime": 3 }
+  - dealers
+    - Example:
+      { "name": "Terry Adams", "address": "...", "email": "terry@adams.com", "phone": "425-..." }
+  - quotes
+    - Example:
+      {
+        "quoteId": "0",
+        "validUntil": "2015-05-01T00:00:00+0000",
+        "customerName": "Walter Harp",
+        "dealerName": "Terry Adams",
+        "city": "Seattle",
+        "state": "WA",
+        "postalCode": "98023",
+        "totalCost": "51.97",
+        "discount": "0.0",
+        "quoteItems": [ { "skuNumber": "LIG-0001", "amount": 1 }, ... ]
+      }
+  - orders
+    - Example:
+      { "orderId": "0", "quoteId": "0", "orderDate": "2015-03-02T20:43:37+0000", "status": "Created", "events": [] }
+  - shipments
+    - Example:
+      {
+        "orderId": "0",
+        "contactName": "Walter Harp",
+        "primaryContactPhone": { "phoneNumber": "...", "kind": "Mobile" },
+        "deliveryAddress": { "street": "...", "city": "...", "state": "WA", "postalCode": "...", "specialInstructions": "" },
+        "events": []
+      }
+- OrderService Mongo models (smpl.ordering.repositories.mongodb.models):
+  - CatalogItem, Dealer, QuoteDetails, OrderDetails, ShipmentDetails (exact fields align with above example documents).
+- IntegrationService models (JSON contracts for REST/queue):
+  - Website input OrderMessage: customerName, dealerName, orderDate, address, country, phone, city, postalCode, state, totalCost, discount, items: [OrderItem{skuNumber, price}]
+  - MRP generated:
+    - Quote: quoteId, customerName, dealerName, validUntil, city, postalCode, state, totalCost, discount, quoteItems: [QuoteItemInfo{skuNumber, amount}]
+    - Order: orderId, quoteId, orderDate, status
+    - ShipmentRecord: orderId, deliveryDate (current date + 14 days), deliveryAddress, contactName, primaryContactPhone, alternateContactPhone, events: [ShipmentEventInfo{date, comments}]
+  - Product update outbound:
+    - ProductItem: skuNumber, inventory, leadTime
+    - ProductMessage: productList: [ProductItem]
+  - Integration CatalogItem: skuNumber, description, unit, price (String), inventory (int), leadTime (int)
+
+Service dependencies and communication patterns
+- Clients → OrderService (HTTP/JSON REST):
+  - Stateless REST calls from browser via AJAX to endpoints listed above. Served from Tomcat, separate port (9080 in VM deployments, 80 in docker via reverse mapping).
+- OrderService → MongoDB:
+  - Direct repository access using Mongo Java driver. Collections “catalog”, “dealers”, “quotes”, “orders”, “shipments”.
+- External Website → Azure Queue “orders” (producer, not part of this code) → IntegrationService (consumer).
+- IntegrationService → OrderService:
+  - REST workflow for each new website order: Create Quote → Create Order (from Quote) → Create Shipment.
+- IntegrationService → Azure Queue “product” (producer) → External Website (consumer) for inventory updates.
+- Message formats: JSON defined by IntegrationService models; serialized/deserialized via Jackson.
+- Queue semantics: retrieveMessage with visibility timeout (azure.storage.queue.message seconds). On deserialization failure, message is deleted to avoid poison looping (logged).
+
+Key business logic and algorithms
+- Integration flow (order ingestion):
+  - Poll “orders” queue every 30 seconds.
+  - For each message:
+    - Deserialize to OrderMessage.
+    - Build Quote from OrderMessage (populate fields; QuoteItemInfo created from OrderItems).
+    - POST to MRP /quotes to obtain a quoteId.
+    - POST to MRP /orders?fromQuote=<quoteId> to get orderId.
+    - Compose ShipmentRecord (delivery date = now + 14 days; address/contacts from OrderMessage).
+    - POST to MRP /shipments to create shipment record.
+    - Delete the message from the queue.
+- Inventory update (product feed):
+  - Every 30 seconds:
+    - GET /catalog from MRP; build ProductMessage(productList) with skuNumber, inventory, leadTime.
+    - Enqueue product update to “product” queue for the website to consume.
+- Error handling:
+  - IO/deserialization errors on queue messages → log error and delete message.
+  - REST calls use RestTemplate; exceptions logged at error level; scheduled loops continue.
+- Expected consistency: Eventual; integration is asynchronous via queues; MRP order/shipment creation upon queue processing.
+
+Configuration and deployment details
+- Ports:
+  - OrderService: 8080
+  - Clients (Tomcat): default 8080; deployment scripts change to 9080 on VMs; Docker maps to host 80.
+  - MongoDB: 27017 (and 28017 REST port in Docker).
+- VM install scripts install:
+  - openjdk-8-jdk/jre, mongodb, tomcat7; configure JAVA_HOME and Tomcat defaults; seed Mongo via MongoRecords.js; deploy WAR to /var/lib/tomcat7/webapps/mrp.war; run JAR in background.
+- Docker:
+  - db container started first; order container waits with curl to mongo:27017 before starting.
+  - web container runs mrp.war on Tomcat; exposed to host port 80 (mapped from 8080).
+- Azure Stack ARM:
+  - Open NSG rules for SSH 22, MRP 9080, OrderingSvc 8080. Templates can install Jenkins/Chef/Puppet and a base MRP VM via CustomScript for environment bootstrap.
+- Secrets:
+  - IntegrationService application.properties contains an Azure Storage connection string (credentials). For production, externalize/secrets manager recommended.
+
+Architectural patterns and frameworks
+- Microservice-style separation:
+  - OrderService (domain core) with its own database (MongoDB).
+  - IntegrationService (integration microservice) decoupled via Azure queues and REST to MRP.
+  - Clients (UI) as a separately deployable static web app.
+- Event-driven integration pattern:
+  - Queues for website↔MRP decoupling; scheduled polling (pull-based) with idempotent processing guarded by queue visibility.
+- RESTful resource-oriented APIs for OrderService.
+- Frameworks:
+  - Spring Boot/Spring Web for IntegrationService (scheduling, REST client).
+  - Spring (controllers, filters) for OrderService; Application Insights instrumentation; SLF4J/logback logging.
+  - MongoDB as document store; Jackson for JSON.
+  - Build: Gradle (wrappers committed). CI: Travis CI on Oracle JDK 8.
+
+Non-functional and operational considerations
+- Logging:
+  - IntegrationService writes to integration-service.log; logs INFO/ERROR; OrderService includes AppInsights filter and SimpleCORSFilter.
+- Health checks:
+  - PingController likely exposes a simple liveness endpoint.
+- Testing:
+  - OrderService contains unit/integration tests for controllers and repositories (including Mongo integration tests).
+- Configuration management:
+  - Chef and Puppet recipes/manifests provided to provision environment and deploy artifacts.
+- Infrastructure as Code:
+  - Azure ARM/Azure Stack templates (Ubuntu 14.04/16.04), Jenkins/Chef/Puppet one-click deployments.
+  - Ansible playbooks for labs (VM creation, HTTPD/NGINX install, cron).
+
+Potential service decomposition insights
+- Current boundaries:
+  - OrderService encapsulates catalog, dealers, quotes, orders, and shipments (single service with multiple bounded contexts). Could be further decomposed by domain (e.g., Catalog Service, Quote Service, Order Service, Shipment Service) if needed for scale/ownership.
+  - IntegrationService is already a dedicated integration microservice; it could be extended to support additional channels (webhooks, event hubs).
+  - Clients is a static front-end; can be hosted separately on CDN or reverse-proxied.
+- Data ownership:
+  - MongoDB “ordering” database is owned by OrderService; IntegrationService does not access DB directly (uses REST), which is aligned with microservice autonomy.
+- Communication:
+  - UI → OrderService (sync REST).
+  - External website ↔ IntegrationService (async via Azure queues).
+  - IntegrationService → OrderService (sync REST).
+- Contracts:
+  - Documented REST endpoints (above).
+  - Queue message schemas defined by IntegrationService models (important for compatibility with external website).
+
+Build and run quick reference
+- Build:
+  - IntegrationService: cd src/Backend/IntegrationService; ./gradlew build
+  - OrderService: cd src/Backend/OrderService; ./gradlew build test
+  - Clients: cd src/Clients; ./gradlew build
+- Run (Docker):
+  - deploy/docker/BuildAndRun.sh builds images and runs containers; seeds Mongo; access UI at http://localhost/.
+- Run (VM/manual):
+  - Use deploy/deploy_mrp_app.sh to deploy artifacts, seed Mongo, set Tomcat port to 9080, start services.
+  - IntegrationService JAR can be run separately (not shown in scripts here; configure application.properties accordingly).
+
+Known configuration defaults and environment coupling
+- IntegrationService assumed OrderService at mrp.endpoint http://127.0.0.1:8080/. Adjust for containerized or remote deployments (e.g., use service discovery or environment variables).
+- Clients default Tomcat port changed to 9080 on VM deployments; ensure UI JS points to the correct backend base URL (serverconfig.js).
+- Azure Storage connection string currently baked in application.properties; move to environment variables or secret store for non-demo deployments.
+
+Security
+- No explicit authN/authZ on REST endpoints in this chunk.
+- ARM templates open needed ports; ensure security group rules are tightened in production.
+- Sensitive secrets (Azure Storage key) present in source for lab; in production, externalize.
+
+This summary reflects all key pieces necessary to analyze and decompose into microservices: component boundaries and responsibilities, API contracts, storage schemas, inter-service communication, and deployment/configuration topology.
+
+=== summary_chunk_2.txt ===
+
+Architectural Summary – OrderService (Backend) and Web Client (Chunk 2 of 3)
+
+1) High-level architecture and responsibilities
+- Service: OrderService (Java, Spring Boot)
+  - Domain responsibilities:
+    - Catalog management (SKU-based products)
+    - Dealer management (partners/contacts)
+    - Quote lifecycle (create/update/search/delete)
+    - Order lifecycle (create from quote, status updates, events, list/filter)
+    - Shipment lifecycle (create/update, events, link to order; delivery aggregation)
+    - Health/ping and build info reporting
+  - Data persistence:
+    - Primary: MongoDB via Spring Data Mongo (with a custom retry/telemetry wrapper)
+    - Alternate (for tests): in-memory repositories
+    - A PostgreSQL schema is provided as reference (not used by runtime code in this chunk)
+  - Cross-cutting:
+    - Application Insights telemetry for web requests and MongoDB dependencies
+    - CORS enabled for all origins
+    - Configuration via Spring Boot application.properties and @ConfigurationProperties
+    - Can run as standalone Spring Boot app (port 8080) or as WAR in Tomcat
+
+- Client: Static Web App (WinJS-based single-page app)
+  - Consumes OrderService REST APIs for Dealers, Catalog, Quotes, Orders, Shipments
+  - Uses XHR to http://<hostname>:8080
+  - Pages: Dealers, Quotes, Orders, Deliveries (derived from shipments), Catalog, Settings, Home
+  - Provides create/update/delete and list/search flows aligned to server REST endpoints
+
+2) Components, classes, and responsibilities
+- Configuration/Bootstrapping
+  - OrderingConfiguration
+    - @Configuration, @EnableAutoConfiguration, @ComponentScan
+    - Beans:
+      - MongoTemplate:
+        - Uses MongoDBProperties (mongodb.host, mongodb.database)
+        - Supports comma-separated hosts
+        - Reads MONGO_PORT env (Docker linking format) to derive host
+        - MongoClientOptions socketKeepAlive(false)
+      - RepositoryFactory:
+        - Switches storage implementation (ordering.storage: memory|mongodb)
+      - OrderingServiceProperties bean exposure
+      - TelemetryClient:
+        - ThreadLocal TelemetryClient initialized from TelemetryConfiguration.getActive()
+        - Sets instrumentation key from ordering.instrumentationKey (if provided)
+    - ThreadLocal<TelemetryClient> for ambient telemetry per request thread
+  - OrderingInitializer (extends SpringBootServletInitializer)
+    - WAR deployment entry-point
+    - Captures servlet context path to prefix Location headers in REST responses
+  - MongoDBProperties (@ConfigurationProperties(prefix="mongodb"))
+    - host (default: localhost), database (default: ordering)
+  - OrderingServiceProperties (@ConfigurationProperties(prefix="ordering"))
+    - storage (default memory; production uses mongodb via application.properties)
+    - pingMessage, validationMessage, instrumentationKey
+  - PostgresqlProperties (unused in runtime here) – username, password, driverClass, url
+  - PropertyHelper – load properties from classpath application.properties (used in tests and PingController for buildinfo)
+
+- Filters and cross-cutting
+  - AppInsightsFilter (javax.servlet.Filter, @Component)
+    - Wraps every HTTP request
+    - Creates Application Insights RequestTelemetry with:
+      - Method, URL, session, operation id/name, duration, response code
+    - On exception:
+      - Tracks exception with ExceptionTelemetry, marks request as failed
+    - Relies on Utility.getTelemetryClient() – TelemetryClient bean from Spring context; no caching (thread-local)
+  - SimpleCORSFilter (@Component)
+    - Sets Access-Control-Allow-Origin: *, Allow-Methods: PUT, POST, GET, OPTIONS, DELETE
+    - Access-Control-Max-Age: 1
+    - Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Pragma, Cache-Control, If-Modified-Since
+
+- Utility
+  - Utility
+    - validateStringField helper (build JSON error arrays)
+    - isNullOrEmpty
+    - getTelemetryClient() – fetches from ApplicationContext (OrderingConfiguration)
+  - TestPath (interface) – a reset() hook for unit/integration tests to clear repositories
+
+- Controllers (REST API)
+  - Base URL paths and endpoints (JSON in/out; typical ResponseEntity patterns; Location headers use OrderingInitializer.getApplicationPath()):
+
+  - CatalogController (/catalog)
+    - GET /catalog → List<CatalogItem>; 404 if empty
+    - GET /catalog/{sku} → CatalogItem; 404 if not found
+    - POST /catalog → Create new CatalogItem
+      - Validates fields; 409 if SKU already exists
+      - Returns 201 Created (or 200 OK if repository reports update=true)
+    - PUT /catalog/{sku} → Update existing; 404 if missing
+    - DELETE /catalog/{sku} → 204 No Content or 404
+
+  - DealerController (/dealers)
+    - GET /dealers → List<DealerInfo>; 404 if empty
+      - Note: embedded performance test code loops getDealers() 100000 times (intended for APM lab) causing heavy DB load
+    - GET /dealers/{name} → DealerInfo; 404 if missing
+    - POST /dealers → Create; 409 if exists; 201 Created with Location
+    - PUT /dealers/{name} → Update; 404 if not found; 200 OK
+    - DELETE /dealers/{name} → 204 No Content or 404
+
+  - QuoteController (/quotes)
+    - GET /quotes/{quoteId} → Quote; 404 if not found
+    - GET /quotes?name=<fragment> → search by customerName (case-insensitive contains); 404 if none
+    - POST /quotes → Create Quote; validates; returns 201 Created with Location; 400 if duplicate id (BadRequest)
+    - PUT /quotes/{quoteId} → Update existing; 404 if missing; 200 OK
+    - DELETE /quotes/{quoteId} → 204 No Content or 404
+
+  - OrderController (/orders)
+    - GET /orders/{orderId} → Order; 404 if not found
+    - GET /orders?dealer=<name>&status=<OrderStatus> → List<Order>
+      - If dealer not provided (empty), returns by status only (default status=“None” → all)
+      - If dealer provided, filters orders linked to quotes of that dealer and by status
+      - 404 if none
+    - POST /orders?fromQuote=<quoteId> → Create new Order from Quote
+      - Validates quote existence
+      - Ensures idempotency: rejects if an Order already exists for that quote (409 conflict via ConflictingRequestException)
+      - Creates order with id "order-<quoteId>", status Created, current short date; returns 201 with Location and Order body
+    - POST /orders/{orderId}/events → Add OrderEventInfo
+      - Sets event date to current short date; returns 201 Created
+    - PUT /orders/{orderId} → Replace order (validates quoteId/orderDate fields)
+      - 200 OK or 404
+    - PUT /orders/{orderId}/status → Update status with OrderUpdateInfo (status + eventInfo)
+      - Injects current date into event; 200 OK or 400 if order missing
+    - DELETE /orders/{orderId} → 204 or 404
+
+  - ShipmentController (/shipments)
+    - GET /shipments?status=<OrderStatus> → List<ShipmentRecord> for orders matching status
+      - Joins by fetching orders via OrderRepository then “IN” orderIds within shipments
+      - 404 if none
+    - GET /shipments/deliveries → List<Delivery> (aggregate view)
+      - Delivery aggregates: ShipmentRecord + Order + Quote for orders with DeliveryConfirmed status
+    - GET /shipments/{orderId} → ShipmentRecord by orderId; 404 if not found
+    - POST /shipments → Create ShipmentRecord
+      - Validates order exists and uniqueness per order; 201 Created with Location; 400 on validation errors
+    - PUT /shipments/{orderId} → Update ShipmentRecord (full replace)
+      - Validates ID match; 404 if missing; 200 OK
+    - POST /shipments/{orderId}/events → Add ShipmentEventInfo (sets date to current short date); 200 OK or 201? (implementation returns OK or CREATED; created=false semantics)
+    - DELETE /shipments/{orderId} → 204 or 404
+
+  - PingController (/ping)
+    - HEAD /ping → 200 OK (liveness)
+    - GET /ping → Returns human-readable string:
+      - ordering.pingMessage + ordering.validationMessage + optional build.number and build.timestamp from buildinfo.properties
+
+- Repositories (interfaces)
+  - CatalogItemsRepository: getCatalogItems, getCatalogItem, upsertCatalogItem, removeCatalogItem
+  - DealersRepository: getDealers, getDealer, upsertDealer, removeDealer
+  - QuoteRepository: getQuote, getQuotesByCustomerName, getQuoteIdsByDealerName, createQuote, updateQuote, removeQuote
+  - OrderRepository: hasOrder, getOrder, getOrderByQuoteId, getOrdersByStatus, getOrdersByDealerName, createOrder(fromQuote), updateOrder(id, Order), updateOrder(id, OrderUpdateInfo), removeOrder
+  - ShipmentRepository: getShipments(status), getShipmentById, createShipment, addEvent, updateShipment, removeShipment
+
+- RepositoryFactory
+  - Static factory with storageKind switch:
+    - "memory" → mock.* repositories
+    - "mongodb" → mongodb.* repositories
+  - Provides static getters for each repository type
+  - Initializes MongoTemplate via Spring application context (if available)
+
+- MongoDB repositories and models
+  - MongoOperationsWithRetry (MongoOperations decorator)
+    - Wraps key methods (findAll, findOne, exists, find, save, dropCollection, findAndRemove, insert, etc.)
+    - On DataAccessResourceFailureException caused by SocketTimeoutException, retries once
+    - Sends Application Insights RemoteDependencyTelemetry with name "MongoDB.<operation>", duration, success=true/false
+  - MongoCatalogItemsRepository
+    - Collection: “catalog”
+    - Key fields: skuNumber (Indexed)
+    - toCatalogItem converts leadTime to 0 when inventory>0 (computed field)
+  - MongoDealersRepository
+    - Collection: “dealers”
+    - Key fields: name (Indexed)
+  - MongoQuoteRepository
+    - Collection: “quotes”
+    - Key fields: quoteId (Indexed), dealerName (Indexed)
+    - getQuotesByCustomerName: loads all quotes then filters in-memory (TODO noted in code)
+    - getQuoteIdsByDealerName: returns list of quoteIds used by MongoOrderRepository for join-like behavior
+  - MongoOrderRepository
+    - Collection: “orders”
+    - Key fields: orderId (Indexed), quoteId (Indexed), status (Indexed)
+    - createOrder: constructs "order-<quoteId>", date=DateFormat.SHORT, status=Created
+    - getOrdersByDealerName: builds Criteria "quoteId in <list-of-ids>" with optional status
+  - MongoShipmentRepository
+    - Collection: “shipments”
+    - Key field: orderId (Indexed)
+    - getShipments(status): fetches orders by status, then finds shipments where orderId in that set
+    - Ensures uniqueness: one shipment per orderId
+
+- Mock repositories (in-memory)
+  - MockCatalogItemsRepository: seeded with three SKUs
+  - MockDealersRepository: simple list
+  - MockQuoteRepository:
+    - generate quote ids if empty (random positive int)
+    - creates Dealer if missing
+  - MockOrderRepository:
+    - createOrder prevents duplicates based on quoteId; assigns "order-<quoteId>"
+  - MockShipmentRepository:
+    - requires order existence; one shipment per order
+
+3) Data models and schemas
+- Domain models (JSON fields mirror class fields):
+  - CatalogItem: skuNumber (String), description (String), price (double), inventory (int), leadTime (int); validate() checks skuNumber and description
+  - DealerInfo: name, contact, address, email, phone; validate() checks name
+  - Quote:
+    - quoteId, validUntil, customerName, dealerName, totalCost, discount, city, postalCode, state, List<QuoteItemInfo> quoteItems
+    - addQuoteItem(skuNumber, amount), validate() checks dealerName, customerName
+  - QuoteItemInfo: skuNumber, amount (double)
+  - Order:
+    - orderId, quoteId, orderDate (String), status (OrderStatus), List<OrderEventInfo> events
+    - addEvent, validate() checks quoteId and orderDate
+  - OrderEventInfo: date (String), comments (String)
+  - OrderStatus enum: None, Created, Confirmed, Started, Built, DeliveryConfirmed, Shipped, Delivered, Installed
+  - OrderUpdateInfo: status (OrderStatus), eventInfo (OrderEventInfo)
+  - ShipmentRecord:
+    - orderId, deliveryDate, List<ShipmentEventInfo> events, DeliveryAddress deliveryAddress, contactName, primaryContactPhone (PhoneInfo), alternateContactPhone (PhoneInfo)
+    - validate() enforces orderId, deliveryDate, non-empty deliveryAddress(city/postalCode), and contactName + primaryContactPhone
+  - ShipmentEventInfo: date, comments; validate() non-empty comments
+  - Delivery: aggregate container { quote, order, shipmentRecord }
+  - DeliveryAddress: street, city, state, postalCode, specialInstructions
+  - PhoneInfo: phoneNumber, kind
+
+- MongoDB document models (spring-data annotated @Document)
+  - repositories.mongodb.models.CatalogItem (collection "catalog"): id, skuNumber(@Indexed), description, price, inventory, leadTime
+  - Dealer ("dealers"): id, name(@Indexed), contact, address, email, phone
+  - QuoteDetails ("quotes"): id, quoteId(@Indexed), validUntil, customerName, dealerName(@Indexed), quoteItems[] (QuoteItemInfo), totalCost, discount, city, postalCode, state
+  - OrderDetails ("orders"): id, orderId(@Indexed), quoteId(@Indexed), orderDate, status(@Indexed), events[] (OrderEventInfo)
+  - ShipmentDetails ("shipments"): id, orderId(@Indexed), events[] (ShipmentEventInfo), deliveryAddress, contactName, primaryContactPhone, alternateContactPhone
+
+- PostgreSQL (reference DDL, not used by current runtime)
+  - Database: Fabrikant
+  - Tables: CatalogItems(sku_number, description, price), Dealers(name, contact, address, email, phone), Quotes(quote_id,...), QuoteAdditionalItemRecord, Orders(order_id, quote_id,...), OrderEvents, PhoneInfo, DeliveryAddress, ShipmentRecords, ShipmentEventInfo
+  - Foreign keys link quote/order/shipment/address/phone; mirrors the same domain model relationships
+
+4) Service dependencies and communication patterns
+- External dependencies:
+  - MongoDB (primary data store)
+    - MongoTemplate used for CRUD
+    - Operations wrapped by MongoOperationsWithRetry:
+      - Retries once on SocketTimeoutException (wrapped in Spring’s DataAccessResourceFailureException)
+      - Emits Application Insights RemoteDependencyTelemetry per operation
+  - Application Insights:
+    - Request-level telemetry via AppInsightsFilter
+    - Mongo dependency telemetry via MongoOperationsWithRetry
+    - Exception telemetry across controllers and filter
+    - Configuration via ApplicationInsights.xml; DeveloperMode=true (as provided); instrumentation key provided via ordering.instrumentationKey or ApplicationInsights.xml
+- Client interaction:
+  - Static Web app calls API endpoints with JSON; CORS open
+  - Client aggregates data (e.g., order and related quote fetched client-side; server also has /shipments/deliveries aggregate for delivery views)
+
+5) Key business logic and algorithms
+- Order creation:
+  - Derive orderId as "order-<quoteId>"
+  - Ensure quote exists and no prior Order for that quote (conflict)
+  - Initialize status=Created, orderDate=current short date
+- Order status update:
+  - Adds an order event with the current date and provided comments (OrderUpdateInfo.eventInfo.comments)
+  - Updates status
+- Quote creation:
+  - If dealer is unknown, auto-create the dealer placeholder (name only) to keep referential consistency
+  - Generate random positive integer id if none provided
+  - Enforce uniqueness of quoteId (BadRequest on duplicate)
+- Shipment creation:
+  - Enforce existence of Order
+  - Enforce one shipment per order
+- Catalog item: Mongo conversion sets leadTime=0 if inventory>0 (stock implies immediate)
+- Telemetry & resiliency:
+  - Request telemetry and exception capture for all endpoints
+  - Mongo retry on specific transient error (SocketTimeoutException)
+- Performance caveat (deliberate):
+  - DealerController.getDealers doubles as an APM exercise by invoking the repository up to 100000 times; treat this as test code not production behavior
+
+6) Configuration and deployment details
+- application.properties (prod/staging)
+  - server.port=8080
+  - management.port=8081; management.address=127.0.0.1
+  - ordering.storage=mongodb (switchable to memory)
+  - ordering.pingMessage, ordering.validationMessage
+  - mongodb.host=localhost, mongodb.database=ordering
+- tests application.properties
+  - ordering.storage=memory (by default for unit tests)
+  - mongodb.* configured for integration tests with @Category(IntegrationTests)
+- ApplicationInsights.xml
+  - Telemetry modules for web request/session/user tracking
+  - DeveloperMode=true (stdout/endpoints commented out)
+  - InstrumentationKey empty by default; can be set via ordering.instrumentationKey programmatically
+- Build pipeline
+  - Gradle wrapper (2.1)
+  - Custom tasks:
+    - BuildInformationTask: generates src/main/resources/buildinfo.properties with build.number (major.minor.BUILD_NUMBER), build.timestamp, build/git metadata (Jenkins env vars); read by PingController
+    - CleanBuildInformationTask: deletes buildinfo.properties
+  - version.properties (major/minor used in BuildInformationTask)
+- Deployment modes
+  - Standalone Spring Boot main (OrderingConfiguration.main)
+  - As WAR in Tomcat (OrderingInitializer); maintains contextPath for Location headers
+- Environment variables
+  - MONGO_PORT (Docker link format like tcp://host:port) → parsed to set Mongo host
+  - Jenkins build vars used by BuildInformationTask (BUILD_NUMBER, BUILD_ID, BUILD_URL, BUILD_TAG, GIT_COMMIT, GIT_URL, GIT_BRANCH)
+- Scripts
+  - scripts/setup.sh: seeds dealers and catalog, and creates a test quote; uses localhost:8080
+  - scripts/createorder.sh: POST order from a quote; list orders by dealer
+  - scripts/update.sh: PUT update a quote
+  - scripts/setupdocker.sh: similar seeding against a path /ordering-0.1.0 on a given host
+  - scripts/schema.psql: PostgreSQL schema
+- Security CORS
+  - CORS allows *, and headers include Pragma/Cache-Control/If-Modified-Since for client caching behavior
+  - No authentication/authorization present in this chunk
+
+7) Client (static WinJS web app)
+- Architecture
+  - Single page app using WinJS (ui-light.css, winjs.js)
+  - Navbar pages: main, dealers, quotes, orders, deliveries, catalog, settings
+  - serverconfig.js defines baseAddress as http://<window.location.hostname>:8080
+- Data access (js/data.js)
+  - Provides functions to GET/POST/PUT/DELETE server endpoints:
+    - dealersGet/save/delete/create
+    - catalogGet/save/delete/create
+    - quotesGet/getById/save/delete/create
+    - ordersGet/getById/save/delete/createFromQuote/delete, addEvent/status update
+    - deliveriesGet/save/delete/createFromOrder (maps to shipments), deliveryFindById
+  - Uses headers: Content-Type application/json; Pragma/Cache-Control no-cache; If-Modified-Since epoch
+  - Delivery aggregation:
+    - Client mainly uses /shipments endpoints; server also exposes /shipments/deliveries if needed
+- UI
+  - Controls.EditTools (custom control for save/delete/add/edit buttons)
+  - Pages: e.g., pages/catalog/catalog.html/js view for catalog items
+- Error handling
+  - reporterror() uses a ContentDialog popup
+
+8) Patterns, frameworks, and notable design decisions
+- Frameworks
+  - Spring Boot (auto-configuration, @ConfigurationProperties)
+  - Spring MVC (@Controller, @RequestMapping)
+  - Spring Data MongoDB (MongoTemplate)
+  - Application Insights Java SDK (custom Filter and dependency telemetry)
+  - WinJS (client SPA)
+  - JUnit tests (unit + integration categories)
+- Architectural patterns
+  - Repository pattern with a factory to swap implementations (in-memory vs MongoDB)
+  - Request/response REST controller pattern with explicit status codes
+  - Decorator for MongoOperations to add retry and telemetry (resilience + observability)
+  - Thread-local TelemetryClient for per-request trace correlation (operation id/name set in filter)
+  - Context-aware Location headers via servlet context path
+- Observability
+  - End-to-end telemetry:
+    - Web requests tracked (AppInsightsFilter) with operation context
+    - Mongo calls tracked as dependencies with durations and success/fail
+    - Exceptions tracked in controllers and filter
+- Validation strategy
+  - Lightweight server-side validate() methods on models return JSON list of validation errors; controllers return 400 on invalid input
+- Known pitfalls/hotspots
+  - DealerController GET artificially invokes repository in a tight loop (100000 calls) – for APM training; remove/guard for production
+  - QuoteRepository.getQuotesByCustomerName (Mongo implementation) fetches all and filters client-side – can be expensive; TODO in code
+  - CORS is fully open; no auth controls present
+
+9) Microservice decomposition hints (from current boundaries)
+- Natural service boundaries by domain:
+  - Catalog Service: CRUD SKUs, inventory/leadTime calculation
+  - Dealer Service: CRUD dealers
+  - Quote Service: CRUD quotes; depends on Dealer service (auto-create dealer or validate existence)
+  - Order Service: Manage orders, events, status; depends on Quote (and Dealer indirectly)
+  - Shipment Service: Manage shipments and events; depends on Order; Delivery aggregator could be a read-model/composer
+- Data boundaries:
+  - Current Mongo model keeps separate collections for catalog, dealers, quotes, orders, shipments, with references by business ids (not DBRefs)
+  - Services could own their respective collections; current code composes via query joins (quotes→orders; orders→shipments)
+- Cross-cutting:
+  - Shared telemetry and CORS filters
+  - Build information endpoint (/ping) could remain in each service or centralized
+
+10) API summary (paths, verbs, status codes)
+- /catalog
+  - GET → 200 [CatalogItem[]] | 404
+  - GET /{sku} → 200 [CatalogItem] | 404
+  - POST → 201 Created (Location /catalog/{sku}) | 409 if exists | 400 on validation
+  - PUT /{sku} → 200 OK | 404 if missing | 400 on validation
+  - DELETE /{sku} → 204 No Content | 404
+- /dealers
+  - GET → 200 [DealerInfo[]] | 404
+  - GET /{name} → 200 [DealerInfo] | 404
+  - POST → 201 Created (Location /dealers/{name}) | 409 if exists | 400 on validation
+  - PUT /{name} → 200 OK | 404 if missing | 400 on validation
+  - DELETE /{name} → 204 | 404
+- /quotes
+  - GET /{quoteId} → 200 [Quote] | 404
+  - GET ?name=<fragment> → 200 [Quote[]] | 404
+  - POST → 201 Created (Location /quotes/{id}) | 400 on duplicate or validation
+  - PUT /{quoteId} → 200 | 404 | 400 on validation
+  - DELETE /{quoteId} → 204 | 404
+- /orders
+  - GET /{orderId} → 200 [Order] | 404
+  - GET ?dealer=<name>&status=<OrderStatus> → 200 [Order[]] | 404
+  - POST ?fromQuote=<quoteId> → 201 Created (Location /orders/{orderId}) | 400 if quote missing | 409 if already has order
+  - POST /{orderId}/events → 201 Created | 400 on bad request
+  - PUT /{orderId} → 200 | 404 | 400 on validation
+  - PUT /{orderId}/status → 200 | 400 if order missing
+  - DELETE /{orderId} → 204 | 404
+- /shipments
+  - GET → 200 [ShipmentRecord[]] | 404
+  - GET /deliveries → 200 [Delivery[]] | 404
+  - GET /{orderId} → 200 [ShipmentRecord] | 404
+  - POST → 201 Created (Location /shipments/{orderId}) | 400 on validation or order not found | 409 (in Mongo impl) if duplicate
+  - PUT /{orderId} → 200 | 404 | 400 id mismatch or validation
+  - POST /{orderId}/events → 200 or 201 | 400 on validation
+  - DELETE /{orderId} → 204 | 404
+- /ping
+  - HEAD → 200
+  - GET → 200 Text (ping + validation + build info)
+
+11) Tests
+- Unit tests for controllers and mock repositories
+- Integration tests (@Category IntegrationTests) for Mongo repositories
+- TestOrderingConfiguration provides MongoTemplate and RepositoryFactory wired to test properties
+
+12) Notable configuration files and scripts
+- src/main/resources/application.properties (prod/staging defaults)
+- src/test/resources/application.properties (tests; memory storage)
+- ApplicationInsights.xml (DeveloperMode true; key configurable)
+- buildinfo.properties (generated; read by /ping)
+- scripts/*.sh for seeding and demo usage
+- scripts/schema.psql (PostgreSQL reference schema)
+
+This summary captures the components, contracts (REST endpoints), data models, repository boundaries, telemetry/resiliency mechanisms, and deployment/configuration for accurate microservice decomposition and further architectural analysis.
+
+=== summary_chunk_3.txt ===
+
+Architectural summary for Codebase Chunk 3 (WinJS Web Client: Dealers, Quotes, Orders, Deliveries, Extras, Order Events, Main)
+
+Overview
+- This chunk contains the client-side UI for a Parts Unlimited MRP system implemented with WinJS (Windows Library for JavaScript). It is a single-page application composed of multiple pages loaded via WinJS Navigation, each binding to a shared Data service layer that provides asynchronous CRUD operations and observable lists using WinJS.Binding.List.
+- Domain areas covered: Dealers, Quotes, Orders, Deliveries, Extras (Catalog items), and Order/Delivery Events.
+- Common cross-cutting UI components/utilities referenced: Controls.EditTools (custom toolbar), popup/confirm dialogs, showProgress/hideProgress, addAddressHandler (address autocomplete integration), getPostCodeFromPlace, clone, addTextChangeEventHandler. These are not defined in this chunk but are central to behavior.
+
+Primary UI Components (Pages) and Responsibilities
+- pages/main/main.html (+ main.js, main.css)
+  - Responsibilities: App “launchpad” landing page with tiles for navigation to feature pages (dealers, quotes, orders, deliveries, catalog).
+  - Interactions: Clicking a .launchtile triggers navigation to corresponding page (“pages/<page>/<page>.html”) and closes nav trigger checkbox if present.
+  - Dependencies: WinJS.Navigation, generic CSS.
+  - Duplicate artifact: pages/main/main_files/* appears to be a saved/static variant of main.
+
+- pages/dealers/dealers.html (+ dealers.js)
+  - Responsibilities: Manage dealers collection (list, create, edit, delete, save). Two-way binding to a dealer detail form.
+  - UI:
+    - WinJS.UI.ListView bound to Data.dealers.dataSource via a dealerItemTemplate displaying name, contact, address, email, phone.
+    - EditTools toolstrip for actions (add, save, delete; edit hidden).
+    - Form fields (two-way bound) for name, contact, address (with autocomplete), email, phone.
+  - Interactions:
+    - On page ready: Data.dealersGet loads data; if null, navigates back.
+    - Selection handling: sets currentItem and binds detail.
+    - Address autocomplete: addAddressHandler on address field; sets currentItem.address.
+    - Actions:
+      - add: Data.dealerCreate(), bind to detail.
+      - save: Data.dealerSave(currentItem); re-selects saved item.
+      - delete: Confirm then Data.dealerDelete(currentItem); adjust selection.
+  - Dependencies: Data.dealersGet/save/delete/create, Controls.EditTools, addAddressHandler, showProgress/hideProgress, confirm, WinJS.Binding.
+
+- pages/quotes/quotes.html (+ quotes.js, quotes.css)
+  - Responsibilities: Manage quotes (list, create, edit, delete, save) and navigate to Orders creation. Manage extras via a popup.
+  - UI:
+    - ListView bound to Data.quotes.dataSource; itemTemplate shows dealerName, validUntil, customerName, purpose, dimensions.
+    - EditTools toolstrip; “edit” button repurposed to open orders (icon set to AppBarIcon.newwindow).
+    - Detail form (two-way bindings) for dealerName, validUntil, customerName, address (city), postalCode, comments, purpose (Refrigerator/Freezer), unitDescription, width/height/depth, ambientAverage/ambientPeak, terms, totalCost, discount. “Manage Extras” button opens extras manager popup.
+  - Interactions:
+    - On load: Data.quotesGet(""); binds and sets up selection.
+    - Address autocomplete on address and postcode fields; updates currentItem.city/postalCode using addAddressHandler and getPostCodeFromPlace.
+    - Actions:
+      - add: Data.quoteCreate(), bind.
+      - save: Data.quoteSave(), re-select saved item.
+      - delete: Confirm then Data.quoteDelete(), adjust selection.
+      - edit: nav.navigate to pages/orders/orders.html with { quote: currentItem } (create order from quote).
+    - Popup: popup("quoteExtrasPopup", "Manage Extras", "pages/extras/extras.html", currentItem) passes quote as state to extras page.
+
+- pages/orders/orders.html (+ orders.js, orders.css)
+  - Responsibilities: Manage orders (list, create from quote, edit, delete, save); open events and extras; trigger delivery creation.
+  - UI:
+    - ListView bound to Data.orders.dataSource but rendered via custom itemRenderer to enrich each item with related Quote before templating (template shows dealerName, customerName, orderDate, status, dimensions).
+    - EditTools toolstrip; “edit” repurposed as “Deliver” (icon AppBarIcon.newwindow).
+    - Detail consists of:
+      - Order section: orderDate, status (Created, Confirmed, Started, Built, DeliveryConfirmed, Shipped, Delivered, Installed), Manage Events button.
+      - Quote section (bound via __quote): dealerName, validUntil, customerName, address/postcode (with autocomplete), comments, purpose, unitDescription, Manage Extras button, dimensions, ambientAverage/Peak, terms, totalCost, discount.
+  - Interactions:
+    - Startup: If options.quote provided, call Data.orderCreateFromQuote(quote) then load orders. Else Data.ordersGet("").
+    - Custom itemRenderer: For each order item, resolves __quote via Data.quoteGetById(order.quoteId), then binds template.
+    - Address autocomplete on __quote address and postcode; updates related fields.
+    - Selection handling: sets currentItem; stores originalItem = clone(backingData) for change-tracking on save.
+    - Actions:
+      - add: Data.orderCreate(), bind.
+      - save: Data.orderSave(currentItem, originalItem), re-select saved item.
+      - delete: Confirm then Data.orderDelete(), adjust selection.
+      - edit (“Deliver”): nav.navigate("pages/deliveries/deliveries.html", { order: currentItem }).
+    - Popups:
+      - Manage Extras: popup("orderExtrasPopup", "Manage Extras", "pages/extras/extras.html", currentItem.__quote).
+      - Manage Events: popup("orderExtrasPopup", "Manage Events", "pages/orderevents/orderevents.html", currentItem).
+
+- pages/deliveries/deliveries.html (+ deliveries.js, deliveries.css)
+  - Responsibilities: Manage deliveries (list, create from order, edit, delete, save). Manage order and delivery events. Manage quote extras (read-only in this page).
+  - UI:
+    - ListView uses custom itemRenderer to enrich with related Order and Quote (data.__order, data.__quote).
+    - EditTools toolstrip; add and edit hidden.
+    - Full detail panel combining delivery, order, and quote details:
+      - Delivery: deliveryDate, deliveryAddress.city, deliveryAddress.postalCode (autocomplete), primaryContactPhone.phoneNumber, alternateContactPhone.phoneNumber, Manage Delivery Events button.
+      - Order: __order.orderDate, __order.status, Manage Order Events button.
+      - Quote: __quote.* fields similar to orders/quotes view, including Manage Extras button and dimensions.
+  - Interactions:
+    - Startup: If options.order provided, Data.deliveryCreateFromOrder(order), then Data.deliveriesGet().
+    - Enrichment in renderer: Data.orderGetById(delivery.orderId), set data.__order and data.__quote = order.__quote.
+    - Address autocomplete on delivery/quote address & postcode, updating nested objects and derived postcode via getPostCodeFromPlace.
+    - Selection handling: sets currentItem; stores deep originalItem (delivery.backingData, plus nested __order and __quote backingData).
+    - Actions:
+      - save: Data.deliverySave(currentItem, originalItem), re-select saved item.
+      - delete: Confirm then Data.deliveryDelete(), adjust selection.
+    - Popups:
+      - Manage Extras for quote: popup("deliveryExtrasPopup", "Manage Extras", "pages/extras/extras.html", currentItem.__quote).
+      - Manage Delivery Events: popup("deliveryExtrasPopup", "Manage Delivery Events", "pages/orderevents/orderevents.html", currentItem).
+      - Manage Order Events: popup("deliveryExtrasPopup", "Manage Order Events", "pages/orderevents/orderevents.html", currentItem.__order).
+
+- pages/extras/extras.html (+ extras.js, extras.css)
+  - Responsibilities: Manage extras (catalog items) attached to a quote’s additionalItems list via a modal workflow. Acts as a filtered catalog editor for selected items. Supports create, save, delete within the popup; on unload, writes the selection back to the calling quote's additionalItems.
+  - UI:
+    - ListView (dataSource set at runtime) showing skuNumber, description, unit, unitPrice.
+    - EditTools toolstrip; add/save/delete used; edit hidden.
+    - Detail form bound two-way: skuNumber, description, unit, unitPrice.
+  - Interactions:
+    - Startup: Receives options.state.additionalItems (from quote). Loads Data.catalogGet(); builds extrasData = list of catalog entries matching additionalItems via catalogFindSku. Sets ListView.itemDataSource to this list.
+    - SKU change: addTextChangeEventHandler on skuNumber; calls _populateExtraDetails to auto-fill fields from Data.catalogFindSku.
+    - Actions:
+      - add: Data.catalogCreate(); bind to detail.
+      - save: Data.catalogSave(currentItem); if new, push into extrasData; then re-select.
+      - delete: Removes from extrasData (does not call Data.catalogDelete; it’s commented out).
+    - Unload behavior: If mid-add, triggers save; then clears and repopulates original additionalItems with entries { skuNumber, shouldPreInstall: true, amount: 1 } for each item in extrasData.
+  - Dependencies: Data.catalogGet/findSku/save/create.
+
+- pages/orderevents/orderevents.html (+ orderevents.js)
+  - Responsibilities: Manage events associated with orders or deliveries. Modal workflow similar to extras: operate on an events array passed in, and push changes back on unload.
+  - UI:
+    - ListView of events sorted by date descending (custom comparator in _getOrderEventsDataSource), shows date and comments.
+    - EditTools toolstrip; add/save/delete used; edit hidden.
+    - Detail form: date, comments (comments text area class).
+  - Interactions:
+    - Startup: Receives options.state.events (array) from calling page. Generates a sorted Binding.List of WinJS.Binding.as objects.
+    - Actions:
+      - add: Create a new event with current timestamp as a string ("M/d/yyyy hh:mm:ss tt"), mark __new, bind.
+      - save: If __new, push into ordereventsData; re-select.
+      - delete: Remove from ordereventsData.
+    - Unload: If mid-add, triggers save; then replaces original events array content with the backingData of items in ordereventsData.
+
+Shared Data Models and Implied Schemas
+- Dealer
+  - Fields: name, contact, address, email, phone
+  - Persisted via: Data.dealerSave/Delete/Create, Data.dealersGet(), underlying list Data.dealers.
+
+- Quote
+  - Fields: dealerName, validUntil, customerName, city, postalCode, comments, purpose (Refrigerator|Freezer), unitDescription, width, height, depth, ambientAverage, ambientPeak, terms, totalCost, discount, additionalItems (array of extras references)
+  - Relations: Quote → used to create Order (orderCreateFromQuote); Orders fetch __quote via Data.quoteGetById(quoteId).
+  - Persisted via: Data.quoteSave/Delete/Create/Get, Data.quotes (list).
+
+- Order
+  - Fields: orderId (implied), quoteId, orderDate, status (enum: Created, Confirmed, Started, Built, DeliveryConfirmed, Shipped, Delivered, Installed), events (array of { date, comments })
+  - Relations: Order → Quote (via quoteId); Delivery created from Order (deliveryCreateFromOrder).
+  - Persisted via: Data.orderSave/Delete/Create/Get, Data.orders (list). Additional find utility: Data.orderFindById.
+
+- Delivery
+  - Fields: orderId, deliveryDate, deliveryAddress { city, postalCode }, primaryContactPhone { phoneNumber }, alternateContactPhone { phoneNumber }, (likely) events (same structure as orders’ events)
+  - Relations: Delivery → Order (via orderId), and via that to Quote; UI binds __order and __quote.
+  - Persisted via: Data.deliverySave/Delete/CreateFromOrder/Get, Data.deliveries (list). Additional find utility: Data.deliveryFindById.
+
+- Catalog/Extra
+  - Fields: skuNumber (key), description, unit, unitPrice
+  - Used within a quote’s additionalItems (each entry simplified to { skuNumber, shouldPreInstall, amount } upon return from extras page).
+  - Persisted via: Data.catalogGet, Data.catalogFindSku, Data.catalogSave, Data.catalogCreate (catalogDelete is referenced but disabled in UI flow).
+
+- Order/Delivery Event
+  - Fields: date (string), comments; no explicit id in UI; Sorted by date descending with fallback string comparison. There is a “year < 1970 then +100 years” correction hack to coerce legacy dates.
+
+Service Dependencies and Interfaces (client-side contracts)
+- The Data service (external to this chunk) exposes promise-based methods returning either entities or WinJS.Binding.Lists:
+  - Dealers: dealersGet(), dealerSave(entity), dealerDelete(entity), dealerCreate(), Data.dealers (Binding.List).
+  - Quotes: quotesGet(filterString), quoteSave(entity), quoteDelete(entity), quoteCreate(), quoteGetById(id), Data.quotes (Binding.List).
+  - Orders: ordersGet(filterString), orderSave(entity, originalEntityClone), orderDelete(entity), orderCreate(), orderCreateFromQuote(quote), orderFindById(orderId), Data.orders (Binding.List).
+  - Deliveries: deliveriesGet(), deliverySave(entity, originalEntityClone), deliveryDelete(entity), deliveryCreateFromOrder(order), deliveryFindById(orderId), orderGetById(orderId) (returns order with __quote), Data.deliveries (Binding.List).
+  - Catalog: catalogGet(), catalogFindSku(sku), catalogSave(entity), catalogCreate().
+- All methods return WinJS.Promise. Data.*.dataSource is used as ListView.itemDataSource compatible with WinJS Binding.List.
+
+UI Controls/Utilities (external)
+- Controls.EditTools: Shared toolbar that emits “click” events with args.label in {'add','save','edit','delete'}. getButtons() returns a map of button elements for enabling/disabling or changing labels/icons.
+- popup(containerId, title, pageUri, stateObject): Hosts a page (extras, orderevents) inside a WinJS.UI.ContentDialog within a container div, passing state via options.state to the page.
+- confirm(title, text, primaryText, secondaryText): Shows a ContentDialog and returns a promise with { reason: 'primary'|'secondary' }.
+- showProgress(message)/hideProgress(): User feedback during async operations.
+- addAddressHandler(inputElement, callback(place)): Likely integrates address autocomplete (e.g., Google Places). On selection, calls callback with place containing formatted_address. getPostCodeFromPlace(place) returns a postalCode string.
+- clone(obj): Produces a deep copy of data/backingData used for change tracking.
+- addTextChangeEventHandler(inputElement, handler): Wires up change events for live updates.
+
+Navigation and Communication Patterns
+- Main page tiles navigate to feature pages via WinJS.Navigation.
+- Orders “Deliver” action navigates to Deliveries with options.order; Quotes “edit” navigates to Orders with options.quote.
+- List pages set selection programmatically after operations (e.g., after create-from-quote/order) using Data.orderFindById or Data.deliveryFindById to select corresponding row.
+- Modals (Extras/OrderEvents) pass in mutable arrays/objects via options.state and write updated content back on unload. For Extras, the returned value is a simplified list of additionalItems; for OrderEvents, it replaces the events array with edited entries.
+- Enrichment pattern: List item renderers load related entities (Orders load Quote; Deliveries load Order and Quote) via Data.*GetById and attach them as __quote / __order to the bound data for display/edit.
+
+Key Business Logic and Algorithms
+- Events sorting: In orderevents.js, events are sorted descending by date; attempts to parse date to Date objects. For parsed dates earlier than 1970, it adds 100 years (likely to normalize two-digit year inputs). Falls back to string compare if parsing fails.
+- Extras management: When editing extras for a quote:
+  - The pop-up shows only catalog entries that match the quote’s additionalItems (via skuNumber).
+  - New extras can be created (catalogCreate/save). On close, quote.additionalItems is rebuilt from the current extrasData with default flags (shouldPreInstall=true, amount=1).
+- Save with change tracking: Orders and Deliveries pass both current and originalItem (cloned backingData) to Data.save methods, suggesting the backend expects a delta or concurrency check (not visible here).
+- Address autocomplete integrated into dealers, quotes, orders, deliveries. The selected address’s formatted_address populates city fields; postalCode extracted via getPostCodeFromPlace.
+
+Configuration and Deployment Details
+- Frontend framework: WinJS (WinJS.UI.ListView, WinJS.Binding, WinJS.Navigation, WinJS.UI.ContentDialog, WinJS.UI.Animation).
+- HTML/CSS: Per-page CSS for layout; Orders/Deliveries use split detail panels with scrolling (max-height calculation).
+- The app appears to be a packaged HTML/JS app (historically WinJS Windows Store style) but is structured under src/Clients/Web; it should run in a browser with WinJS scripts included (not shown in this chunk).
+- Assets referenced: Images under ../../images (e.g., FabrikamIcon.png) and main_files in a duplicate saved main page.
+- No explicit environment configuration or backend endpoints in this chunk; all backend interaction abstracted via Data.* promises.
+
+Implied Backend/Microservice Boundaries (for decomposition)
+- Dealer Service
+  - CRUD for dealers.
+  - Data shape: { id?, name, contact, address, email, phone }.
+- Catalog Service
+  - CRUD for catalog items (extras).
+  - Data shape: { skuNumber (key), description, unit, unitPrice }.
+- Quote Service
+  - CRUD for quotes and management of additionalItems (linking to catalog SKUs).
+  - Data shape listed above; may need dealer references; calculators for totals/discounts are client-bound fields; server should validate.
+- Order Service
+  - CRUD for orders; create-from-quote operation.
+  - Manage order status transitions (Created → Installed). Client allows any selection; enforcement should be on server.
+  - Manage events associated with orders (list of { date, comments }).
+  - Relation to quotes (by quoteId).
+- Delivery Service
+  - CRUD for deliveries; create-from-order operation.
+  - Manage delivery-specific events.
+  - Relation to orders (by orderId) and derived to quotes.
+- Event Service (could be part of Orders/Deliveries or a shared service)
+  - CRUD of events associated with an aggregate root (Order or Delivery).
+- Address/Geolocation Integration
+  - External dependency for address autocomplete/postcode parsing (likely Google Places). Could be abstracted as a separate integration service or kept client-side.
+
+Data Access Patterns and Interfaces (from client perspective)
+- Collections use WinJS.Binding.List with .dataSource to back ListView controls.
+- Entities in lists often carry a .backingData property (WinJS.Binding.as behavior); clones are used for save operations.
+- Related entities are loaded on-demand in itemRenderer:
+  - Orders: Data.quoteGetById(order.quoteId)
+  - Deliveries: Data.orderGetById(delivery.orderId); then derive __quote from returned order.
+- Finder helpers used to set selection after create: Data.orderFindById(orderId), Data.deliveryFindById(orderId).
+
+Security and Validation
+- Not present in this chunk. No authentication/authorization flows, input validation, or error handling beyond null checks and confirm prompts. Backend services should enforce validation, especially for statuses, dates, and catalog SKU integrity.
+
+Deployment Considerations and UI Composition Patterns
+- Each page calls WinJS.UI.processAll(element) before wiring up events.
+- Animations: WinJS.UI.Animation.enterContent on page sections after data loaded.
+- ContentDialog used inside a container div with id pagePopup; popups load full pages (extras, orderevents) and communicate via options.state.
+
+Important UI/UX Behaviors to Preserve
+- Selection management: After save/delete, re-select the appropriate item and ensure visibility in the ListView.
+- Progressive feedback: showProgress/hideProgress around async calls.
+- Toolbar button visibility and behavior customizations per page:
+  - Dealers: add enabled; edit hidden.
+  - Quotes: add enabled; edit visible and used as “Create Order”.
+  - Orders: add hidden; edit visible labeled as “Deliver”.
+  - Deliveries: add/edit hidden (only save/delete).
+  - Extras and OrderEvents (popups): add/save/delete enabled; edit hidden.
+
+Gaps/Assumptions (outside this chunk)
+- The Data service implementation, backend API endpoints, and domain IDs are not shown. For microservice design, expect REST endpoints matching the Data methods (e.g., GET /dealers, POST/PUT /dealers/{id}, GET /quotes/{id}, POST /orders/from-quote, POST /deliveries/from-order, etc.).
+- Controls.EditTools, popup/confirm utilities, and address autocomplete integration are crucial shared components; their contracts are inferred from usage.
+- The date formatting function Date.now().toString("M/d/yyyy hh:mm:ss tt") implies a custom or polyfilled toString formatter not native to JS; ensure consistency on the server side.
+
+Suggested Microservice Endpoints (inferred)
+- Dealer Service:
+  - GET /dealers
+  - POST /dealers
+  - PUT /dealers/{id}
+  - DELETE /dealers/{id}
+- Catalog Service:
+  - GET /catalog
+  - GET /catalog/{sku}
+  - POST /catalog
+  - PUT /catalog/{sku}
+  - DELETE /catalog/{sku} (referenced but not used in UI)
+- Quote Service:
+  - GET /quotes
+  - GET /quotes/{id}
+  - POST /quotes
+  - PUT /quotes/{id}
+  - DELETE /quotes/{id}
+- Order Service:
+  - GET /orders
+  - GET /orders/{id}
+  - POST /orders
+  - POST /orders/from-quote
+  - PUT /orders/{id}
+  - DELETE /orders/{id}
+  - GET /quotes/{id} (for enrichment)
+  - Events subresource: GET/POST/PUT/DELETE /orders/{id}/events
+- Delivery Service:
+  - GET /deliveries
+  - GET /deliveries/{id}
+  - POST /deliveries
+  - POST /deliveries/from-order
+  - PUT /deliveries/{id}
+  - DELETE /deliveries/{id}
+  - GET /orders/{id} (for enrichment)
+  - Events subresource: GET/POST/PUT/DELETE /deliveries/{id}/events
+
+This structured summary captures the components, their responsibilities, data models, interactions, and implied backend contracts necessary for microservice decomposition.
