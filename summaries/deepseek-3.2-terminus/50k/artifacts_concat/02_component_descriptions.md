@@ -1,0 +1,15 @@
+```markdown
+| Component Name | Responsibility | Interfaces (key endpoints or methods) | Depends On | Technologies |
+|---------------|----------------|--------------------------------------|------------|--------------|
+| OrderService | Core order management and business logic | `GET/POST/PUT/DELETE /catalog`, `GET/POST/PUT/DELETE /dealers`, `GET/POST/PUT/DELETE /quotes`, `GET/POST/PUT/DELETE /orders`, `GET/POST/PUT/DELETE /shipments`, `/ping` health checks | MongoDB/PostgreSQL, Application Insights | Java, Spring Boot, Gradle, MongoDB/PostgreSQL, Repository Pattern, MVC Pattern |
+| IntegrationService | Integration with external systems and queue processing | `CreateOrderProcessTask`, `UpdateProductProcessTask`, `MrpConnectService`, `QueueService`, `QueueFactory` | Azure Storage Queues, MRP System, OrderService | Java, Spring Boot, Gradle, Azure Storage Queues, Scheduled Task Pattern |
+| Web Client | Web-based user interface for MRP system | `Data.catalogGet/Save/Delete()`, `Data.dealersGet/Save/Delete()`, `Data.quotesGet/Save/Delete()`, `Data.ordersGet/Save/Delete()`, `Data.deliveriesGet/Save/Delete()` | OrderService (REST API), Google Maps API | WinJS, JavaScript, HTML/CSS, Single Page Application (SPA), MVVM Pattern |
+| Catalog Management | Product catalog and inventory management | `CatalogController` endpoints, `CatalogItemsRepository` interface | MongoDB, OrderService | Spring Boot, MongoDB, Repository Pattern |
+| Quote Management | Quote creation, validation and lifecycle | `QuoteController` endpoints, `QuoteRepository` interface | DealersRepository, CatalogItemsRepository, MongoDB | Spring Boot, MongoDB, Business Logic Validation |
+| Order Management | Order processing and status lifecycle | `OrderController` endpoints, `OrderRepository` interface | QuoteRepository, MongoDB | Spring Boot, MongoDB, State Machine Pattern |
+| Shipment Management | Delivery tracking and event management | `ShipmentController` endpoints, `ShipmentRepository` interface | OrderRepository, MongoDB | Spring Boot, MongoDB, Event Tracking Pattern |
+| Dealer Management | Dealer relationship and information | `DealerController` endpoints, `DealersRepository` interface | MongoDB | Spring Boot, MongoDB, CRUD Operations |
+| Infrastructure (IaC) | Automated deployment and configuration | ARM templates, Ansible playbooks (`new_vm_web.yml`, `create_vm.yml`, `httpd.yml`, `nginx.yml`) | Azure Cloud, Virtual Machines | Azure Resource Manager, Ansible, Shell Scripts |
+| Database Layer | Data persistence and storage | MongoDB collections: catalog, dealers, quotes, orders, shipments | Application Services | MongoDB, Spring Data MongoDB, Document Database |
+| Queue Service | Asynchronous message processing | Azure Storage Queues (`orders`, `product` queues) | IntegrationService, External Systems | Azure Storage SDK, Message Queue Pattern |
+```

@@ -1,0 +1,14 @@
+```markdown
+| Component Name | Responsibility | Interfaces (key endpoints or methods) | Depends On | Technologies |
+|---------------|----------------|--------------------------------------|------------|-------------|
+| OrderService | Core order management and business logic | `GET/POST/PUT/DELETE /catalog`, `GET/POST/PUT/DELETE /dealers`, `GET/POST/PUT/DELETE /quotes`, `GET/POST/PUT/DELETE /orders`, `GET/POST/PUT/DELETE /shipments`, `GET /ping` | MongoDB/PostgreSQL, Application Insights | Spring Boot, Gradle, MongoDB, PostgreSQL, Application Insights, REST API |
+| IntegrationService | Integration with external systems and queue processing | `CreateOrderProcessTask`, `UpdateProductProcessTask`, `MrpConnectService`, `QueueService` | Azure Storage Queues, OrderService (MRP endpoint) | Spring Boot, Azure Storage Queues, Gradle, Scheduled Tasks |
+| Frontend Client | Windows 8-style web-based user interface | `Data.catalogGet/Save/Delete()`, `Data.dealersGet/Save/Delete()`, `Data.quotesGet/Save/Delete()`, `Data.ordersGet/Save/Delete()`, `Data.deliveriesGet/Save/Delete()` | OrderService (REST API), Google Maps Places API | WinJS, Single Page Application (SPA), MVVM Pattern, HTML/CSS/JavaScript, Tomcat |
+| Catalog Repository | Catalog item CRUD operations and inventory management | `CatalogItemsRepository` interface methods | MongoDB/PostgreSQL, Memory Storage | Spring Data MongoDB, Repository Pattern, Factory Pattern |
+| Dealers Repository | Dealer relationship management | `DealersRepository` interface methods | MongoDB/PostgreSQL, Memory Storage | Spring Data MongoDB, Repository Pattern, Factory Pattern |
+| Quote Repository | Quote creation and management | `QuoteRepository` interface methods | MongoDB/PostgreSQL, Memory Storage | Spring Data MongoDB, Repository Pattern, Factory Pattern |
+| Order Repository | Order lifecycle management | `OrderRepository` interface methods | MongoDB/PostgreSQL, Memory Storage | Spring Data MongoDB, Repository Pattern, Factory Pattern |
+| Shipment Repository | Shipment tracking and delivery management | `ShipmentRepository` interface methods | MongoDB/PostgreSQL, Memory Storage | Spring Data MongoDB, Repository Pattern, Factory Pattern |
+| Azure Infrastructure | Automated VM infrastructure deployment | ARM Templates: `myAvSet`, `myNsg`, `myVnet`, `mySlb` | Azure Cloud Platform | Azure Resource Manager (ARM), Network Security Groups, Virtual Networks |
+| Ansible Automation | VM and service configuration management | `new_vm_web.yml`, `create_vm.yml`, `delete_vm.yml`, `httpd.yml`, `nginx.yml` | Target VMs, Azure Infrastructure | Ansible, YAML, Shell Scripts |
+```

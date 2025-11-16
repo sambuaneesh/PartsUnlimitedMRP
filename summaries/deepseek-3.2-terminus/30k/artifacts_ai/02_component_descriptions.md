@@ -1,0 +1,8 @@
+| Component Name | Responsibility | Interfaces (key endpoints or methods) | Depends On | Technologies |
+|----------------|----------------|--------------------------------------|------------|--------------|
+| Order Service | Core order management and business logic | `GET/POST/PUT/DELETE /catalog`, `GET/POST/PUT/DELETE /dealers`, `GET/POST/PUT/DELETE /quotes`, `GET/POST/PUT/DELETE /orders`, `GET/POST/PUT/DELETE /shipments`, `HEAD/GET /ping` | MongoDB, Integration Service (via queues) | Spring Boot, Tomcat, MongoDB, Spring Data MongoDB, Repository Pattern, MVC Pattern |
+| Integration Service | External system integration and asynchronous processing | Queue-based messaging, `CreateOrderProcessTask`, `UpdateProductProcessTask` | Azure Storage Queues, Order Service (via REST) | Spring Boot, Azure Storage Queue SDK, Scheduled Task Pattern, Factory Pattern |
+| Web Frontend Service | User-facing web interface and presentation layer | WinJS page navigation, UI event handlers, REST API calls to Order Service | Order Service (REST APIs), Google Maps API | WinJS, HTML/CSS/JavaScript, MVVM Pattern, Page Controller Pattern, Google Maps JavaScript API |
+| MongoDB | Primary data storage and persistence | Database connection (port 27017), MongoDB query language | None (external service) | MongoDB, Document-based storage, Indexed collections |
+| Azure Storage Queues | Asynchronous message processing and system integration | Queue messaging API, message polling | None (external service) | Azure Storage, Queue-based messaging pattern |
+| Google Maps API | Address validation and autocomplete | Places Autocomplete API, Geocoding API | None (external service) | Google Maps JavaScript API, REST APIs |

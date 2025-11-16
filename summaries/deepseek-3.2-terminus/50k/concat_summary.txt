@@ -1,0 +1,895 @@
+=== summary_chunk_1.txt ===
+
+Based on my analysis of this codebase chunk, here is a comprehensive architectural summary for microservice decomposition analysis:
+
+## System Overview
+**Parts Unlimited MRP** is a Manufacturing Resource Planning application built as a training system based on "The Phoenix Project" novel. It's a Java-based microservices application using open-source technologies.
+
+## Core Components and Responsibilities
+
+### 1. Backend Services
+
+#### OrderService (`src/Backend/OrderService/`)
+- **Primary Responsibility**: Core order management and business logic
+- **Key Features**:
+  - Catalog management
+  - Order processing
+  - Quote management
+  - Shipment tracking
+  - Dealer management
+- **Technology Stack**: Java, Spring Boot, Gradle
+- **Port**: 8080
+
+#### IntegrationService (`src/Backend/IntegrationService/`)
+- **Primary Responsibility**: Integration with external systems and queue processing
+- **Key Features**:
+  - Order creation processing
+  - Product updates
+  - Queue-based communication
+  - Scheduled tasks
+- **Technology Stack**: Java, Gradle
+
+### 2. Frontend Client (`src/Clients/`)
+- **Primary Responsibility**: Web-based user interface
+- **Technology Stack**: Static HTML/CSS/JS, packaged as WAR for Tomcat
+- **Port**: 9080 (Tomcat)
+- **UI Modules**:
+  - Catalog management
+  - Order management
+  - Quote management
+  - Dealer management
+  - Shipment tracking
+
+## API Endpoints and Interfaces
+
+### OrderService Controllers:
+- `CatalogController` - Product catalog management
+- `OrderController` - Order lifecycle management
+- `QuoteController` - Quote creation and management
+- `ShipmentController` - Shipment tracking
+- `DealerController` - Dealer information
+- `PingController` - Health checks
+
+### Integration Patterns:
+- **Queue-based communication** between services
+- **REST APIs** for frontend-backend communication
+- **Scheduled batch processing** for order/product updates
+
+## Database Schema and Data Models
+
+### MongoDB Collections (from `MongoRecords.js`):
+
+#### Catalog Collection
+```javascript
+{
+  skuNumber: String,
+  description: String,
+  price: Number,
+  inventory: Number,
+  leadTime: Number
+}
+```
+
+#### Orders Collection
+```javascript
+{
+  orderId: String,
+  quoteId: String,
+  orderDate: ISODate,
+  status: String,
+  events: Array
+}
+```
+
+#### Quotes Collection
+```javascript
+{
+  quoteId: String,
+  validUntil: ISODate,
+  customerName: String,
+  dealerName: String,
+  totalCost: String,
+  quoteItems: Array
+}
+```
+
+#### Shipments Collection
+```javascript
+{
+  orderId: String,
+  contactName: String,
+  primaryContactPhone: Object,
+  deliveryAddress: Object,
+  events: Array
+}
+```
+
+#### Dealers Collection
+```javascript
+{
+  name: String,
+  address: String,
+  email: String,
+  phone: String
+}
+```
+
+## Service Dependencies and Communication Patterns
+
+### Dependencies:
+- **OrderService** ↔ **MongoDB** (primary data store)
+- **IntegrationService** ↔ **Queue Service** (async processing)
+- **Frontend** ↔ **OrderService** (REST API calls)
+- **All Services** ↔ **Application Insights** (monitoring)
+
+### Communication Patterns:
+- **Synchronous REST** for frontend-backend
+- **Asynchronous Queue** for inter-service communication
+- **Database-driven** for data persistence
+
+## Key Business Logic
+
+### Order Processing Flow:
+1. Quote creation → Order generation → Shipment processing
+2. Inventory management with lead time tracking
+3. Multi-step order status lifecycle
+4. Quote validation with expiration dates
+
+### Core Algorithms:
+- Inventory management with stock levels
+- Order status state machine
+- Quote-to-order conversion
+- Shipment event tracking
+
+## Configuration and Deployment
+
+### Build System:
+- **Gradle** for all Java components
+- **Travis CI** integration (.travis.yml)
+- **Docker** containerization support
+
+### Deployment Options:
+
+#### 1. Manual VM Deployment
+- Ubuntu 16.04/14.04 LTS
+- Java 8 JDK/JRE
+- MongoDB
+- Tomcat 7
+- Automated via shell scripts
+
+#### 2. Docker Deployment
+- Multi-container architecture:
+  - `mypartsunlimitedmrp/db` (MongoDB)
+  - `mypartsunlimitedmrp/order` (OrderService)
+  - `mypartsunlimitedmrp/web` (Frontend)
+
+#### 3. Azure Stack Deployment
+- ARM templates for infrastructure as code
+- Support for multiple configurations:
+  - Standalone MRP
+  - MRP with Jenkins
+  - Chef/Puppet configurations
+  - Various Ubuntu versions
+
+### Deployment Scripts:
+- `deploy_mrp_app.sh` - Main deployment script
+- `install_mrp_dependencies.sh` - Dependency installation
+- Docker build/run scripts
+
+## Architectural Patterns and Frameworks
+
+### Patterns Used:
+- **Microservices Architecture** with bounded contexts
+- **Repository Pattern** with multiple implementations (MongoDB, Mock)
+- **MVC Pattern** in web layer
+- **Factory Pattern** for repository creation
+- **Scheduled Task Pattern** for background processing
+
+### Frameworks and Technologies:
+- **Spring Boot** (inferred from structure)
+- **MongoDB** with Java driver
+- **Tomcat** for web serving
+- **Application Insights** for monitoring
+- **Gradle** for build automation
+- **Docker** for containerization
+
+### Infrastructure as Code:
+- **Azure Resource Manager (ARM) templates**
+- **Custom Script Extensions** for VM configuration
+- **Network Security Groups** for access control
+- **Multiple deployment templates** for different scenarios
+
+## Critical Information for Microservice Decomposition
+
+### Potential Microservice Boundaries:
+1. **Catalog Service** - Product and inventory management
+2. **Order Service** - Order processing and lifecycle
+3. **Quote Service** - Quote creation and management
+4. **Shipment Service** - Delivery and tracking
+5. **Dealer Service** - Partner management
+6. **Integration Service** - External system communication
+
+### Data Ownership:
+- Each service owns its primary data entities
+- Shared reference data (products, dealers) needs synchronization strategy
+- Consider event-driven architecture for data consistency
+
+### Deployment Considerations:
+- Independent deployment of services
+- Database per service pattern possible
+- Need for API gateway for frontend communication
+- Service discovery mechanism required
+
+This architecture shows clear separation of concerns and provides excellent foundation for further microservice decomposition with well-defined bounded contexts and data models.
+
+=== summary_chunk_2.txt ===
+
+# Architectural Summary - Codebase Chunk 2
+
+## 1. Infrastructure as Code (IaC) Components
+
+### Azure Resource Manager (ARM) Templates
+**File**: `ARMtemplate-newVM.json` (multiple locations)
+- **Purpose**: Deploy complete VM infrastructure on Azure
+- **Components Created**:
+  - Availability Set (`myAvSet`) - 5 update domains, 2 fault domains
+  - Network Security Group (`myNsg`) - Allows SSH on port 22
+  - Virtual Network (`myVnet`) - 10.123.0.0/16 with 2 subnets
+  - Network Interface (`myNic`) - Connected to NSG and load balancer
+  - Virtual Machine (`mySecondVM`) - CentOS 7.3, Standard_A0
+  - Internal Load Balancer (`mySlb`) - Port 22 load balancing with health probes
+
+### Ansible Playbooks
+**Configuration Management Components**:
+
+#### VM Management Playbooks
+- **`new_vm_web.yml`**: Creates web VM with Apache
+- **`create_vm.yml`**: Creates Ubuntu web VM with full stack
+- **`delete_vm.yml`**: Removes VM and associated resources
+- **`new_ARM_deployment.yml`**: Deploys ARM templates via Ansible
+
+#### Service Configuration Playbooks
+- **`httpd.yml`**: Installs/configures Apache web server
+- **`nginx.yml`**: Installs/configures Nginx web server
+- **`cron.yml`**: Sets up scheduled tasks for configuration management
+
+## 2. Backend Services Architecture
+
+### Integration Service
+**Location**: `src/Backend/IntegrationService/`
+- **Purpose**: Integration layer between website and MRP system
+- **Technology Stack**: Spring Boot, Azure Storage Queues, REST APIs
+
+#### Key Components:
+- **`Main.java`**: Application entry point
+- **Scheduled Tasks**:
+  - `CreateOrderProcessTask`: Processes orders from queue to MRP system
+  - `UpdateProductProcessTask`: Updates product inventory to website
+- **Services**:
+  - `MrpConnectService`: Communicates with MRP REST API
+  - `QueueService`: Manages Azure Storage Queues
+  - `QueueFactory`: Thread-safe queue initialization
+
+#### Data Models:
+- **Website Models**: `OrderMessage`, `OrderItem`, `ProductMessage`, `ProductItem`
+- **MRP Models**: `Quote`, `Order`, `ShipmentRecord`, `CatalogItem`, `DeliveryAddress`
+- **Queue Models**: `QueueResponse`
+
+### Order Service
+**Location**: `src/Backend/OrderService/`
+- **Purpose**: Core ordering system for MRP application
+- **Technology Stack**: Spring Boot, MongoDB/PostgreSQL, Application Insights
+
+#### Key Components:
+- **Controllers**:
+  - `CatalogController`: Manages product catalog
+  - `DealerController`: Manages dealer information
+  - `QuoteController`: Handles quote management
+  - `OrderController`: Manages order lifecycle
+  - `ShipmentController`: Tracks shipments and deliveries
+  - `PingController`: Health checks and monitoring
+
+#### Data Models:
+- **Core Entities**: `CatalogItem`, `DealerInfo`, `Quote`, `Order`, `ShipmentRecord`
+- **Supporting Models**: `DeliveryAddress`, `PhoneInfo`, `OrderEventInfo`, `OrderStatus`
+
+## 3. API Endpoints and Interfaces
+
+### Order Service REST API
+
+#### Catalog Management
+```
+GET    /catalog                    # List all catalog items
+GET    /catalog/{sku}              # Get specific catalog item
+POST   /catalog                    # Add new catalog item
+PUT    /catalog/{sku}              # Update catalog item
+DELETE /catalog/{sku}              # Remove catalog item
+```
+
+#### Dealer Management
+```
+GET    /dealers                    # List all dealers
+GET    /dealers/{name}             # Get specific dealer
+POST   /dealers                    # Add new dealer
+PUT    /dealers/{name}             # Update dealer
+DELETE /dealers/{name}             # Remove dealer
+```
+
+#### Quote Management
+```
+GET    /quotes/{quoteId}           # Get specific quote
+GET    /quotes?name={customerName} # Search quotes by customer
+POST   /quotes                     # Create new quote
+PUT    /quotes/{quoteId}           # Update quote
+DELETE /quotes/{quoteId}           # Delete quote
+```
+
+#### Order Management
+```
+GET    /orders/{orderId}           # Get specific order
+GET    /orders?dealer={dealerName} # Get orders by dealer
+POST   /orders?fromQuote={quoteId} # Create order from quote
+PUT    /orders/{orderId}           # Update order
+PUT    /orders/{orderId}/status    # Update order status
+POST   /orders/{orderId}/events    # Add order event
+DELETE /orders/{orderId}           # Delete order
+```
+
+#### Shipment Management
+```
+GET    /shipments                  # List all shipments
+GET    /shipments/{id}             # Get specific shipment
+GET    /shipments/deliveries       # Get delivery aggregates
+POST   /shipments                  # Create shipment record
+PUT    /shipments/{id}             # Update shipment
+POST   /shipments/{id}/events      # Add shipment event
+DELETE /shipments/{orderId}        # Delete shipment
+```
+
+## 4. Database Schemas and Data Models
+
+### MongoDB Schema (Order Service)
+```json
+{
+  "CatalogItems": {
+    "sku_number": "String (PK)",
+    "description": "String",
+    "price": "Number",
+    "inventory": "Number",
+    "leadTime": "Number"
+  },
+  "Dealers": {
+    "name": "String (PK)",
+    "contact": "String",
+    "address": "String",
+    "email": "String",
+    "phone": "String"
+  },
+  "Quotes": {
+    "quote_id": "String (PK)",
+    "customer_name": "String",
+    "dealer_name": "String",
+    "total_cost": "Number",
+    "discount": "Number",
+    "city": "String",
+    "postal_code": "String",
+    "state": "String"
+  },
+  "Orders": {
+    "order_id": "String (PK)",
+    "quote_id": "String (FK)",
+    "order_date": "String",
+    "status": "String"
+  },
+  "Shipments": {
+    "order_id": "String (PK)",
+    "delivery_date": "String",
+    "contact_name": "String",
+    "events": "Array"
+  }
+}
+```
+
+### Integration Service Data Flow
+```
+Website Order → Azure Queue → Integration Service → MRP System
+MRP Catalog → Integration Service → Azure Queue → Website Updates
+```
+
+## 5. Service Dependencies and Communication Patterns
+
+### External Dependencies
+- **Azure Storage**: Queue services for order processing
+- **MRP System**: REST API endpoints for order management
+- **MongoDB/PostgreSQL**: Data persistence for Order Service
+- **Application Insights**: Telemetry and monitoring
+
+### Internal Communication
+- **Synchronous**: REST API calls between services
+- **Asynchronous**: Azure Queue messaging for order processing
+- **Scheduled**: Background tasks for inventory updates (30-second intervals)
+
+### Configuration Dependencies
+```properties
+# Integration Service
+azure.storage.connectionstring
+mrp.endpoint=http://127.0.0.1:8080/
+azure.storage.queue.orders=orders
+azure.storage.queue.inventory=product
+
+# Order Service
+ordering.storage=memory/mongodb/postgresql
+mongodb.host=localhost
+mongodb.database=ordering
+ordering.instrumentationKey= # Application Insights
+```
+
+## 6. Key Business Logic and Algorithms
+
+### Order Processing Flow
+1. **Quote Creation**: Convert website order to MRP quote
+2. **Order Creation**: Convert quote to MRP order
+3. **Shipment Creation**: Generate shipment record with delivery details
+4. **Status Tracking**: Update order status through lifecycle
+
+### Inventory Synchronization
+- Scheduled catalog polling from MRP system
+- Queue-based product update propagation to website
+- Lead time and inventory level management
+
+### Error Handling
+- Queue message retry mechanisms
+- Exception tracking with Application Insights
+- Graceful degradation for external service failures
+
+## 7. Configuration and Deployment Details
+
+### Build Systems
+- **Gradle**: Both services use Gradle for build automation
+- **Version Management**: `version.properties` for semantic versioning
+- **Build Information**: Automated build info generation
+
+### Deployment Patterns
+- **Infrastructure**: ARM templates for Azure resource provisioning
+- **Configuration Management**: Ansible for VM configuration
+- **Container Readiness**: Docker-compatible build configurations
+
+### Monitoring and Observability
+- **Application Insights**: Distributed tracing and telemetry
+- **Health Checks**: `/ping` endpoints for service monitoring
+- **Logging**: Structured logging with SLF4J and Logback
+
+## 8. Architectural Patterns and Frameworks
+
+### Patterns Used
+- **Microservices**: Separate Integration and Order services
+- **Repository Pattern**: Data access abstraction
+- **Factory Pattern**: Service and queue initialization
+- **Scheduled Task Pattern**: Background job processing
+- **RESTful API**: Resource-oriented service interfaces
+
+### Frameworks and Technologies
+- **Spring Boot**: Application framework
+- **Azure SDK**: Cloud integration
+- **MongoDB**: Document database
+- **Jackson**: JSON serialization/deserialization
+- **Application Insights**: Application performance monitoring
+
+### Security Patterns
+- **Network Security Groups**: VM-level firewall rules
+- **Azure Storage Security**: Connection string authentication
+- **Input Validation**: Model validation in controllers
+
+## 9. Microservice Decomposition Analysis
+
+### Potential Service Boundaries
+1. **Catalog Service**: Product and inventory management
+2. **Order Service**: Order lifecycle management
+3. **Quote Service**: Quote generation and management
+4. **Shipment Service**: Delivery and tracking
+5. **Dealer Service**: Dealer relationship management
+6. **Integration Service**: External system coordination
+
+### Data Consistency Considerations
+- Eventual consistency via queue-based updates
+- Saga pattern for distributed transactions
+- Idempotent operations for queue message processing
+
+### Scalability Points
+- Queue-based load leveling for order processing
+- Stateless service design for horizontal scaling
+- Database partitioning by tenant/organization
+
+=== summary_chunk_3.txt ===
+
+# Architectural Summary - Codebase Chunk 3
+
+## 1. Component Overview
+
+### Core Domain Models
+
+**Quote & Quote Management**
+- `Quote`: Represents customer quotes with pricing, items, and validity
+- `QuoteItemInfo`: Individual line items within quotes
+- Responsibilities: Quote creation, validation, pricing calculation, expiration management
+
+**Order & Order Processing**
+- `Order`: Tracks order lifecycle from quote to fulfillment
+- `OrderStatus`: Defines order states (Created, Confirmed, Started, Built, Shipped, Delivered)
+- `OrderEventInfo`: Audit trail for order status changes
+
+**Shipment & Delivery Management**
+- `ShipmentRecord`: Consolidates shipment information for orders
+- `ShipmentEventInfo`: Tracks shipment milestones and events
+- `DeliveryAddress`, `PhoneInfo`: Contact and location details
+
+**Catalog & Inventory**
+- `CatalogItem`: Product catalog with SKU, pricing, inventory, and lead times
+- Responsibilities: Product management, inventory tracking, pricing
+
+**Dealer Management**
+- `DealerInfo`: Dealer contact information and details
+- Responsibilities: Dealer profile management
+
+## 2. Repository Architecture
+
+### Repository Interfaces
+```java
+// Core data access contracts
+CatalogItemsRepository - Catalog item CRUD operations
+DealersRepository - Dealer management
+OrderRepository - Order lifecycle management  
+QuoteRepository - Quote creation and management
+ShipmentRepository - Shipment tracking
+```
+
+### Dual Storage Implementation
+- **Memory Repository**: `Mock*Repository` classes for testing
+- **MongoDB Repository**: `Mongo*Repository` classes for production
+- **RepositoryFactory**: Configurable storage backend (memory/mongodb)
+
+### MongoDB Data Models
+- `CatalogItem`, `Dealer`, `OrderDetails`, `QuoteDetails`, `ShipmentDetails`
+- Spring Data MongoDB annotations with indexed fields
+- Separate persistence models from business models
+
+## 3. API Endpoints & Interfaces
+
+### REST Controllers (inferred from tests)
+- `CatalogController`: `/catalog` - Product management
+- `DealerController`: `/dealers` - Dealer management  
+- `QuoteController`: `/quotes` - Quote lifecycle
+- `OrderController`: `/orders` - Order processing
+- `ShipmentController`: `/shipments` - Delivery tracking
+
+### Key Operations
+```
+Quotes:
+  POST /quotes - Create quote
+  PUT /quotes/{id} - Update quote
+  GET /quotes/{id} - Get by ID
+  GET /quotes?name={customer} - Search by customer
+
+Orders:
+  POST /orders?fromQuote={id} - Create from quote
+  PUT /orders/{id}/status - Update status with events
+  GET /orders?dealer={name}&status={status} - Filtered queries
+
+Shipments:
+  POST /shipments - Create shipment record
+  POST /shipments/{id}/events - Add shipment events
+```
+
+## 4. Database Schema & Data Models
+
+### MongoDB Collections
+- **catalog**: SKU-based product catalog
+- **dealers**: Dealer contact information  
+- **quotes**: Customer quotations with line items
+- **orders**: Order processing with status history
+- **shipments**: Delivery and shipment tracking
+
+### Key Data Relationships
+- Quote → Order (1:1 via quoteId)
+- Order → Shipment (1:1 via orderId)
+- Quote → Dealer (many:1 via dealerName)
+- Quote → CatalogItems (many:many via quoteItems)
+
+## 5. Service Dependencies & Communication
+
+### Internal Dependencies
+```
+QuoteRepository → DealersRepository, CatalogItemsRepository
+OrderRepository → QuoteRepository  
+ShipmentRepository → OrderRepository
+MockRepositories → Chained dependencies for testing
+```
+
+### Communication Patterns
+- **Synchronous REST**: Client ↔ Service communication
+- **Repository Pattern**: Data access abstraction
+- **Factory Pattern**: Storage implementation selection
+
+## 6. Key Business Logic & Algorithms
+
+### Validation Logic
+- Quote validation: Requires dealerName and customerName
+- Shipment validation: Mandatory orderId, deliveryDate, contact info
+- Business rule enforcement via repository constraints
+
+### Order Lifecycle Management
+```java
+OrderStatus: Created → Confirmed → Started → Built → Shipped → Delivered
+```
+- Status transitions with event tracking
+- Quote-to-Order conversion with duplicate prevention
+
+### Inventory & Pricing
+- Catalog item lead time calculation based on inventory
+- Quote total cost calculation with discount application
+
+## 7. Configuration & Deployment
+
+### Configuration Files
+**application.properties**
+```properties
+server.port=8080
+management.port=8081
+ordering.storage=mongodb
+mongodb.host=localhost
+mongodb.database=ordering
+```
+
+**ApplicationInsights.xml**: Telemetry configuration
+**buildinfo.properties**: Build version tracking
+
+### Deployment Configuration
+- **Spring Boot** application with embedded Tomcat
+- **MongoDB** persistence with connection pooling
+- **Dual-mode operation**: In-memory (testing) vs MongoDB (production)
+- **Health monitoring** via Spring Boot Actuator on port 8081
+
+## 8. Architectural Patterns & Frameworks
+
+### Core Patterns
+- **Repository Pattern**: Abstract data access
+- **Factory Pattern**: Configurable storage implementation
+- **MVC Pattern**: REST controller architecture
+- **DTO Pattern**: Separate persistence and business models
+
+### Frameworks & Technologies
+- **Spring Boot**: Application framework
+- **Spring Data MongoDB**: Data access
+- **MongoDB**: Primary database
+- **JUnit**: Testing framework
+- **Application Insights**: Telemetry and monitoring
+- **Gradle**: Build automation
+
+### Testing Strategy
+- **Mock Repository Tests**: Unit testing with in-memory storage
+- **MongoDB Integration Tests**: @Category(IntegrationTests)
+- **Controller Tests**: Full REST endpoint testing
+- **ConfigurationRule**: JUnit rule for test context setup
+
+## 9. Microservice Decomposition Analysis
+
+### Potential Service Boundaries
+1. **Quote Service**: Quote creation, management, pricing
+2. **Order Service**: Order processing, status management
+3. **Shipment Service**: Delivery tracking, event management
+4. **Catalog Service**: Product management, inventory
+5. **Dealer Service**: Dealer information management
+
+### Data Consistency Considerations
+- Quote-to-Order conversion requires transactional consistency
+- Order-Shipment relationship is 1:1 with shared orderId
+- Catalog updates may affect active quotes and orders
+
+### Service Dependencies
+```
+Quote Service → Catalog Service, Dealer Service
+Order Service → Quote Service
+Shipment Service → Order Service
+```
+
+This architecture supports decomposition into focused microservices while maintaining clear data boundaries and service contracts.
+
+=== summary_chunk_4.txt ===
+
+# Architectural Summary - Codebase Chunk 4 (Web Client)
+
+## Overview
+This chunk represents the **Web Client** component of a Material Requirements Planning (MRP) system for "Parts Unlimited" (a Fabrikam subsidiary). It's a Windows 8-style web application built using WinJS framework with a Single Page Application (SPA) architecture.
+
+## Component Architecture
+
+### 1. Core Application Framework
+
+**Application Bootstrapping** (`default.js`)
+- **Responsibilities**: Application lifecycle management, navigation setup, progress indication
+- **Key Components**:
+  - `WinJS.Application`: Main application controller
+  - `WinJS.Navigation`: Page navigation management
+  - `WinJS.UI`: UI component framework
+- **Architectural Patterns**: SPA with page-based navigation
+
+**Navigation System** (`navigator.js`)
+- **Responsibilities**: Page navigation, history management, page lifecycle
+- **Key Class**: `Application.PageControlNavigator`
+- **Methods**: `_navigating`, `_navigated`, `_resized`, `dispose`
+
+### 2. UI Components and Pages
+
+**Main Dashboard** (`pages/main/`)
+- **Purpose**: Application launchpad with navigation tiles
+- **Features**: Dealer management, Quotes, Orders, Deliveries, Catalog access
+- **Navigation Pattern**: Tile-based navigation to functional modules
+
+**Business Domain Pages**:
+- **Catalog Management** (`pages/catalog/`): Product/SKU management
+- **Dealer Management** (`pages/dealers/`): Dealer relationship management
+- **Quote Management** (`pages/quotes/`): Sales quotation system
+- **Order Management** (`pages/orders/`): Order processing and tracking
+- **Delivery Management** (`pages/deliveries/`): Delivery scheduling and tracking
+- **Extras Management** (`pages/extras/`): Additional product features/accessories
+- **Order Events** (`pages/orderevents/`): Event logging and tracking
+
+### 3. Data Layer Abstraction
+
+**Global Data Service** (referenced throughout)
+- **Interface Methods**:
+  - `Data.catalogGet()`, `Data.catalogSave()`, `Data.catalogDelete()`
+  - `Data.dealersGet()`, `Data.dealerSave()`, `Data.dealerDelete()`
+  - `Data.quotesGet()`, `Data.quoteSave()`, `Data.quoteDelete()`
+  - `Data.ordersGet()`, `Data.orderSave()`, `Data.orderDelete()`
+  - `Data.deliveriesGet()`, `Data.deliverySave()`, `Data.deliveryDelete()`
+- **Data Binding**: Uses `WinJS.Binding` for MVVM pattern
+
+### 4. UI Controls and Utilities
+
+**EditTools Control** (referenced in multiple pages)
+- **Responsibilities**: Standardized CRUD operations (Add, Edit, Delete, Save)
+- **Integration**: Used across all data management pages
+
+**Utility Functions** (`default.js`):
+- `showProgress()` / `hideProgress()`: User feedback during operations
+- `confirm()`: Standard confirmation dialogs
+- `popup()`: Modal dialog management
+- `addAddressHandler()`: Google Maps Places API integration
+- `clone()`: Object cloning utility
+
+## Data Models and Schemas
+
+### Core Business Entities
+
+**Catalog Item Schema**:
+```javascript
+{
+  skuNumber: string,
+  description: string,
+  unit: string,
+  unitPrice: number
+}
+```
+
+**Dealer Schema**:
+```javascript
+{
+  name: string,
+  contact: string,
+  address: string,
+  email: string,
+  phone: string
+}
+```
+
+**Quote Schema**:
+```javascript
+{
+  dealerName: string,
+  validUntil: date,
+  customerName: string,
+  city: string,
+  postalCode: string,
+  comments: string,
+  purpose: string, // "Refrigerator" | "Freezer"
+  unitDescription: string,
+  width: number,
+  height: number,
+  depth: number,
+  ambientAverage: number,
+  ambientPeak: number,
+  terms: string,
+  totalCost: number,
+  discount: number,
+  additionalItems: array // Extra items
+}
+```
+
+**Order Schema** (extends Quote):
+```javascript
+{
+  orderDate: date,
+  status: string, // "Created", "Confirmed", "Started", "Built", etc.
+  events: array, // OrderEvent objects
+  __quote: object // Reference to original quote
+}
+```
+
+**Delivery Schema** (extends Order):
+```javascript
+{
+  deliveryDate: date,
+  deliveryAddress: { city: string, postalCode: string },
+  primaryContactPhone: { phoneNumber: string },
+  alternateContactPhone: { phoneNumber: string },
+  __order: object, // Reference to original order
+  __quote: object // Reference to original quote
+}
+```
+
+**OrderEvent Schema**:
+```javascript
+{
+  date: datetime,
+  comments: string
+}
+```
+
+## Service Dependencies and Communication
+
+### External Services
+- **Backend API**: `http://{hostname}:8080` (configurable in `serverconfig.js`)
+- **Google Maps Places API**: For address autocomplete functionality
+
+### Internal Communication Patterns
+- **Navigation Events**: `WinJS.Navigation` events for page transitions
+- **Data Binding**: Two-way binding using `WinJS.Binding.Mode.twoway`
+- **Promise-based Async**: All data operations use WinJS promises
+- **Event Delegation**: Centralized event handling for UI controls
+
+## Key Business Logic and Workflows
+
+### Business Processes
+1. **Quote-to-Order Pipeline**: Quotes can be converted to orders
+2. **Order-to-Delivery Pipeline**: Orders can be converted to deliveries
+3. **Status Management**: Multi-stage status tracking (Created → Confirmed → Started → Built → DeliveryConfirmed → Shipped → Delivered → Installed)
+4. **Extras Management**: Additional product features can be added to quotes/orders
+
+### Data Relationships
+- **Quote** → **Order** (one-to-one)
+- **Order** → **Delivery** (one-to-one)
+- **Quote/Order/Delivery** → **Catalog Items** (many-to-many via extras)
+
+## Configuration and Deployment
+
+### Configuration
+- **Base URL**: Configurable in `serverconfig.js`
+- **Culture Settings**: en-US localization in date handling
+- **UI Settings**: Animation controls, layout preferences
+
+### Frameworks and Libraries
+- **WinJS**: Microsoft Windows Library for JavaScript
+- **Date.js**: Extended date manipulation library
+- **Google Maps API**: For geolocation and address services
+
+## Microservice Decomposition Analysis
+
+### Potential Service Boundaries
+1. **Catalog Service**: Product/SKU management
+2. **Dealer Management Service**: Dealer relationship management
+3. **Quoting Service**: Sales quotation system
+4. **Order Management Service**: Order processing and fulfillment
+5. **Delivery Service**: Delivery scheduling and tracking
+6. **Event Logging Service**: Activity and event tracking
+
+### Integration Patterns
+- **RESTful APIs**: Current client suggests REST-based backend
+- **Real-time Updates**: Could benefit from WebSocket integration for status updates
+- **CQRS Pattern**: Suitable for separating read (queries) and write (commands) operations
+
+### Data Consistency Requirements
+- **Strong Consistency**: Order status, inventory levels
+- **Eventual Consistency**: Activity logs, reporting data
+
+This web client represents a comprehensive business application that would interface with multiple backend microservices for a complete MRP solution.
