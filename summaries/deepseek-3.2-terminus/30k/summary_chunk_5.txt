@@ -1,0 +1,200 @@
+Based on my analysis of the codebase chunk, here's a comprehensive architectural summary for microservice decomposition:
+
+## COMPONENT ARCHITECTURE SUMMARY
+
+### 1. Core Business Components & Responsibilities
+
+**Catalog Service**
+- Manages product catalog items with SKU numbers
+- Responsibilities: CRUD operations for catalog items, price management
+- Key entities: `CatalogItem` (skuNumber, description, price, leadTime, deliveryTime)
+
+**Dealer Service**  
+- Manages dealer/distributor information
+- Responsibilities: Dealer profile management, contact information
+- Key entities: `DealerInfo` (name, contact, address, email, phone)
+
+**Quote Service**
+- Handles sales quotations and pricing
+- Responsibilities: Quote creation, modification, customer-specific quotes
+- Key entities: `Quote`, `QuoteItemInfo`
+
+**Order Service**
+- Manages order lifecycle from quote to fulfillment
+- Responsibilities: Order creation, status tracking, event logging
+- Key entities: `Order`, `OrderEventInfo`, `OrderUpdateInfo`
+
+**Shipment Service**
+- Handles shipping and delivery operations
+- Responsibilities: Shipment tracking, delivery management, shipment events
+- Key entities: `ShipmentRecord`, `ShipmentEventInfo`, `DeliveryAddress`, `PhoneInfo`
+
+### 2. API ENDPOINTS & INTERFACES
+
+**Catalog Controller**
+- `POST /catalog` - Add catalog item
+- `PUT /catalog/{sku}` - Update/Upsert catalog item  
+- `GET /catalog` - Get all catalog items
+- `GET /catalog/{sku}` - Get specific catalog item
+- `DELETE /catalog/{sku}` - Remove catalog item
+
+**Dealer Controller**
+- `POST /dealers` - Add dealer
+- `PUT /dealers/{name}` - Update dealer
+- `GET /dealers` - Get all dealers
+- `GET /dealers/{name}` - Get specific dealer
+- `DELETE /dealers/{name}` - Remove dealer
+
+**Quote Controller**
+- `POST /quotes` - Create quote
+- `PUT /quotes/{id}` - Update quote
+- `GET /quotes/{id}` - Get quote by ID
+- `GET /quotes?name={customer}` - Get quotes by customer
+- `DELETE /quotes/{id}` - Delete quote
+
+**Order Controller**
+- `POST /orders?fromQuote={quoteId}` - Create order from quote
+- `GET /orders/{id}` - Get order by ID
+- `GET /orders?dealer={name}&status={status}` - Get orders by dealer/status
+- `POST /orders/{id}/events` - Add order event
+- `PUT /orders/{id}/status` - Update order status
+
+**Shipment Controller**
+- `POST /shipments` - Create shipment record
+- `GET /shipments?status={status}` - Get shipments by status
+- `GET /shipments/{orderId}` - Get shipment by order
+- `PUT /shipments/{orderId}` - Update shipment
+- `POST /shipments/{orderId}/events` - Add shipment event
+
+### 3. DATA MODELS & SCHEMAS
+
+**CatalogItem**
+```java
+String skuNumber
+String description  
+double price
+int leadTime
+int deliveryTime
+```
+
+**DealerInfo**
+```java
+String name
+String contact
+String address
+String email
+String phone
+```
+
+**Quote & QuoteItemInfo**
+```java
+String quoteId
+String dealerName
+String customerName
+List<QuoteItemInfo> quoteItems
+// QuoteItemInfo: skuNumber, amount
+```
+
+**Order & OrderEventInfo**
+```java
+String orderId
+String quoteId
+OrderStatus status
+List<OrderEventInfo> events
+// OrderEventInfo: date, comments
+```
+
+**ShipmentRecord & Related**
+```java
+String orderId
+String deliveryDate
+String contactName
+DeliveryAddress deliveryAddress
+PhoneInfo primaryContactPhone
+PhoneInfo alternateContactPhone
+List<ShipmentEventInfo> events
+```
+
+### 4. SERVICE DEPENDENCIES & COMMUNICATION
+
+**Dependency Graph:**
+```
+Client → [Quote Service → Order Service → Shipment Service]
+                    ↓
+        [Catalog Service, Dealer Service]
+```
+
+**Key Workflows:**
+1. **Quote-to-Order Flow**: Quote → Order creation → Shipment tracking
+2. **Data Dependencies**: Orders depend on Quotes, Quotes depend on Catalog and Dealers
+3. **Event Propagation**: Status changes propagate through the system
+
+### 5. KEY BUSINESS LOGIC
+
+**Order Status Lifecycle:**
+```
+Created → Confirmed → Started → Built → Shipped → Delivered
+```
+
+**Business Rules:**
+- Quotes can be converted to Orders (1:1 relationship)
+- Orders maintain event history for audit trails
+- Shipments track delivery progress and contact information
+- Catalog items have lead times and delivery times
+
+### 6. CONFIGURATION & DEPLOYMENT
+
+**Storage Configuration:**
+- Multiple repository implementations: `memory` (testing) and `mongodb` (production)
+- Configurable via `ordering.storage` property
+- MongoDB configuration: host, database name
+
+**Server Configuration:**
+- Main service port: 8080
+- Management port: 8081 (for monitoring)
+- Spring Boot application structure
+
+**Client Application:**
+- Static web application built with Gradle
+- WinJS-based frontend framework
+- WAR deployment format
+
+### 7. ARCHITECTURAL PATTERNS & FRAMEWORKS
+
+**Backend Patterns:**
+- **Repository Pattern**: Abstract data access layer
+- **MVC Pattern**: Spring Boot controllers
+- **Factory Pattern**: `RepositoryFactory` for storage abstraction
+- **RESTful APIs**: HTTP-based service interfaces
+
+**Frameworks Used:**
+- **Spring Boot**: Main application framework
+- **JUnit**: Testing framework
+- **MongoDB**: Persistent storage option
+- **WinJS**: Client-side JavaScript framework
+
+**Testing Strategy:**
+- Comprehensive unit tests for all controllers
+- Repository tests with both in-memory and MongoDB implementations
+- Integration test categorization (`@Category(IntegrationTests.class)`)
+
+### 8. MICROSERVICE DECOMPOSITION CONSIDERATIONS
+
+**Potential Service Boundaries:**
+1. **Catalog Service** - Independent product management
+2. **Dealer Management Service** - Dealer relationship management  
+3. **Quoting Service** - Sales and pricing engine
+4. **Order Management Service** - Order lifecycle
+5. **Shipping Service** - Logistics and delivery tracking
+
+**Integration Points:**
+- Shared identifiers (quoteId → orderId propagation)
+- Event-driven communication for status updates
+- Data consistency requirements across services
+
+**Data Ownership:**
+- Each service owns its primary entities
+- Cross-service references via IDs only
+- Event sourcing pattern for audit trails
+
+This architecture shows clear domain boundaries suitable for microservice decomposition, with well-defined APIs and data models that support independent service evolution.

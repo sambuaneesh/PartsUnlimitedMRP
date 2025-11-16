@@ -1,0 +1,221 @@
+Based on my analysis of this codebase chunk, here is a comprehensive architectural summary for microservice decomposition analysis:
+
+## System Overview
+**Parts Unlimited MRP** is a Manufacturing Resource Planning application built as a training system based on "The Phoenix Project" novel. It's a Java-based microservices application using open-source technologies.
+
+## Core Components and Responsibilities
+
+### 1. Backend Services
+
+#### OrderService (`src/Backend/OrderService/`)
+- **Primary Responsibility**: Core order management and business logic
+- **Key Features**:
+  - Catalog management
+  - Order processing
+  - Quote management
+  - Shipment tracking
+  - Dealer management
+- **Technology Stack**: Java, Spring Boot, Gradle
+- **Port**: 8080
+
+#### IntegrationService (`src/Backend/IntegrationService/`)
+- **Primary Responsibility**: Integration with external systems and queue processing
+- **Key Features**:
+  - Order creation processing
+  - Product updates
+  - Queue-based communication
+  - Scheduled tasks
+- **Technology Stack**: Java, Gradle
+
+### 2. Frontend Client (`src/Clients/`)
+- **Primary Responsibility**: Web-based user interface
+- **Technology Stack**: Static HTML/CSS/JS, packaged as WAR for Tomcat
+- **Port**: 9080 (Tomcat)
+- **UI Modules**:
+  - Catalog management
+  - Order management
+  - Quote management
+  - Dealer management
+  - Shipment tracking
+
+## API Endpoints and Interfaces
+
+### OrderService Controllers:
+- `CatalogController` - Product catalog management
+- `OrderController` - Order lifecycle management
+- `QuoteController` - Quote creation and management
+- `ShipmentController` - Shipment tracking
+- `DealerController` - Dealer information
+- `PingController` - Health checks
+
+### Integration Patterns:
+- **Queue-based communication** between services
+- **REST APIs** for frontend-backend communication
+- **Scheduled batch processing** for order/product updates
+
+## Database Schema and Data Models
+
+### MongoDB Collections (from `MongoRecords.js`):
+
+#### Catalog Collection
+```javascript
+{
+  skuNumber: String,
+  description: String,
+  price: Number,
+  inventory: Number,
+  leadTime: Number
+}
+```
+
+#### Orders Collection
+```javascript
+{
+  orderId: String,
+  quoteId: String,
+  orderDate: ISODate,
+  status: String,
+  events: Array
+}
+```
+
+#### Quotes Collection
+```javascript
+{
+  quoteId: String,
+  validUntil: ISODate,
+  customerName: String,
+  dealerName: String,
+  totalCost: String,
+  quoteItems: Array
+}
+```
+
+#### Shipments Collection
+```javascript
+{
+  orderId: String,
+  contactName: String,
+  primaryContactPhone: Object,
+  deliveryAddress: Object,
+  events: Array
+}
+```
+
+#### Dealers Collection
+```javascript
+{
+  name: String,
+  address: String,
+  email: String,
+  phone: String
+}
+```
+
+## Service Dependencies and Communication Patterns
+
+### Dependencies:
+- **OrderService** ↔ **MongoDB** (primary data store)
+- **IntegrationService** ↔ **Queue Service** (async processing)
+- **Frontend** ↔ **OrderService** (REST API calls)
+- **All Services** ↔ **Application Insights** (monitoring)
+
+### Communication Patterns:
+- **Synchronous REST** for frontend-backend
+- **Asynchronous Queue** for inter-service communication
+- **Database-driven** for data persistence
+
+## Key Business Logic
+
+### Order Processing Flow:
+1. Quote creation → Order generation → Shipment processing
+2. Inventory management with lead time tracking
+3. Multi-step order status lifecycle
+4. Quote validation with expiration dates
+
+### Core Algorithms:
+- Inventory management with stock levels
+- Order status state machine
+- Quote-to-order conversion
+- Shipment event tracking
+
+## Configuration and Deployment
+
+### Build System:
+- **Gradle** for all Java components
+- **Travis CI** integration (.travis.yml)
+- **Docker** containerization support
+
+### Deployment Options:
+
+#### 1. Manual VM Deployment
+- Ubuntu 16.04/14.04 LTS
+- Java 8 JDK/JRE
+- MongoDB
+- Tomcat 7
+- Automated via shell scripts
+
+#### 2. Docker Deployment
+- Multi-container architecture:
+  - `mypartsunlimitedmrp/db` (MongoDB)
+  - `mypartsunlimitedmrp/order` (OrderService)
+  - `mypartsunlimitedmrp/web` (Frontend)
+
+#### 3. Azure Stack Deployment
+- ARM templates for infrastructure as code
+- Support for multiple configurations:
+  - Standalone MRP
+  - MRP with Jenkins
+  - Chef/Puppet configurations
+  - Various Ubuntu versions
+
+### Deployment Scripts:
+- `deploy_mrp_app.sh` - Main deployment script
+- `install_mrp_dependencies.sh` - Dependency installation
+- Docker build/run scripts
+
+## Architectural Patterns and Frameworks
+
+### Patterns Used:
+- **Microservices Architecture** with bounded contexts
+- **Repository Pattern** with multiple implementations (MongoDB, Mock)
+- **MVC Pattern** in web layer
+- **Factory Pattern** for repository creation
+- **Scheduled Task Pattern** for background processing
+
+### Frameworks and Technologies:
+- **Spring Boot** (inferred from structure)
+- **MongoDB** with Java driver
+- **Tomcat** for web serving
+- **Application Insights** for monitoring
+- **Gradle** for build automation
+- **Docker** for containerization
+
+### Infrastructure as Code:
+- **Azure Resource Manager (ARM) templates**
+- **Custom Script Extensions** for VM configuration
+- **Network Security Groups** for access control
+- **Multiple deployment templates** for different scenarios
+
+## Critical Information for Microservice Decomposition
+
+### Potential Microservice Boundaries:
+1. **Catalog Service** - Product and inventory management
+2. **Order Service** - Order processing and lifecycle
+3. **Quote Service** - Quote creation and management
+4. **Shipment Service** - Delivery and tracking
+5. **Dealer Service** - Partner management
+6. **Integration Service** - External system communication
+
+### Data Ownership:
+- Each service owns its primary data entities
+- Shared reference data (products, dealers) needs synchronization strategy
+- Consider event-driven architecture for data consistency
+
+### Deployment Considerations:
+- Independent deployment of services
+- Database per service pattern possible
+- Need for API gateway for frontend communication
+- Service discovery mechanism required
+
+This architecture shows clear separation of concerns and provides excellent foundation for further microservice decomposition with well-defined bounded contexts and data models.

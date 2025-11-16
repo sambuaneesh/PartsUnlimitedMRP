@@ -1,0 +1,187 @@
+Based on my analysis of the provided codebase chunk, here is a comprehensive architectural summary for microservice decomposition analysis:
+
+## System Overview
+**Parts Unlimited MRP** is a Manufacturing Resource Planning application built with Java/Spring backend services and a web frontend, using MongoDB for data storage. The system follows a multi-tier architecture with clear separation between frontend, backend services, and data layers.
+
+## Core Components and Responsibilities
+
+### 1. Backend Services
+
+#### **OrderService** (`src/Backend/OrderService/`)
+- **Primary Responsibility**: Core order management and business logic
+- **Key Features**:
+  - Order processing and lifecycle management
+  - Catalog/item management
+  - Quote management
+  - Dealer management
+  - Shipment tracking
+- **Technology Stack**: Java, Spring Boot, Gradle
+- **APIs Exposed**:
+  - Catalog management endpoints
+  - Order CRUD operations
+  - Quote creation and management
+  - Shipment tracking
+  - Dealer information
+
+#### **IntegrationService** (`src/Backend/IntegrationService/`)
+- **Primary Responsibility**: External system integration and asynchronous processing
+- **Key Features**:
+  - Queue-based order processing
+  - Product update synchronization
+  - External system integration
+- **Technology Stack**: Java, Gradle
+- **Scheduled Tasks**:
+  - `CreateOrderProcessTask`: Processes incoming orders from queues
+  - `UpdateProductProcessTask`: Handles product updates
+
+#### **Web Client** (`src/Clients/`)
+- **Primary Responsibility**: User-facing web interface
+- **Technology Stack**: Static web application (HTML/CSS/JS), Gradle-built WAR
+- **UI Modules**:
+  - Catalog management
+  - Order management
+  - Quote management
+  - Dealer management
+  - Shipment tracking
+  - Order events monitoring
+
+## API Endpoints and Interfaces
+
+### OrderService Controllers:
+- `CatalogController`: Catalog item management
+- `OrderController`: Order operations
+- `QuoteController`: Quote management
+- `ShipmentController`: Shipment tracking
+- `DealerController`: Dealer information
+- `PingController`: Health checks
+
+### Integration Patterns:
+- **Queue-based communication** for order processing
+- **REST APIs** for synchronous operations
+- **Scheduled batch processing** for integration tasks
+
+## Database Schema and Data Models
+
+### MongoDB Collections:
+- **catalog**: Product/SKU information
+  ```javascript
+  {
+    skuNumber: String,
+    description: String,
+    price: Number,
+    inventory: Number,
+    leadTime: Number
+  }
+  ```
+
+- **orders**: Order management
+- **quotes**: Quote information
+- **shipments**: Shipment tracking
+- **dealers**: Dealer information
+
+### Key Data Models:
+- `Order`: Order entity with status tracking
+- `Quote`: Pricing quotes with line items
+- `CatalogItem`: Product catalog
+- `ShipmentRecord`: Delivery tracking
+- `DealerInfo`: Partner information
+
+## Service Dependencies and Communication
+
+### Internal Dependencies:
+- **Web Client** → **OrderService** (REST API calls)
+- **IntegrationService** → **OrderService** (via queues/direct calls)
+- **OrderService** → **MongoDB** (primary data store)
+
+### External Integration:
+- **Parts Unlimited Website** → **IntegrationService** (order/product updates)
+- **Queue-based communication** for asynchronous processing
+
+## Key Business Logic and Algorithms
+
+### Order Processing Flow:
+1. Quote creation → Order generation → Shipment processing
+2. Status tracking: Created → DeliveryConfirmed → Completed
+3. Inventory management with lead time considerations
+
+### Integration Patterns:
+- Queue-based order processing with retry mechanisms
+- Batch product updates
+- Asynchronous shipment tracking
+
+## Configuration and Deployment
+
+### Build System:
+- **Gradle**-based builds for all components
+- **Travis CI** integration (.travis.yml)
+- Multi-module structure with dependency management
+
+### Deployment Options:
+
+#### **Manual Deployment** (`deploy/`):
+- Shell scripts for Linux deployment
+- MongoDB setup and data seeding
+- Tomcat configuration (port 9080)
+- Service orchestration
+
+#### **Container Deployment** (`deploy/docker/`):
+- **Docker** support with multi-container setup:
+  - Clients container (WAR deployment)
+  - Database container (MongoDB)
+  - Order service container (JAR deployment)
+
+#### **Cloud Deployment** (`deploy/azurestack/`):
+- **Azure Resource Manager (ARM)** templates
+- Support for multiple configurations:
+  - Chef automation
+  - Puppet configuration
+  - Jenkins CI/CD
+  - Standalone MRP deployment
+
+### Infrastructure as Code:
+- **ARM templates** for resource provisioning
+- **Custom script extensions** for environment setup
+- **Network Security Groups** for access control
+- **Virtual machine scale sets** support
+
+## Architectural Patterns and Frameworks
+
+### Design Patterns:
+- **Repository Pattern**: Abstract data access (`RepositoryFactory`)
+- **MVC Pattern**: Clear separation in controllers
+- **Factory Pattern**: Queue and repository creation
+- **Scheduled Task Pattern**: Background processing
+
+### Frameworks and Technologies:
+- **Spring Boot**: Application framework
+- **MongoDB**: Primary data store
+- **Tomcat**: Web application server
+- **Gradle**: Build automation
+- **Docker**: Containerization
+- **Application Insights**: Monitoring (AppInsightsFilter)
+
+### Configuration Management:
+- **Property-based configuration** (`application.properties`)
+- **Environment-specific settings**
+- **Multiple repository implementations** (MongoDB vs Mock)
+
+## Microservice Decomposition Analysis
+
+### Current Service Boundaries:
+1. **Order Management Service** (OrderService) - well-defined
+2. **Integration Service** - clear external integration focus
+3. **Web Frontend Service** - presentation layer
+
+### Potential Decomposition Opportunities:
+- **Catalog Service**: Separate product management
+- **Shipping Service**: Dedicated shipment tracking
+- **Quote Service**: Independent pricing engine
+- **Dealer Management Service**: Partner relationship management
+
+### Deployment Characteristics:
+- **Independent deployment** of services
+- **Database per service** pattern possible
+- **Clear API boundaries** between components
+- **Container-ready** architecture
+
+This architecture demonstrates good separation of concerns and provides clear paths for further microservice decomposition while maintaining operational simplicity through comprehensive deployment automation.

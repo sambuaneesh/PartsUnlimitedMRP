@@ -1,0 +1,191 @@
+# Architectural Summary - Codebase Chunk 3
+
+## 1. Component Overview
+
+### Core Domain Models
+
+**Quote & Quote Management**
+- `Quote`: Represents customer quotes with pricing, items, and validity
+- `QuoteItemInfo`: Individual line items within quotes
+- Responsibilities: Quote creation, validation, pricing calculation, expiration management
+
+**Order & Order Processing**
+- `Order`: Tracks order lifecycle from quote to fulfillment
+- `OrderStatus`: Defines order states (Created, Confirmed, Started, Built, Shipped, Delivered)
+- `OrderEventInfo`: Audit trail for order status changes
+
+**Shipment & Delivery Management**
+- `ShipmentRecord`: Consolidates shipment information for orders
+- `ShipmentEventInfo`: Tracks shipment milestones and events
+- `DeliveryAddress`, `PhoneInfo`: Contact and location details
+
+**Catalog & Inventory**
+- `CatalogItem`: Product catalog with SKU, pricing, inventory, and lead times
+- Responsibilities: Product management, inventory tracking, pricing
+
+**Dealer Management**
+- `DealerInfo`: Dealer contact information and details
+- Responsibilities: Dealer profile management
+
+## 2. Repository Architecture
+
+### Repository Interfaces
+```java
+// Core data access contracts
+CatalogItemsRepository - Catalog item CRUD operations
+DealersRepository - Dealer management
+OrderRepository - Order lifecycle management  
+QuoteRepository - Quote creation and management
+ShipmentRepository - Shipment tracking
+```
+
+### Dual Storage Implementation
+- **Memory Repository**: `Mock*Repository` classes for testing
+- **MongoDB Repository**: `Mongo*Repository` classes for production
+- **RepositoryFactory**: Configurable storage backend (memory/mongodb)
+
+### MongoDB Data Models
+- `CatalogItem`, `Dealer`, `OrderDetails`, `QuoteDetails`, `ShipmentDetails`
+- Spring Data MongoDB annotations with indexed fields
+- Separate persistence models from business models
+
+## 3. API Endpoints & Interfaces
+
+### REST Controllers (inferred from tests)
+- `CatalogController`: `/catalog` - Product management
+- `DealerController`: `/dealers` - Dealer management  
+- `QuoteController`: `/quotes` - Quote lifecycle
+- `OrderController`: `/orders` - Order processing
+- `ShipmentController`: `/shipments` - Delivery tracking
+
+### Key Operations
+```
+Quotes:
+  POST /quotes - Create quote
+  PUT /quotes/{id} - Update quote
+  GET /quotes/{id} - Get by ID
+  GET /quotes?name={customer} - Search by customer
+
+Orders:
+  POST /orders?fromQuote={id} - Create from quote
+  PUT /orders/{id}/status - Update status with events
+  GET /orders?dealer={name}&status={status} - Filtered queries
+
+Shipments:
+  POST /shipments - Create shipment record
+  POST /shipments/{id}/events - Add shipment events
+```
+
+## 4. Database Schema & Data Models
+
+### MongoDB Collections
+- **catalog**: SKU-based product catalog
+- **dealers**: Dealer contact information  
+- **quotes**: Customer quotations with line items
+- **orders**: Order processing with status history
+- **shipments**: Delivery and shipment tracking
+
+### Key Data Relationships
+- Quote → Order (1:1 via quoteId)
+- Order → Shipment (1:1 via orderId)
+- Quote → Dealer (many:1 via dealerName)
+- Quote → CatalogItems (many:many via quoteItems)
+
+## 5. Service Dependencies & Communication
+
+### Internal Dependencies
+```
+QuoteRepository → DealersRepository, CatalogItemsRepository
+OrderRepository → QuoteRepository  
+ShipmentRepository → OrderRepository
+MockRepositories → Chained dependencies for testing
+```
+
+### Communication Patterns
+- **Synchronous REST**: Client ↔ Service communication
+- **Repository Pattern**: Data access abstraction
+- **Factory Pattern**: Storage implementation selection
+
+## 6. Key Business Logic & Algorithms
+
+### Validation Logic
+- Quote validation: Requires dealerName and customerName
+- Shipment validation: Mandatory orderId, deliveryDate, contact info
+- Business rule enforcement via repository constraints
+
+### Order Lifecycle Management
+```java
+OrderStatus: Created → Confirmed → Started → Built → Shipped → Delivered
+```
+- Status transitions with event tracking
+- Quote-to-Order conversion with duplicate prevention
+
+### Inventory & Pricing
+- Catalog item lead time calculation based on inventory
+- Quote total cost calculation with discount application
+
+## 7. Configuration & Deployment
+
+### Configuration Files
+**application.properties**
+```properties
+server.port=8080
+management.port=8081
+ordering.storage=mongodb
+mongodb.host=localhost
+mongodb.database=ordering
+```
+
+**ApplicationInsights.xml**: Telemetry configuration
+**buildinfo.properties**: Build version tracking
+
+### Deployment Configuration
+- **Spring Boot** application with embedded Tomcat
+- **MongoDB** persistence with connection pooling
+- **Dual-mode operation**: In-memory (testing) vs MongoDB (production)
+- **Health monitoring** via Spring Boot Actuator on port 8081
+
+## 8. Architectural Patterns & Frameworks
+
+### Core Patterns
+- **Repository Pattern**: Abstract data access
+- **Factory Pattern**: Configurable storage implementation
+- **MVC Pattern**: REST controller architecture
+- **DTO Pattern**: Separate persistence and business models
+
+### Frameworks & Technologies
+- **Spring Boot**: Application framework
+- **Spring Data MongoDB**: Data access
+- **MongoDB**: Primary database
+- **JUnit**: Testing framework
+- **Application Insights**: Telemetry and monitoring
+- **Gradle**: Build automation
+
+### Testing Strategy
+- **Mock Repository Tests**: Unit testing with in-memory storage
+- **MongoDB Integration Tests**: @Category(IntegrationTests)
+- **Controller Tests**: Full REST endpoint testing
+- **ConfigurationRule**: JUnit rule for test context setup
+
+## 9. Microservice Decomposition Analysis
+
+### Potential Service Boundaries
+1. **Quote Service**: Quote creation, management, pricing
+2. **Order Service**: Order processing, status management
+3. **Shipment Service**: Delivery tracking, event management
+4. **Catalog Service**: Product management, inventory
+5. **Dealer Service**: Dealer information management
+
+### Data Consistency Considerations
+- Quote-to-Order conversion requires transactional consistency
+- Order-Shipment relationship is 1:1 with shared orderId
+- Catalog updates may affect active quotes and orders
+
+### Service Dependencies
+```
+Quote Service → Catalog Service, Dealer Service
+Order Service → Quote Service
+Shipment Service → Order Service
+```
+
+This architecture supports decomposition into focused microservices while maintaining clear data boundaries and service contracts.

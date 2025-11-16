@@ -1,0 +1,275 @@
+# Architectural Summary - Codebase Chunk 2
+
+## 1. Infrastructure as Code (IaC) Components
+
+### Azure Resource Manager (ARM) Templates
+**File**: `ARMtemplate-newVM.json` (multiple locations)
+- **Purpose**: Deploy complete VM infrastructure on Azure
+- **Components Created**:
+  - Availability Set (`myAvSet`) - 5 update domains, 2 fault domains
+  - Network Security Group (`myNsg`) - Allows SSH on port 22
+  - Virtual Network (`myVnet`) - 10.123.0.0/16 with 2 subnets
+  - Network Interface (`myNic`) - Connected to NSG and load balancer
+  - Virtual Machine (`mySecondVM`) - CentOS 7.3, Standard_A0
+  - Internal Load Balancer (`mySlb`) - Port 22 load balancing with health probes
+
+### Ansible Playbooks
+**Configuration Management Components**:
+
+#### VM Management Playbooks
+- **`new_vm_web.yml`**: Creates web VM with Apache
+- **`create_vm.yml`**: Creates Ubuntu web VM with full stack
+- **`delete_vm.yml`**: Removes VM and associated resources
+- **`new_ARM_deployment.yml`**: Deploys ARM templates via Ansible
+
+#### Service Configuration Playbooks
+- **`httpd.yml`**: Installs/configures Apache web server
+- **`nginx.yml`**: Installs/configures Nginx web server
+- **`cron.yml`**: Sets up scheduled tasks for configuration management
+
+## 2. Backend Services Architecture
+
+### Integration Service
+**Location**: `src/Backend/IntegrationService/`
+- **Purpose**: Integration layer between website and MRP system
+- **Technology Stack**: Spring Boot, Azure Storage Queues, REST APIs
+
+#### Key Components:
+- **`Main.java`**: Application entry point
+- **Scheduled Tasks**:
+  - `CreateOrderProcessTask`: Processes orders from queue to MRP system
+  - `UpdateProductProcessTask`: Updates product inventory to website
+- **Services**:
+  - `MrpConnectService`: Communicates with MRP REST API
+  - `QueueService`: Manages Azure Storage Queues
+  - `QueueFactory`: Thread-safe queue initialization
+
+#### Data Models:
+- **Website Models**: `OrderMessage`, `OrderItem`, `ProductMessage`, `ProductItem`
+- **MRP Models**: `Quote`, `Order`, `ShipmentRecord`, `CatalogItem`, `DeliveryAddress`
+- **Queue Models**: `QueueResponse`
+
+### Order Service
+**Location**: `src/Backend/OrderService/`
+- **Purpose**: Core ordering system for MRP application
+- **Technology Stack**: Spring Boot, MongoDB/PostgreSQL, Application Insights
+
+#### Key Components:
+- **Controllers**:
+  - `CatalogController`: Manages product catalog
+  - `DealerController`: Manages dealer information
+  - `QuoteController`: Handles quote management
+  - `OrderController`: Manages order lifecycle
+  - `ShipmentController`: Tracks shipments and deliveries
+  - `PingController`: Health checks and monitoring
+
+#### Data Models:
+- **Core Entities**: `CatalogItem`, `DealerInfo`, `Quote`, `Order`, `ShipmentRecord`
+- **Supporting Models**: `DeliveryAddress`, `PhoneInfo`, `OrderEventInfo`, `OrderStatus`
+
+## 3. API Endpoints and Interfaces
+
+### Order Service REST API
+
+#### Catalog Management
+```
+GET    /catalog                    # List all catalog items
+GET    /catalog/{sku}              # Get specific catalog item
+POST   /catalog                    # Add new catalog item
+PUT    /catalog/{sku}              # Update catalog item
+DELETE /catalog/{sku}              # Remove catalog item
+```
+
+#### Dealer Management
+```
+GET    /dealers                    # List all dealers
+GET    /dealers/{name}             # Get specific dealer
+POST   /dealers                    # Add new dealer
+PUT    /dealers/{name}             # Update dealer
+DELETE /dealers/{name}             # Remove dealer
+```
+
+#### Quote Management
+```
+GET    /quotes/{quoteId}           # Get specific quote
+GET    /quotes?name={customerName} # Search quotes by customer
+POST   /quotes                     # Create new quote
+PUT    /quotes/{quoteId}           # Update quote
+DELETE /quotes/{quoteId}           # Delete quote
+```
+
+#### Order Management
+```
+GET    /orders/{orderId}           # Get specific order
+GET    /orders?dealer={dealerName} # Get orders by dealer
+POST   /orders?fromQuote={quoteId} # Create order from quote
+PUT    /orders/{orderId}           # Update order
+PUT    /orders/{orderId}/status    # Update order status
+POST   /orders/{orderId}/events    # Add order event
+DELETE /orders/{orderId}           # Delete order
+```
+
+#### Shipment Management
+```
+GET    /shipments                  # List all shipments
+GET    /shipments/{id}             # Get specific shipment
+GET    /shipments/deliveries       # Get delivery aggregates
+POST   /shipments                  # Create shipment record
+PUT    /shipments/{id}             # Update shipment
+POST   /shipments/{id}/events      # Add shipment event
+DELETE /shipments/{orderId}        # Delete shipment
+```
+
+## 4. Database Schemas and Data Models
+
+### MongoDB Schema (Order Service)
+```json
+{
+  "CatalogItems": {
+    "sku_number": "String (PK)",
+    "description": "String",
+    "price": "Number",
+    "inventory": "Number",
+    "leadTime": "Number"
+  },
+  "Dealers": {
+    "name": "String (PK)",
+    "contact": "String",
+    "address": "String",
+    "email": "String",
+    "phone": "String"
+  },
+  "Quotes": {
+    "quote_id": "String (PK)",
+    "customer_name": "String",
+    "dealer_name": "String",
+    "total_cost": "Number",
+    "discount": "Number",
+    "city": "String",
+    "postal_code": "String",
+    "state": "String"
+  },
+  "Orders": {
+    "order_id": "String (PK)",
+    "quote_id": "String (FK)",
+    "order_date": "String",
+    "status": "String"
+  },
+  "Shipments": {
+    "order_id": "String (PK)",
+    "delivery_date": "String",
+    "contact_name": "String",
+    "events": "Array"
+  }
+}
+```
+
+### Integration Service Data Flow
+```
+Website Order → Azure Queue → Integration Service → MRP System
+MRP Catalog → Integration Service → Azure Queue → Website Updates
+```
+
+## 5. Service Dependencies and Communication Patterns
+
+### External Dependencies
+- **Azure Storage**: Queue services for order processing
+- **MRP System**: REST API endpoints for order management
+- **MongoDB/PostgreSQL**: Data persistence for Order Service
+- **Application Insights**: Telemetry and monitoring
+
+### Internal Communication
+- **Synchronous**: REST API calls between services
+- **Asynchronous**: Azure Queue messaging for order processing
+- **Scheduled**: Background tasks for inventory updates (30-second intervals)
+
+### Configuration Dependencies
+```properties
+# Integration Service
+azure.storage.connectionstring
+mrp.endpoint=http://127.0.0.1:8080/
+azure.storage.queue.orders=orders
+azure.storage.queue.inventory=product
+
+# Order Service
+ordering.storage=memory/mongodb/postgresql
+mongodb.host=localhost
+mongodb.database=ordering
+ordering.instrumentationKey= # Application Insights
+```
+
+## 6. Key Business Logic and Algorithms
+
+### Order Processing Flow
+1. **Quote Creation**: Convert website order to MRP quote
+2. **Order Creation**: Convert quote to MRP order
+3. **Shipment Creation**: Generate shipment record with delivery details
+4. **Status Tracking**: Update order status through lifecycle
+
+### Inventory Synchronization
+- Scheduled catalog polling from MRP system
+- Queue-based product update propagation to website
+- Lead time and inventory level management
+
+### Error Handling
+- Queue message retry mechanisms
+- Exception tracking with Application Insights
+- Graceful degradation for external service failures
+
+## 7. Configuration and Deployment Details
+
+### Build Systems
+- **Gradle**: Both services use Gradle for build automation
+- **Version Management**: `version.properties` for semantic versioning
+- **Build Information**: Automated build info generation
+
+### Deployment Patterns
+- **Infrastructure**: ARM templates for Azure resource provisioning
+- **Configuration Management**: Ansible for VM configuration
+- **Container Readiness**: Docker-compatible build configurations
+
+### Monitoring and Observability
+- **Application Insights**: Distributed tracing and telemetry
+- **Health Checks**: `/ping` endpoints for service monitoring
+- **Logging**: Structured logging with SLF4J and Logback
+
+## 8. Architectural Patterns and Frameworks
+
+### Patterns Used
+- **Microservices**: Separate Integration and Order services
+- **Repository Pattern**: Data access abstraction
+- **Factory Pattern**: Service and queue initialization
+- **Scheduled Task Pattern**: Background job processing
+- **RESTful API**: Resource-oriented service interfaces
+
+### Frameworks and Technologies
+- **Spring Boot**: Application framework
+- **Azure SDK**: Cloud integration
+- **MongoDB**: Document database
+- **Jackson**: JSON serialization/deserialization
+- **Application Insights**: Application performance monitoring
+
+### Security Patterns
+- **Network Security Groups**: VM-level firewall rules
+- **Azure Storage Security**: Connection string authentication
+- **Input Validation**: Model validation in controllers
+
+## 9. Microservice Decomposition Analysis
+
+### Potential Service Boundaries
+1. **Catalog Service**: Product and inventory management
+2. **Order Service**: Order lifecycle management
+3. **Quote Service**: Quote generation and management
+4. **Shipment Service**: Delivery and tracking
+5. **Dealer Service**: Dealer relationship management
+6. **Integration Service**: External system coordination
+
+### Data Consistency Considerations
+- Eventual consistency via queue-based updates
+- Saga pattern for distributed transactions
+- Idempotent operations for queue message processing
+
+### Scalability Points
+- Queue-based load leveling for order processing
+- Stateless service design for horizontal scaling
+- Database partitioning by tenant/organization

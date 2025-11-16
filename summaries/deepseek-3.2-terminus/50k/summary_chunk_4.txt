@@ -1,0 +1,197 @@
+# Architectural Summary - Codebase Chunk 4 (Web Client)
+
+## Overview
+This chunk represents the **Web Client** component of a Material Requirements Planning (MRP) system for "Parts Unlimited" (a Fabrikam subsidiary). It's a Windows 8-style web application built using WinJS framework with a Single Page Application (SPA) architecture.
+
+## Component Architecture
+
+### 1. Core Application Framework
+
+**Application Bootstrapping** (`default.js`)
+- **Responsibilities**: Application lifecycle management, navigation setup, progress indication
+- **Key Components**:
+  - `WinJS.Application`: Main application controller
+  - `WinJS.Navigation`: Page navigation management
+  - `WinJS.UI`: UI component framework
+- **Architectural Patterns**: SPA with page-based navigation
+
+**Navigation System** (`navigator.js`)
+- **Responsibilities**: Page navigation, history management, page lifecycle
+- **Key Class**: `Application.PageControlNavigator`
+- **Methods**: `_navigating`, `_navigated`, `_resized`, `dispose`
+
+### 2. UI Components and Pages
+
+**Main Dashboard** (`pages/main/`)
+- **Purpose**: Application launchpad with navigation tiles
+- **Features**: Dealer management, Quotes, Orders, Deliveries, Catalog access
+- **Navigation Pattern**: Tile-based navigation to functional modules
+
+**Business Domain Pages**:
+- **Catalog Management** (`pages/catalog/`): Product/SKU management
+- **Dealer Management** (`pages/dealers/`): Dealer relationship management
+- **Quote Management** (`pages/quotes/`): Sales quotation system
+- **Order Management** (`pages/orders/`): Order processing and tracking
+- **Delivery Management** (`pages/deliveries/`): Delivery scheduling and tracking
+- **Extras Management** (`pages/extras/`): Additional product features/accessories
+- **Order Events** (`pages/orderevents/`): Event logging and tracking
+
+### 3. Data Layer Abstraction
+
+**Global Data Service** (referenced throughout)
+- **Interface Methods**:
+  - `Data.catalogGet()`, `Data.catalogSave()`, `Data.catalogDelete()`
+  - `Data.dealersGet()`, `Data.dealerSave()`, `Data.dealerDelete()`
+  - `Data.quotesGet()`, `Data.quoteSave()`, `Data.quoteDelete()`
+  - `Data.ordersGet()`, `Data.orderSave()`, `Data.orderDelete()`
+  - `Data.deliveriesGet()`, `Data.deliverySave()`, `Data.deliveryDelete()`
+- **Data Binding**: Uses `WinJS.Binding` for MVVM pattern
+
+### 4. UI Controls and Utilities
+
+**EditTools Control** (referenced in multiple pages)
+- **Responsibilities**: Standardized CRUD operations (Add, Edit, Delete, Save)
+- **Integration**: Used across all data management pages
+
+**Utility Functions** (`default.js`):
+- `showProgress()` / `hideProgress()`: User feedback during operations
+- `confirm()`: Standard confirmation dialogs
+- `popup()`: Modal dialog management
+- `addAddressHandler()`: Google Maps Places API integration
+- `clone()`: Object cloning utility
+
+## Data Models and Schemas
+
+### Core Business Entities
+
+**Catalog Item Schema**:
+```javascript
+{
+  skuNumber: string,
+  description: string,
+  unit: string,
+  unitPrice: number
+}
+```
+
+**Dealer Schema**:
+```javascript
+{
+  name: string,
+  contact: string,
+  address: string,
+  email: string,
+  phone: string
+}
+```
+
+**Quote Schema**:
+```javascript
+{
+  dealerName: string,
+  validUntil: date,
+  customerName: string,
+  city: string,
+  postalCode: string,
+  comments: string,
+  purpose: string, // "Refrigerator" | "Freezer"
+  unitDescription: string,
+  width: number,
+  height: number,
+  depth: number,
+  ambientAverage: number,
+  ambientPeak: number,
+  terms: string,
+  totalCost: number,
+  discount: number,
+  additionalItems: array // Extra items
+}
+```
+
+**Order Schema** (extends Quote):
+```javascript
+{
+  orderDate: date,
+  status: string, // "Created", "Confirmed", "Started", "Built", etc.
+  events: array, // OrderEvent objects
+  __quote: object // Reference to original quote
+}
+```
+
+**Delivery Schema** (extends Order):
+```javascript
+{
+  deliveryDate: date,
+  deliveryAddress: { city: string, postalCode: string },
+  primaryContactPhone: { phoneNumber: string },
+  alternateContactPhone: { phoneNumber: string },
+  __order: object, // Reference to original order
+  __quote: object // Reference to original quote
+}
+```
+
+**OrderEvent Schema**:
+```javascript
+{
+  date: datetime,
+  comments: string
+}
+```
+
+## Service Dependencies and Communication
+
+### External Services
+- **Backend API**: `http://{hostname}:8080` (configurable in `serverconfig.js`)
+- **Google Maps Places API**: For address autocomplete functionality
+
+### Internal Communication Patterns
+- **Navigation Events**: `WinJS.Navigation` events for page transitions
+- **Data Binding**: Two-way binding using `WinJS.Binding.Mode.twoway`
+- **Promise-based Async**: All data operations use WinJS promises
+- **Event Delegation**: Centralized event handling for UI controls
+
+## Key Business Logic and Workflows
+
+### Business Processes
+1. **Quote-to-Order Pipeline**: Quotes can be converted to orders
+2. **Order-to-Delivery Pipeline**: Orders can be converted to deliveries
+3. **Status Management**: Multi-stage status tracking (Created → Confirmed → Started → Built → DeliveryConfirmed → Shipped → Delivered → Installed)
+4. **Extras Management**: Additional product features can be added to quotes/orders
+
+### Data Relationships
+- **Quote** → **Order** (one-to-one)
+- **Order** → **Delivery** (one-to-one)
+- **Quote/Order/Delivery** → **Catalog Items** (many-to-many via extras)
+
+## Configuration and Deployment
+
+### Configuration
+- **Base URL**: Configurable in `serverconfig.js`
+- **Culture Settings**: en-US localization in date handling
+- **UI Settings**: Animation controls, layout preferences
+
+### Frameworks and Libraries
+- **WinJS**: Microsoft Windows Library for JavaScript
+- **Date.js**: Extended date manipulation library
+- **Google Maps API**: For geolocation and address services
+
+## Microservice Decomposition Analysis
+
+### Potential Service Boundaries
+1. **Catalog Service**: Product/SKU management
+2. **Dealer Management Service**: Dealer relationship management
+3. **Quoting Service**: Sales quotation system
+4. **Order Management Service**: Order processing and fulfillment
+5. **Delivery Service**: Delivery scheduling and tracking
+6. **Event Logging Service**: Activity and event tracking
+
+### Integration Patterns
+- **RESTful APIs**: Current client suggests REST-based backend
+- **Real-time Updates**: Could benefit from WebSocket integration for status updates
+- **CQRS Pattern**: Suitable for separating read (queries) and write (commands) operations
+
+### Data Consistency Requirements
+- **Strong Consistency**: Order status, inventory levels
+- **Eventual Consistency**: Activity logs, reporting data
+
+This web client represents a comprehensive business application that would interface with multiple backend microservices for a complete MRP solution.

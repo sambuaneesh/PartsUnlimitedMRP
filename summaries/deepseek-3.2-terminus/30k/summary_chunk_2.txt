@@ -1,0 +1,217 @@
+Based on my analysis of this codebase chunk, here's a comprehensive architectural summary focused on microservice decomposition:
+
+## ARCHITECTURAL SUMMARY - CODESBASE CHUNK 2
+
+### 1. CORE APPLICATION OVERVIEW
+
+**Parts Unlimited MRP (Manufacturing Resource Planning)**
+- **Purpose**: Fictional MRP application for DevOps training, based on "The Phoenix Project"
+- **Architecture**: Multi-tier application using open source stack
+- **Technology Stack**: Linux, Java, Apache/Tomcat, MongoDB
+
+### 2. MICROSERVICE COMPONENTS IDENTIFIED
+
+#### Primary Services:
+- **Web Frontend Service** (Port 9080)
+  - Tomcat-based web application
+  - Served via `mrp.war` deployment
+  - Primary user interface
+
+- **Ordering Service** (Port 8080)
+  - Java-based microservice (`ordering-service-0.1.0.jar`)
+  - Runs independently from web frontend
+  - Handles order processing and business logic
+
+- **Integration Service**
+  - Mentioned in documentation but not detailed in this chunk
+  - Likely handles external system integrations
+
+- **Database Service** (MongoDB)
+  - Ports 27017/28017
+  - Stores catalog, orders, quotes, shipments, dealers
+
+### 3. DATA MODELS & DATABASE SCHEMAS
+
+#### MongoDB Collections:
+```javascript
+// Catalog Collection
+{
+  skuNumber: String,
+  description: String,
+  price: Decimal,
+  inventory: Number,
+  leadTime: Number
+}
+
+// Dealers Collection  
+{
+  name: String,
+  address: String,
+  email: String,
+  phone: String
+}
+
+// Quotes Collection
+{
+  quoteId: String,
+  validUntil: Date,
+  customerName: String,
+  dealerName: String,
+  totalCost: Decimal,
+  quoteItems: Array[{
+    skuNumber: String,
+    amount: Number
+  }]
+}
+
+// Orders Collection
+{
+  orderId: String,
+  quoteId: String, 
+  orderDate: Date,
+  status: String,
+  events: Array
+}
+
+// Shipments Collection
+{
+  orderId: String,
+  contactName: String,
+  primaryContactPhone: Object,
+  deliveryAddress: Object,
+  events: Array
+}
+```
+
+### 4. DEPLOYMENT ARCHITECTURES
+
+#### A. Azure Stack VM Deployment
+- **Base Image**: Ubuntu 16.04.3-LTS (Canonical)
+- **VM Size**: Standard_A2
+- **Authentication**: Password or SSH key-based
+- **Network Security**: NSG with rules for SSH(22), MRP(9080), OrderingService(8080)
+
+#### B. Docker Container Deployment
+**Container Architecture:**
+```yaml
+# Database Container
+- Image: mypartsunlimitedmrp/db
+- Base: mongo
+- Ports: 27017, 28017
+- Data: Initializes with MongoRecords.js
+
+# Order Service Container  
+- Image: mypartsunlimitedmrp/order
+- Base: openjdk:8-jre
+- Port: 8080
+- Dependencies: Linked to db container
+- Startup: Waits for MongoDB availability
+
+# Web Container
+- Image: mypartsunlimitedmrp/web  
+- Base: tomcat:7-jre8
+- Port: 80 (mapped to 8080)
+- Deployment: WAR file in webapps/
+```
+
+### 5. SERVICE DEPENDENCIES & COMMUNICATION
+
+**Dependency Chain:**
+```
+Web Frontend (9080) → Ordering Service (8080) → MongoDB (27017)
+```
+
+**Inter-service Communication:**
+- Order Service depends on MongoDB availability (health check implemented)
+- Web frontend likely communicates with Order Service via HTTP/REST
+- Container linking used in Docker deployment
+
+### 6. CONFIGURATION MANAGEMENT PATTERNS
+
+#### A. Infrastructure as Code (ARM Templates)
+- Multiple deployment templates for different scenarios
+- Custom script extensions for post-deployment configuration
+- Network isolation with virtual networks and subnets
+
+#### B. Configuration Management Tools
+**Ansible:**
+- VM provisioning and application deployment
+- Web server configuration (Apache/nginx)
+- Cron job automation for configuration management
+
+**Chef:**
+- Complete application stack deployment
+- Manages: Java, MongoDB, Tomcat, application deployment
+- Environment variable configuration
+
+**Puppet:**
+- Enterprise-grade configuration management
+- Multi-node deployment support
+- Service orchestration and dependency management
+
+### 7. API ENDPOINTS & PORTS
+
+| Service | Port | Protocol | Purpose |
+|---------|------|----------|---------|
+| SSH | 22 | TCP | Management |
+| Web Frontend | 9080 | HTTP | User Interface |
+| Ordering Service | 8080 | HTTP | Business Logic API |
+| MongoDB | 27017 | TCP | Database |
+| MongoDB HTTP | 28017 | HTTP | Database Admin |
+| Puppet Master | 8140 | TCP | Configuration Mgmt |
+| MCollective | 61613 | TCP | Orchestration |
+
+### 8. KEY BUSINESS LOGIC
+
+**Order Processing Flow:**
+1. Catalog browsing and quote generation
+2. Quote to order conversion
+3. Order status tracking
+4. Shipment management
+5. Inventory management with lead times
+
+**Business Entities:**
+- Products with SKU-based inventory
+- Customer quotes with validity periods
+- Order lifecycle management
+- Dealer relationship management
+
+### 9. DEPLOYMENT CONFIGURATIONS
+
+#### Automation Scripts:
+- `BuildAndRun.sh` - Container build and deployment
+- `StopAndRemove.sh` - Container cleanup
+- Custom scripts for dependency installation
+- Health checks and service readiness verification
+
+#### Environment Requirements:
+- Java 8 runtime (OpenJDK)
+- MongoDB database
+- Tomcat 7 application server
+- Network connectivity between services
+
+### 10. ARCHITECTURAL PATTERNS & FRAMEWORKS
+
+- **Microservices Architecture**: Separated web, ordering, and database services
+- **Containerization**: Docker-based deployment with inter-container networking
+- **Infrastructure as Code**: ARM templates, Ansible, Chef, Puppet
+- **Configuration Management**: Multiple tool support for flexibility
+- **Cloud-Native Design**: Designed for Azure Stack deployment
+- **DevOps Practices**: Comprehensive automation and orchestration
+
+### 11. MICROSERVICE DECOMPOSITION ANALYSIS
+
+**Potential Microservice Boundaries:**
+1. **Catalog Service** - Product information and inventory
+2. **Quoting Service** - Quote generation and management  
+3. **Order Service** - Order processing and lifecycle
+4. **Shipping Service** - Shipment tracking and management
+5. **Dealer Management Service** - Dealer relationships
+6. **Inventory Service** - Stock management and lead times
+
+**Current Monolithic Characteristics:**
+- Ordering service handles multiple business domains
+- Tight coupling between quote and order management
+- Shared database schema across business functions
+
+This architecture provides a solid foundation for further microservice decomposition, with clear service boundaries and established patterns for independent deployment and scaling.

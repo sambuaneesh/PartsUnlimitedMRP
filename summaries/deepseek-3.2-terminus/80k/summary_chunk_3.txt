@@ -1,0 +1,297 @@
+# Architectural Summary - Codebase Chunk 3 (Web Client Pages)
+
+## Overview
+This chunk contains the web client user interface components for a Parts Unlimited MRP (Material Requirements Planning) system, built using WinJS (Windows Library for JavaScript) framework. The system manages dealers, quotes, orders, deliveries, and catalog items for what appears to be a refrigeration/freezer manufacturing business.
+
+## Component Architecture
+
+### 1. Main Application Shell
+**File**: `src/Clients/Web/pages/main/`
+- **Responsibility**: Application entry point and navigation hub
+- **Components**:
+  - Launchpad with navigation tiles to all major modules
+  - Company branding (Parts Unlimited, Fabrikam subsidiary)
+- **Navigation Targets**: Dealers, Quotes, Orders, Deliveries, Catalog
+
+### 2. Dealer Management Module
+**Files**: `src/Clients/Web/pages/dealers/`
+- **Responsibilities**:
+  - CRUD operations for dealer entities
+  - Dealer contact information management
+- **Data Model**:
+  ```javascript
+  Dealer {
+    name: string,
+    contact: string,
+    address: string,
+    email: string,
+    phone: string
+  }
+  ```
+- **UI Components**: ListView for dealer listing, form for dealer details
+- **Business Logic**: Standard CRUD operations with validation
+
+### 3. Quote Management Module
+**Files**: `src/Clients/Web/pages/quotes/`
+- **Responsibilities**:
+  - Create and manage customer quotes
+  - Calculate pricing and terms
+  - Manage quote extras/accessories
+- **Data Model**:
+  ```javascript
+  Quote {
+    dealerName: string,
+    validUntil: Date,
+    customerName: string,
+    city: string,
+    postalCode: string,
+    comments: string,
+    purpose: "Refrigerator" | "Freezer",
+    unitDescription: string,
+    width: number,
+    height: number,
+    depth: number,
+    ambientAverage: number,
+    ambientPeak: number,
+    terms: string,
+    totalCost: number,
+    discount: number,
+    additionalItems: Array<Extra>
+  }
+  ```
+- **UI Features**: Address autocomplete, extras management popup
+- **Integration**: Can convert quotes to orders
+
+### 4. Order Management Module
+**Files**: `src/Clients/Web/pages/orders/`
+- **Responsibilities**:
+  - Order lifecycle management
+  - Status tracking and event management
+  - Integration with quotes and deliveries
+- **Data Model**:
+  ```javascript
+  Order {
+    orderDate: Date,
+    status: OrderStatus,
+    __quote: Quote, // Embedded quote data
+    events: Array<OrderEvent>
+  }
+  
+  OrderStatus: [
+    "Created", "Confirmed", "Started", "Built", 
+    "DeliveryConfirmed", "Shipped", "Delivered", "Installed"
+  ]
+  ```
+- **Key Features**:
+  - Create orders from quotes
+  - Status workflow management
+  - Event timeline management
+  - Extras management integration
+
+### 5. Delivery Management Module
+**Files**: `src/Clients/Web/pages/deliveries/`
+- **Responsibilities**:
+  - Delivery scheduling and tracking
+  - Delivery address management
+  - Contact coordination
+- **Data Model**:
+  ```javascript
+  Delivery {
+    deliveryDate: Date,
+    deliveryAddress: {
+      city: string,
+      postalCode: string
+    },
+    primaryContactPhone: { phoneNumber: string },
+    alternateContactPhone: { phoneNumber: string },
+    __order: Order, // Embedded order data
+    __quote: Quote  // Embedded quote data
+  }
+  ```
+- **Integration**: Created from orders, maintains relationships with orders and quotes
+
+### 6. Extras/Catalog Management Module
+**Files**: `src/Clients/Web/pages/extras/`
+- **Responsibilities**:
+  - SKU (Stock Keeping Unit) management
+  - Product catalog maintenance
+  - Pricing and description management
+- **Data Model**:
+  ```javascript
+  Extra {
+    skuNumber: string,
+    description: string,
+    unit: string,
+    unitPrice: number
+  }
+  ```
+- **Usage**: Associated with quotes, orders, and deliveries
+
+### 7. Order Events Management Module
+**Files**: `src/Clients/Web/pages/orderevents/`
+- **Responsibilities**:
+  - Timeline event tracking for orders and deliveries
+  - Status change logging
+  - Comments and notes management
+- **Data Model**:
+  ```javascript
+  OrderEvent {
+    date: Date,
+    comments: string
+  }
+  ```
+
+## API Interfaces and Data Access
+
+### Data Service Layer (Implied)
+The code references a centralized `Data` service with the following methods:
+
+**Dealers**:
+- `Data.dealersGet()` - Fetch all dealers
+- `Data.dealerSave(dealer)` - Save dealer
+- `Data.dealerDelete(dealer)` - Delete dealer
+- `Data.dealerCreate()` - Create new dealer
+
+**Quotes**:
+- `Data.quotesGet()` - Fetch quotes
+- `Data.quoteSave(quote)` - Save quote
+- `Data.quoteDelete(quote)` - Delete quote
+- `Data.quoteCreate()` - Create new quote
+
+**Orders**:
+- `Data.ordersGet()` - Fetch orders
+- `Data.orderSave(order, original)` - Save order
+- `Data.orderDelete(order)` - Delete order
+- `Data.orderCreate()` - Create new order
+- `Data.orderCreateFromQuote(quote)` - Convert quote to order
+- `Data.orderFindById(orderId)` - Find order by ID
+- `Data.quoteGetById(quoteId)` - Get quote by ID
+
+**Deliveries**:
+- `Data.deliveriesGet()` - Fetch deliveries
+- `Data.deliverySave(delivery, original)` - Save delivery
+- `Data.deliveryDelete(delivery)` - Delete delivery
+- `Data.deliveryCreate()` - Create new delivery
+- `Data.deliveryCreateFromOrder(order)` - Convert order to delivery
+- `Data.deliveryFindById(orderId)` - Find delivery by order ID
+
+**Catalog**:
+- `Data.catalogGet()` - Fetch catalog
+- `Data.catalogSave(extra)` - Save catalog item
+- `Data.catalogDelete(extra)` - Delete catalog item
+- `Data.catalogCreate()` - Create new catalog item
+- `Data.catalogFindSku(skuNumber)` - Find catalog item by SKU
+
+## Service Dependencies and Communication Patterns
+
+### Internal Dependencies
+1. **Quote → Order → Delivery Chain**: Sequential workflow where quotes become orders, which become deliveries
+2. **Catalog Integration**: All modules can reference catalog items (extras)
+3. **Event System**: Orders and deliveries share the same event management system
+
+### External Dependencies
+1. **Address Service**: Google Maps Places API integration for address autocomplete
+   - `addAddressHandler()` function
+   - `getPostCodeFromPlace()` function
+2. **Progress Indicators**: `showProgress()`, `hideProgress()` functions
+3. **Popup/Dialog System**: `popup()`, `confirm()` functions
+
+## Key Business Logic and Workflows
+
+### 1. Quote-to-Order Workflow
+```javascript
+// From quotes.js
+case 'edit': {
+    nav.navigate("pages/orders/orders.html", { quote: that.currentItem });
+    break;
+}
+
+// From orders.js - creating order from quote
+if (options && options.quote) {
+    fromQuote = Data.orderCreateFromQuote(options.quote);
+}
+```
+
+### 2. Order-to-Delivery Workflow
+```javascript
+// From orders.js
+case 'edit': {
+    nav.navigate("pages/deliveries/deliveries.html", { order: that.currentItem });
+    break;
+}
+
+// From deliveries.js - creating delivery from order
+if (options && options.order) {
+    fromOrder = Data.deliveryCreateFromOrder(options.order);
+}
+```
+
+### 3. Status Management
+- Orders and deliveries have predefined status workflows
+- Status changes tracked via events system
+
+### 4. Data Binding and UI Synchronization
+- Uses WinJS two-way data binding (`Binding.Mode.twoway`)
+- Real-time UI updates with `WinJS.Binding.processAll()`
+
+## Configuration and Deployment Details
+
+### Framework and Patterns
+- **Primary Framework**: WinJS (Windows Library for JavaScript)
+- **UI Pattern**: Single Page Application (SPA) with page fragments
+- **Data Binding**: WinJS.Binding for MVVM pattern
+- **Navigation**: WinJS.Navigation for client-side routing
+- **UI Controls**: WinJS.UI.ListView, WinJS.Binding.Template
+
+### Build and Deployment
+- **Structure**: Modular page-based architecture
+- **Assets**: Images, CSS, and JavaScript organized by feature
+- **Dependencies**: Requires WinJS runtime environment
+
+### Styling and Theming
+- Component-specific CSS files
+- Responsive design patterns
+- WinJS-themed controls
+
+## Microservice Decomposition Analysis
+
+### Potential Service Boundaries
+
+1. **Dealer Service**
+   - Manages dealer entities and contact information
+   - Minimal dependencies on other services
+
+2. **Quote Service**
+   - Quote creation, calculation, and management
+   - Integration with catalog for pricing
+   - Could be combined with Order Service
+
+3. **Order Service**
+   - Order lifecycle management
+   - Status workflow enforcement
+   - Strong coupling with Quote and Delivery services
+
+4. **Delivery Service**
+   - Delivery scheduling and tracking
+   - Address and contact management
+   - Dependent on Order Service
+
+5. **Catalog Service**
+   - SKU and product management
+   - Pricing information
+   - Used by Quote, Order, and Delivery services
+
+6. **Event Service**
+   - Timeline and event logging
+   - Cross-cutting concern for multiple domains
+
+### Integration Points
+- **Service-to-Service Communication**: Required for quote→order→delivery workflow
+- **Shared Data Models**: Quote data embedded in orders and deliveries
+- **Event Sourcing**: Order events could be published to event bus
+
+### Data Consistency Requirements
+- **Strong Consistency**: Quote→Order conversion requires transactional integrity
+- **Eventual Consistency**: Status updates and event logging can be eventually consistent
+
+This architecture shows clear domain boundaries that align well with microservice decomposition, though the embedded data models (quotes in orders, orders in deliveries) suggest tight coupling that would need to be addressed through service APIs and event-driven communication.

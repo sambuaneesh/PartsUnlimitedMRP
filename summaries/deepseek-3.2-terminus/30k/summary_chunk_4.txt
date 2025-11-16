@@ -1,0 +1,280 @@
+# Architectural Summary - Codebase Chunk 4
+
+## 1. Component Overview
+
+### Core Business Components
+- **DealerController**: Manages dealer information and contacts
+- **OrderController**: Handles order lifecycle management and status updates
+- **QuoteController**: Manages quote creation, updates, and customer quotes
+- **ShipmentController**: Handles shipment tracking, delivery management, and shipment events
+- **PingController**: Provides health checks and system status monitoring
+
+### Data Models & Domain Entities
+
+#### Primary Business Entities
+- **CatalogItem**: Product catalog with SKU, pricing, inventory, and lead time
+- **DealerInfo**: Dealer contact information and details
+- **Quote**: Customer quotes with line items, pricing, and validity
+- **Order**: Orders with status tracking and event history
+- **ShipmentRecord**: Shipment tracking with delivery addresses and contact info
+- **Delivery**: Aggregate entity combining Quote, Order, and Shipment for delivery tracking
+
+#### Supporting Models
+- **OrderEventInfo**: Order status changes and comments
+- **ShipmentEventInfo**: Shipment tracking events
+- **DeliveryAddress**: Physical delivery location details
+- **PhoneInfo**: Contact phone number information
+- **QuoteItemInfo**: Individual line items within quotes
+
+### Repository Layer
+
+#### Repository Interfaces
+- **CatalogItemsRepository**: Catalog item CRUD operations
+- **DealersRepository**: Dealer information management
+- **QuoteRepository**: Quote persistence and retrieval
+- **OrderRepository**: Order lifecycle management
+- **ShipmentRepository**: Shipment tracking and events
+
+#### Repository Implementations
+- **Mock Repositories**: In-memory implementations for testing
+- **MongoDB Repositories**: Production implementations with MongoDB
+- **RepositoryFactory**: Factory pattern for repository selection
+
+## 2. API Endpoints & Interfaces
+
+### Dealer Management API (`/dealers`)
+```
+GET    /dealers                    - List all dealers
+GET    /dealers/{name}             - Get specific dealer
+POST   /dealers                    - Create new dealer
+PUT    /dealers/{name}             - Update dealer
+DELETE /dealers/{name}             - Remove dealer
+```
+
+### Order Management API (`/orders`)
+```
+GET    /orders/{orderId}           - Get order by ID
+GET    /orders?dealer=&status=     - Get orders by dealer/status
+POST   /orders?fromQuote=          - Create order from quote
+POST   /orders/{orderId}/events    - Add order event
+PUT    /orders/{orderId}           - Update order
+PUT    /orders/{orderId}/status    - Update order status
+DELETE /orders/{orderId}           - Delete order
+```
+
+### Quote Management API (`/quotes`)
+```
+GET    /quotes/{quoteId}           - Get quote by ID
+GET    /quotes?name=               - Get quotes by customer name
+PUT    /quotes/{quoteId}           - Update quote
+POST   /quotes                     - Create quote
+DELETE /quotes/{quoteId}           - Delete quote
+```
+
+### Shipment Management API (`/shipments`)
+```
+GET    /shipments?status=          - Get shipments by status
+GET    /shipments/deliveries       - Get delivery confirmations
+GET    /shipments/{id}             - Get shipment by order ID
+POST   /shipments                  - Create shipment record
+PUT    /shipments/{id}             - Update shipment
+POST   /shipments/{id}/events      - Add shipment event
+DELETE /shipments/{orderId}        - Delete shipment
+```
+
+### System API (`/ping`)
+```
+HEAD   /ping                       - Health check
+GET    /ping                       - System status with build info
+```
+
+## 3. Database Schemas & Data Models
+
+### MongoDB Collections & Document Structure
+
+#### Catalog Collection
+```json
+{
+  "skuNumber": "String (indexed)",
+  "description": "String",
+  "price": "Double",
+  "inventory": "Integer",
+  "leadTime": "Integer"
+}
+```
+
+#### Dealers Collection
+```json
+{
+  "name": "String (indexed)",
+  "contact": "String",
+  "address": "String",
+  "email": "String",
+  "phone": "String"
+}
+```
+
+#### Quotes Collection
+```json
+{
+  "quoteId": "String (indexed)",
+  "validUntil": "String",
+  "customerName": "String",
+  "dealerName": "String (indexed)",
+  "quoteItems": "Array[QuoteItemInfo]",
+  "totalCost": "Double",
+  "discount": "Double",
+  "city": "String",
+  "postalCode": "String",
+  "state": "String"
+}
+```
+
+#### Orders Collection
+```json
+{
+  "orderId": "String (indexed)",
+  "quoteId": "String (indexed)",
+  "orderDate": "String",
+  "status": "OrderStatus (indexed)",
+  "events": "Array[OrderEventInfo]"
+}
+```
+
+#### Shipments Collection
+```json
+{
+  "orderId": "String (indexed)",
+  "events": "Array[ShipmentEventInfo]",
+  "deliveryAddress": "DeliveryAddress",
+  "contactName": "String",
+  "primaryContactPhone": "PhoneInfo",
+  "alternateContactPhone": "PhoneInfo"
+}
+```
+
+## 4. Service Dependencies & Communication Patterns
+
+### Internal Dependencies
+- **Order → Quote**: Orders are created from quotes
+- **Shipment → Order**: Shipments reference orders
+- **Shipment → Quote**: Delivery aggregation requires quote data
+- **Quote → Dealer**: Quotes reference dealer information
+
+### Communication Patterns
+- **Synchronous REST APIs**: All external communications
+- **Repository Pattern**: Data access abstraction
+- **Factory Pattern**: Repository implementation selection
+- **Telemetry Integration**: Application Insights for monitoring
+
+### Key Business Logic Dependencies
+- Order creation validates quote existence and uniqueness
+- Shipment creation validates order existence
+- Quote validation ensures dealer exists
+- Status transitions include event tracking
+
+## 5. Key Business Logic & Algorithms
+
+### Order Lifecycle Management
+```java
+OrderStatus: None → Created → Confirmed → Started → Built → 
+           DeliveryConfirmed → Shipped → Delivered → Installed
+```
+
+### Quote-to-Order Conversion
+- Validates quote existence and uniqueness
+- Prevents duplicate order creation from same quote
+- Generates order ID format: `order-{quoteId}`
+
+### Inventory & Lead Time Calculation
+```java
+calculatedLeadTime = (inventory > 0) ? 0 : leadTime;
+```
+
+### Data Validation Framework
+- Centralized validation using `Utility.validateStringField()`
+- Consistent error response format: `{"errors": [...]}`
+
+### Event Tracking
+- Automatic date stamping for order and shipment events
+- Event history maintained in arrays within parent entities
+
+## 6. Configuration & Deployment Details
+
+### Application Configuration (`application.properties`)
+```properties
+server.port=8080
+management.port=8081
+management.address=127.0.0.1
+ordering.storage=mongodb|memory
+mongodb.host=localhost
+mongodb.database=ordering
+ordering.pingMessage=Configuration message
+ordering.validationMessage=Version information
+```
+
+### Telemetry Configuration
+- **Application Insights**: Integrated for monitoring
+- **Telemetry Client**: Thread-local storage based
+- **Dependency Tracking**: MongoDB operations monitored
+- **Exception Tracking**: All controller exceptions logged
+
+### Build Information
+- **buildinfo.properties**: Version and timestamp metadata
+- Build number format: `0.1.#`
+- Integration with ping endpoint for deployment verification
+
+### Storage Configuration
+- **Dual Repository Support**: MongoDB (production) and in-memory (testing)
+- **Factory-based Selection**: Configurable via `ordering.storage` property
+- **MongoDB Operations**: Retry logic with socket timeout handling
+
+## 7. Architectural Patterns & Frameworks
+
+### Core Patterns
+- **MVC Pattern**: Spring MVC controllers
+- **Repository Pattern**: Data access abstraction
+- **Factory Pattern**: Repository implementation selection
+- **DTO Pattern**: Model classes for data transfer
+- **Dependency Injection**: Spring-based IoC
+
+### Frameworks & Technologies
+- **Spring Framework**: Core application framework
+- **Spring Boot**: Application bootstrapping and configuration
+- **Spring Data MongoDB**: MongoDB integration
+- **MongoDB**: Primary data store
+- **Application Insights**: Telemetry and monitoring
+- **JUnit**: Testing framework
+
+### Data Access Patterns
+- **MongoTemplate**: Spring Data MongoDB operations
+- **Retry Logic**: Automatic retry on socket timeouts
+- **Optimistic Concurrency**: ETag support in repository interfaces
+- **Indexed Fields**: Strategic indexing for query performance
+
+### Monitoring & Observability
+- **Health Checks**: Ping endpoint for system monitoring
+- **Performance Tracking**: MongoDB operation timing
+- **Error Tracking**: Structured exception handling with telemetry
+- **Build Information**: Runtime version verification
+
+## Microservice Decomposition Insights
+
+### Potential Service Boundaries
+1. **Dealer Service**: Independent dealer management
+2. **Catalog Service**: Product catalog and inventory
+3. **Quote Service**: Quote generation and management
+4. **Order Service**: Order lifecycle and status tracking
+5. **Shipment Service**: Shipment tracking and delivery management
+
+### Cross-Cutting Concerns
+- **Telemetry Service**: Centralized monitoring
+- **Configuration Service**: Externalized configuration
+- **Validation Service**: Centralized data validation
+
+### Data Consistency Requirements
+- Order-Quote relationship requires strong consistency
+- Shipment-Order relationship requires eventual consistency
+- Dealer information can be eventually consistent across services
+
+This architecture summary provides comprehensive information for microservice decomposition analysis, highlighting component responsibilities, data models, dependencies, and integration patterns critical for successful service separation.

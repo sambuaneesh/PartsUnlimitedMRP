@@ -1,0 +1,260 @@
+# Architectural Summary - Codebase Chunk 2
+
+## Overview
+This chunk contains the **OrderService** backend microservice and **Web Client** frontend components for a Parts Unlimited ordering system. The service handles catalog management, dealer information, quotes, orders, and shipments.
+
+## Core Components & Responsibilities
+
+### Backend OrderService
+**Main Application Class**: `OrderingConfiguration`
+- Spring Boot application configuration
+- MongoDB connection management
+- Repository factory initialization
+- Application Insights telemetry setup
+
+**Controllers**:
+- `CatalogController` - Manage product catalog (SKUs, pricing, inventory)
+- `DealerController` - Handle dealer contact information
+- `QuoteController` - Process customer quotes and estimates
+- `OrderController` - Manage order lifecycle from quote to fulfillment
+- `ShipmentController` - Track shipments and delivery information
+- `PingController` - Health checks and service status
+
+**Repositories**:
+- Support both in-memory (mock) and MongoDB persistence
+- Implement repository pattern with factory selection
+- Handle data access for all business entities
+
+**Models** (Domain Objects):
+- `CatalogItem` - Product SKUs with pricing and inventory
+- `DealerInfo` - Dealer contact details
+- `Quote` - Customer quotations with line items
+- `Order` - Orders with status tracking and events
+- `ShipmentRecord` - Shipment tracking and delivery details
+
+### Web Client
+**Single Page Application** built with WinJS
+- HTML5/CSS3/JavaScript frontend
+- Responsive design with navigation panel
+- Real-time data binding to backend services
+
+## API Endpoints & Interfaces
+
+### REST API Structure
+```
+/catalog          - Product catalog management
+/dealers          - Dealer information
+/quotes           - Quote creation and management  
+/orders           - Order processing and tracking
+/shipments        - Shipment and delivery management
+/ping             - Health monitoring
+```
+
+### Key Endpoints
+
+**Catalog Management**:
+- `GET /catalog` - List all products
+- `POST /catalog` - Add new product
+- `PUT /catalog/{sku}` - Update product
+- `DELETE /catalog/{sku}` - Remove product
+
+**Order Workflow**:
+- `POST /orders?fromQuote={quoteId}` - Create order from quote
+- `PUT /orders/{orderId}/status` - Update order status
+- `POST /orders/{orderId}/events` - Add order events/comments
+
+**Shipment Tracking**:
+- `POST /shipments` - Create shipment record
+- `POST /shipments/{id}/events` - Add shipment events
+- `GET /shipments/deliveries` - Get delivery information
+
+## Database Schemas & Data Models
+
+### MongoDB Collections
+```javascript
+// Catalog Items
+{
+  skuNumber: String (indexed),
+  description: String,
+  price: Number,
+  inventory: Number,
+  leadTime: Number
+}
+
+// Dealers
+{
+  name: String (indexed),
+  contact: String,
+  address: String,
+  email: String,
+  phone: String
+}
+
+// Quotes  
+{
+  quoteId: String (indexed),
+  dealerName: String (indexed),
+  customerName: String,
+  validUntil: String,
+  quoteItems: Array,
+  totalCost: Number,
+  discount: Number,
+  city: String,
+  postalCode: String,
+  state: String
+}
+
+// Orders
+{
+  orderId: String (indexed),
+  quoteId: String (indexed),
+  orderDate: String,
+  status: String (indexed),
+  events: Array
+}
+
+// Shipments
+{
+  orderId: String (indexed),
+  deliveryDate: String,
+  events: Array,
+  deliveryAddress: Object,
+  contactName: String,
+  primaryContactPhone: Object,
+  alternateContactPhone: Object
+}
+```
+
+### PostgreSQL Schema (Alternative)
+Complete relational schema provided in `scripts/schema.psql` with tables for:
+- CatalogItems, Dealers, Quotes, Orders, OrderEvents
+- ShipmentRecords, ShipmentEventInfo, DeliveryAddress, PhoneInfo
+
+## Service Dependencies & Communication
+
+### External Dependencies
+- **MongoDB**: Primary data store (configurable via properties)
+- **Application Insights**: Telemetry and monitoring
+- **Google Maps API**: Address validation (client-side)
+
+### Internal Communication Patterns
+- **Synchronous REST**: Client-server communication
+- **Repository Pattern**: Data access abstraction
+- **Factory Pattern**: Repository implementation selection
+
+### Configuration-Driven Storage
+```properties
+ordering.storage=memory|mongodb  # Switch between implementations
+mongodb.host=localhost
+mongodb.database=ordering
+```
+
+## Key Business Logic & Algorithms
+
+### Order Status Workflow
+```
+None → Created → Confirmed → Started → Built → 
+DeliveryConfirmed → Shipped → Delivered → Installed
+```
+
+### Quote-to-Order Conversion
+- Validates quote existence and uniqueness
+- Prevents duplicate order creation from same quote
+- Automatic order ID generation: `order-{quoteId}`
+
+### Inventory & Lead Time Calculation
+```java
+int calculatedLeadTime = (inventory > 0) ? 0 : leadTime;
+```
+
+### Data Validation
+- Comprehensive model validation using `validate()` methods
+- Field-level validation with error accumulation
+- RESTful error responses with structured error messages
+
+### Performance Monitoring
+- Custom MongoDB operations with retry logic and telemetry
+- Request timing and dependency tracking via Application Insights
+- Built-in performance testing hooks in DealerController
+
+## Configuration & Deployment
+
+### Configuration Files
+**application.properties**:
+```properties
+server.port=8080
+management.port=8081
+ordering.storage=mongodb
+mongodb.host=localhost
+mongodb.database=ordering
+```
+
+**ApplicationInsights.xml**: Telemetry configuration
+**buildinfo.properties**: Build version and timestamp
+
+### Build & Deployment
+- **Gradle-based** build system (2.1)
+- **Docker-ready** with environment-based configuration
+- **Spring Boot** executable JAR/WAR deployment
+- **Tomcat** deployment support via `OrderingInitializer`
+
+### Environment Configuration
+- MongoDB connection via `MONGO_PORT` environment variable
+- Build information from CI environment variables
+- Multiple deployment scripts for local and Docker environments
+
+## Architectural Patterns & Frameworks
+
+### Backend Patterns
+- **Spring Boot**: Application framework and dependency injection
+- **MVC Pattern**: Controller-Service-Repository separation
+- **Repository Pattern**: Data access abstraction
+- **Factory Pattern**: Storage implementation selection
+- **Filter Pattern**: CORS and telemetry filters
+- **Configuration Properties**: Externalized configuration
+
+### Frontend Patterns
+- **MVVM Pattern**: WinJS data binding and observables
+- **Single Page Application**: Client-side routing
+- **Component-based UI**: Reusable controls and templates
+
+### Frameworks & Libraries
+**Backend**:
+- Spring Boot, Spring Data MongoDB
+- Application Insights for telemetry
+- JUnit for testing (with integration test categories)
+
+**Frontend**:
+- WinJS for UI components and data binding
+- Google Maps Places API for address autocomplete
+- Custom CSS framework for responsive design
+
+### Testing Strategy
+- Comprehensive unit tests for all controllers
+- Repository tests for both mock and MongoDB implementations
+- Integration test categorization
+- Configuration rules for test context management
+
+## Critical Information for Microservice Decomposition
+
+### Potential Service Boundaries
+1. **Catalog Service**: Product and inventory management
+2. **Dealer Management**: Dealer information and relationships  
+3. **Quoting Service**: Quote creation and calculation
+4. **Order Service**: Order processing and status tracking
+5. **Shipment Service**: Delivery and logistics management
+
+### Data Consistency Requirements
+- Quote-to-Order relationship requires strong consistency
+- Order status updates need reliable event sourcing
+- Inventory updates require transactional integrity
+
+### Integration Points
+- REST APIs well-defined for service-to-service communication
+- Shared data models would need versioning
+- Event-driven architecture potential for order status updates
+
+### Monitoring & Observability
+- Comprehensive Application Insights integration
+- Custom metrics for MongoDB operations
+- Health check endpoints ready for container orchestration
