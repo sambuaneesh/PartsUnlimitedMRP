@@ -1,0 +1,1657 @@
+# Repository Summary: PartsUnlimitedMRP
+---
+## Overview
+
+### Repository-Level Summary: PartsUnlimitedMRP
+
+#### 1. Repository Overview
+
+The **PartsUnlimitedMRP** repository contains the source code for a sophisticated Manufacturing Resource Planning (MRP) application designed to solve the core business challenges of a modern manufacturing and supply chain operation. Its overall purpose is to automate, manage, and provide visibility into the complete order-to-fulfillment lifecycle. The system solves the business problem of fragmented information and manual processes by integrating parts catalog management, customer quote generation, order processing, and shipment tracking into a single, cohesive platform. It acts as the central nervous system for manufacturing operations, ensuring seamless data flow between the customer-facing frontend, internal business processes, and external enterprise systems like supplier portals and logistics partners.
+
+#### 2. Architecture
+
+The repository is architected as a collection of interconnected, specialized services and modules, reflecting modern microservice and domain-driven design principles. The code is organized around two primary high-level components:
+
+*   **The `ordering` Service (`smpl.ordering`):** A stateless, API-driven Spring Boot microservice that serves as the core transactional engine. It exposes a RESTful API (`smpl.ordering.controllers`) for managing all order-related operations. This service is internally structured into clean layers:
+    *   **API Layer:** Controllers that handle HTTP requests and responses.
+    *   **Domain Model Layer:** Rich domain objects (`smpl.ordering.models`) that encapsulate business logic and state for entities like `Order`, `Quote`, `Shipment`, and `CatalogItem`.
+    *   **Data Access Layer:** A sophisticated repository abstraction (`smpl.ordering.repositories`) that provides a stable interface for data persistence. This layer supports two distinct implementations: a production-ready MongoDB-based layer (`smpl.ordering.repositories.mongodb`) and a lightweight, in-memory mock layer (`smpl.ordering.repositories.mock`) for rapid testing and development. The MongoDB implementation further isolates persistence concerns by using separate data transfer objects (`smpl.ordering.repositories.mongodb.models`).
+
+*   **The `integration` Service:** A standalone, asynchronous background engine, also built with Spring Boot. This service is responsible for all data synchronization and communication with external systems. Its architecture is designed for resilience and decoupling:
+    *   **Scheduled Processing:** It uses scheduled tasks (`integration.scheduled`) to periodically poll for data, automating workflows like product data synchronization from an external MRP and order ingestion.
+    *   **Messaging Backbone:** It leverages a factory-based Azure Queue Service (`integration.services`) for reliable, asynchronous internal communication, ensuring that services can operate independently and handle peak loads gracefully.
+    *   **External API Gateway:** A dedicated service (`MrpConnectService`) handles synchronous, REST-based communication with external partner systems.
+    *   **Model-Driven Integration:** It maintains distinct sets of Data Transfer Objects (DTOs) for different contexts (`integration.models.mrp`, `integration.models.website`) to create clean contracts for each integration point.
+
+#### 3. Key Functionalities
+
+The repository delivers a comprehensive set of features essential for manufacturing and supply chain management:
+
+*   **End-to-End Order Lifecycle Management:** Supports the complete workflow from generating a `Quote` for a customer, converting it to a formal `Order`, tracking its status through production stages, and managing its final `Shipment`.
+*   **Product Catalog & Inventory Control:** Provides full CRUD capabilities for managing `CatalogItem` data, including pricing, inventory levels, and supplier lead times, ensuring the master data is always accurate.
+*   **Automated System Integration:** Seamlessly synchronizes product master data from an external MRP system and automates the creation of purchase orders or manufacturing orders in downstream systems, eliminating manual data entry.
+*   **Stakeholder & Logistics Management:** Manages `Dealer` (supplier) information and provides detailed shipment tracking, including delivery addresses, contact information, and a chronological audit trail of shipment events.
+*   **Robust Data Persistence and Integrity:** Features a resilient data access layer with support for optimistic concurrency control (eTags), preventing data corruption in high-concurrency environments.
+*   **Comprehensive Monitoring & Observability:** Integrates Application Insights across services for real-time telemetry, performance monitoring, and error tracking.
+*   **Advanced Testing & Quality Assurance:** Incorporates a dual-repository strategy (MongoDB for production, in-memory mocks for testing) with extensive, parallel test suites (`smpl.ordering.repositories.mongodb.test`, `smpl.ordering.repositories.mock.test`) to ensure code quality and reliability.
+
+#### 4. Domain Alignment
+
+This repository is architected in direct alignment with the complexities of the manufacturing and supply chain management domain. The core domain entities—parts, quotes, orders, and shipments—are modeled explicitly as rich domain objects within `smpl.ordering.models`, complete with business rules and validation. The flow of work mirrors the physical supply chain: a `CatalogItem` is used to create a `Quote`, which becomes an `Order`, which is fulfilled by a `Shipment`. The architectural decision to separate the `integration` service is a direct response to the domain's need for reliable, asynchronous communication with a diverse ecosystem of external partners (suppliers, logistics providers). The use of message queues reflects the event-driven nature of supply chains, where updates to inventory, order status, and shipments are critical, time-sensitive, and must be processed reliably. The detailed audit trails and status tracking built into the `Order` and `Shipment` models are essential for traceability, compliance, and customer service, which are paramount in manufacturing.
+
+#### 5. Package Interactions
+
+The packages work together in a series of orchestrated, event-driven workflows to achieve the repository's goals. A typical customer order scenario illustrates the interaction:
+
+1.  An `OrderMessage` from a website (modeled in `integration.models.website`) is received by the `OrderController` in `smpl.ordering.controllers`.
+2.  The controller validates the request and invokes business logic, which interacts with the `OrderRepository` obtained from the `RepositoryFactory`.
+3.  The `MongoOrderRepository` implementation is used to persist the new order. It first converts the domain `Order` object into a persistence-specific `OrderDetails` (from `smpl.ordering.repositories.mongodb.models`) before saving it to MongoDB.
+4.  Upon successful order creation, a message is placed onto an Azure Queue using the `QueueService` in `integration.services`.
+5.  The `CreateOrderProcessTask` in `integration.scheduled` periodically polls this queue. Upon finding a message, it uses the `MrpConnectService` to communicate with the external MRP system, formally recording the order in the enterprise manufacturing system.
+6.  In a parallel workflow, the `UpdateProductProcessTask` runs on a schedule, calling the external MRP system via `MrpConnectService` to fetch the latest product data. It then packages this data into `ProductMessage` objects (from `integration.models.website`) and places them on another queue for downstream services to consume, ensuring the parts catalog in the `ordering` service remains synchronized with the system of record.
+
+All components are configured centrally using `integration.infrastructure.ConfigurationManager` and `smpl.ordering.OrderingConfiguration`, ensuring a unified and maintainable system configuration.
+## Statistics
+- **Total Packages**: 16
+- **Total Files**: 99
+
+---
+## Package Summaries
+### 1. Package: `integration`
+**Files**: 2
+
+
+### Package-level Summary: `integration`
+
+**1. Overall Purpose and Role**
+
+The `integration` package serves as the dedicated background processing engine and data synchronization hub for the Parts Unlimited Manufacturing Resource Planning (MRP) system. Its primary role is to automate the flow of information between the MRP system and external enterprise systems, such as supplier portals, logistics partners, or a central ERP. By operating as a standalone, asynchronous service, this package ensures that critical supply chain data—like purchase orders and product information—is continuously and reliably synchronized without requiring manual intervention or impacting the performance of the core user-facing application. It is the "heartbeat" of the system's external communications, maintaining data consistency and operational efficiency across the entire supply chain.
+
+**2. How the Files Work Together**
+
+The files in this package exhibit a clean separation of concerns, collaborating to create a robust and configurable integration service:
+
+*   **`Main.java`** acts as the **orchestrator and bootstrap component**. Its sole responsibility is to launch the Spring Boot application context and configure the scheduled execution environment. It declares the integration tasks (`CreateOrderProcessTask`, `UpdateProductProcessTask`) as Spring beans, which hands over their lifecycle management (creation, execution, destruction) to the Spring framework.
+
+*   **`Constants.java`** serves as the **centralized configuration provider**. It decouples configuration values from the application logic. When `Main.java` (or the tasks it manages) needs to know *how often* to run, it doesn't have a hardcoded value; instead, it references `Constants.SCHEDULED_INTERVAL`.
+
+The interaction is straightforward: upon launch, `Main.java` initializes the Spring context. It uses the values from `Constants.java` (e.g., scheduling intervals) to configure and register the background tasks. The Spring framework then takes over, executing these tasks on a timer, ensuring the integration processes run autonomously and consistently based on the centrally defined configuration.
+
+**3. Key Functionalities**
+
+This package provides the following core functionalities:
+
+*   **Automated Order Creation:** Manages the scheduled execution of the `CreateOrderProcessTask`, which likely automates the generation of purchase orders to suppliers based on MRP calculations, inventory levels, and reorder points.
+*   **Automated Product/Inventory Updates:** Handles the scheduled execution of the `UpdateProductProcessTask`, responsible for synchronizing product master data, pricing, and inventory levels from external systems back into the MRP, ensuring the system's data remains current.
+*   **Scheduled Task Management:** Leverages the Spring framework's scheduling capabilities (`@Scheduled`) to provide a reliable, cron-like mechanism for running integration jobs at fixed, configurable intervals.
+*   **Centralized Configuration:** Offers a single source of truth for all integration-related parameters through the `Constants.java` class, simplifying maintenance and reducing the risk of configuration drift.
+
+**4. Notable Patterns and Architectural Decisions**
+
+*   **Standalone Background Service Architecture:** The package is structured as a self-contained Spring Boot application with no direct user interface. This microservice-like approach isolates the potentially intensive and long-running integration logic from the main application, enhancing system resilience and scalability.
+*   **Spring Boot for Job Scheduling:** Using Spring Boot for a purely background service is a modern and effective pattern. It provides out-of-the-box support for dependency injection, configuration management, and robust scheduling, significantly reducing boilerplate code.
+*   **Separation of Concerns:** The design clearly separates the application's **bootstrapping logic** (`Main.java`), its **configuration** (`Constants.java`), and its **business logic** (the inferred task classes). This makes the codebase easier to understand, test, and maintain.
+*   **Utility Class Pattern:** `Constants.java` is implemented as a classic Java utility class (a `final` class with a `private` constructor and `static final` members), effectively preventing instantiation and enforcing its role as a static configuration holder.
+*   **Asynchronous Processing Model:** The entire package is built on an asynchronous execution model. Tasks are triggered by a timer and run independently in the background, allowing the main application thread to remain free and responsive. This is critical for preventing system bottlenecks during data synchronization with external systems.
+
+### 2. Package: `integration.services`
+**Files**: 3
+
+
+### Package-level summary: integration.services
+
+#### 1. Overall Purpose and Role
+
+The `integration.services` package forms the critical communication and integration backbone for the Parts Unlimited MRP system. Its primary role is to abstract and manage all data exchange between the application and both internal components and external systems. The package provides a dual-layered integration strategy: it handles **synchronous, request-response communication with external Manufacturing Resource Planning (MRP) systems** via REST APIs, and it facilitates **asynchronous, event-driven messaging between internal services** using Azure Storage queues. This separation is fundamental to building a scalable, resilient, and responsive manufacturing and supply chain management application capable of handling complex, distributed workflows.
+
+#### 2. How the Files Work Together
+
+The files within this package are architecturally designed to work together, providing a comprehensive integration solution with clear separation of concerns:
+
+*   **`QueueFactory.java` acts as the foundational utility.** It is responsible for the low-level management of Azure Storage queue connections. It provides a cached, thread-safe, and centralized source for `CloudQueue` objects, ensuring that other services do not need to manage the complexities of queue creation, connection strings, or Azure API interactions. Other components depend on this factory to obtain queue references efficiently.
+
+*   **`QueueService.java` builds upon the foundation provided by `QueueFactory.java`.** It consumes `CloudQueue` objects from the factory to provide a high-level, type-safe, business-oriented messaging API. While `QueueFactory` manages the *queue infrastructure*, `QueueService` manages the *message lifecycle*—serializing business objects (like orders or inventory updates) into JSON, adding them to queues, retrieving messages, and deserializing them back into objects. It also implements crucial error-handling logic to ensure system stability.
+
+*   **`MrpConnectService.java` operates as a complementary service handling synchronous communication.** It does not interact with the queueing components directly but provides a parallel integration pathway for direct communication with external partners. A typical workflow would involve `MrpConnectService` being used to place an order with an external supplier. Once a response is received, another part of the application could then use `QueueService` to place an "UpdateInventory" message on a queue, allowing that time-consuming task to be processed asynchronously without blocking the user.
+
+In essence, `QueueFactory` and `QueueService` manage the **internal asynchronous event bus**, while `MrpConnectService` manages the **external synchronous API gateway**.
+
+#### 3. Key Functionalities
+
+The package provides two major sets of functionalities essential for a modern MRP system:
+
+*   **Asynchronous Internal Messaging:**
+    *   **Type-safe Queue Operations:** Sending and receiving messages as Java objects, with automatic JSON serialization/deserialization.
+    *   **Reliable Message Processing:** Includes mechanisms for message deletion after successful processing and automatic removal of malformed messages to prevent processing loops.
+    *   **Resource Management:** Caching and lazy-loading of queue connections to minimize latency and reduce costs associated with cloud API calls.
+    *   **Decoupling of Services:** Enables components like order processing, inventory management, and shipment notification to operate independently and communicate without direct dependencies.
+
+*   **External MRP System Integration:**
+    *   **REST API Communication:** Handles all HTTP interactions with external systems using Spring's RestTemplate.
+    *   **Order-to-Fulfillment Lifecycle:** Supports the complete workflow, from retrieving product catalogs, generating quotes, converting quotes to orders, and tracking shipments.
+    *   **Orchestration and Traceability:** Manages complex, multi-step interactions with external systems and includes logging for auditability and debugging.
+
+#### 4. Notable Patterns and Architectural Decisions
+
+*   **Factory Pattern:** The `QueueFactory` class is a classic implementation of the Factory Pattern. It centralizes the creation logic for queue objects, abstracting the configuration and connection details from the consuming services. This promotes loose coupling and makes it easier to switch or update queue management logic in one place.
+
+*   **Service Layer Pattern:** All classes in the package are services (`*Service`), encapsulating the application's integration logic and providing a clean, well-defined API to the rest of the application. This separates the concerns of integration from business logic or presentation layers.
+
+*   **Asynchronous Communication Architecture:** The decision to use a message queue (`QueueService`) is a key architectural choice for achieving scalability and resilience. It dec services to handle peak loads gracefully (by queuing requests) and ensures that temporary unavailability of one component doesn't bring down the entire system.
+
+*   **Abstraction Layers:** The package demonstrates excellent abstraction. `QueueService` abstracts the underlying Azure Queue technology, and `MrpConnectService` abstracts the specifics of the external MRP's REST API. This makes the core application logic agnostic to the implementation details of its communication channels.
+
+*   **Separation of Concerns:** The responsibilities are clearly divided. `QueueFactory` manages connections, `QueueService` manages message content, and `MrpConnectService` manages synchronous HTTP calls. This modularity improves maintainability, testability, and clarity.
+
+### 3. Package: `integration.infrastructure`
+**Files**: 2
+
+
+### Package-level Summary for `integration.infrastructure`
+
+#### 1. Overall Purpose and Role
+
+The `integration.infrastructure` package serves as the foundational configuration backbone for the Parts Unlimited MRP system's integration capabilities. Its primary role is to provide a centralized, reliable, and fault-tolerant mechanism for accessing all configuration parameters required for the system to operate and communicate with external services. Specifically, it manages settings crucial for manufacturing operations, inventory thresholds, and, most importantly, the integration points with cloud services (like Azure Storage) and other external MRP systems. This package ensures that all components of the application use a single, consistent source of truth for their operational parameters, which is vital for maintaining stability and predictability in a complex manufacturing and supply chain environment.
+
+#### 2. How the Files Work Together
+
+The two classes within the package, `ConfigurationHelpers` and `ConfigurationManager`, collaborate in a layered architectural pattern to achieve robust configuration management.
+
+*   **`ConfigurationHelpers`** acts as the low-level engine or core utility. It is responsible for the fundamental mechanics of loading configuration files from the classpath, maintaining a static cache of properties for performance, and providing type-safe, fault-tolerant methods (e.g., `getString`, `getInt`) for retrieving any property by its key. It is a generic, reusable component that knows *how* to get configuration data.
+
+*   **`ConfigurationManager`** serves as the high-level, domain-specific facade that sits on top of `ConfigurationHelpers`. It encapsulates the specific knowledge of which configuration keys are used for what purpose within the integration infrastructure. Instead of forcing other parts of the application to know arbitrary keys (e.g., `"azure.storage.queue.orders"`), it provides semantic, easy-to-understand static methods (e.g., `getOrderQueueName()`). Every method in `ConfigurationManager` delegates the actual property retrieval call to `ConfigurationHelpers`.
+
+This collaboration decouples the rest of the application from both the physical location of the configuration and the specific keys used, simplifying development and maintenance. Application components interact with the clean API of `ConfigurationManager`, which in turn relies on the robust data retrieval capabilities of `ConfigurationHelpers`.
+
+#### 3. Key Functionalities Provided by this Package
+
+The `integration.infrastructure` package delivers the following key functionalities:
+
+*   **Centralized Configuration Loading and Caching:** It loads all necessary configuration properties from classpath resources into a static cache, ensuring efficient access and that the entire application works from a consistent configuration state.
+*   **Type-Safe and Fault-Tolerant Property Access:** It provides robust methods to retrieve configuration values as specific types (String, Integer, etc.), with built-in error handling to prevent system crashes due to missing or malformed configuration, which is critical for maintaining uptime in manufacturing workflows.
+*   **Abstracted Access to Integration Endpoints:** It offers a clean and dedicated API for retrieving settings specific to cloud integration, such as Azure Storage connection strings, queue names for orders and inventory, and queue timeouts.
+*   **Management of MRP System Connectivity:** It provides centralized access to the endpoint URLs required for communication with external MRP systems, facilitating seamless system-to-system data exchange.
+*   **Decoupling of Application Code from Configuration:** By providing a static abstraction layer, it allows developers to change configuration keys or sources without needing to refactor the business logic or integration components that depend on them.
+
+#### 4. Notable Patterns or Architectural Decisions
+
+The package exhibits several clear and effective design patterns and architectural choices:
+
+*   **Facade Pattern:** `ConfigurationManager` is a textbook implementation of the Facade pattern. It simplifies the interface to the complex subsystem of configuration management by providing a high-level, business-oriented API that hides the implementation details of `ConfigurationHelpers`.
+*   **Delegation Principle:** The architecture heavily relies on delegation. `ConfigurationManager` contains no logic for property loading; it purely delegates these tasks to `ConfigurationHelpers`, creating a clean separation of concerns between the *what* (the business meaning of a setting) and the *how* (the mechanics of retrieving it).
+*   **Static Utility Class / Singleton-like Behavior:** Both classes are implemented as static utilities, making their methods globally accessible without instantiation. The use of a static properties cache in `ConfigurationHelpers` effectively creates a singleton for the application's configuration data, ensuring a single source of truth.
+*   **Separation of Concerns:** The design cleanly separates the generic mechanics of configuration management (`ConfigurationHelpers`) from the specific domain knowledge of which settings are needed for integration (`ConfigurationManager`). This makes the system more modular, easier to test, and more maintainable.
+
+### 4. Package: `integration.scheduled`
+**Files**: 2
+
+
+### Package-level Summary for `integration.scheduled`
+
+#### 1. Overall Purpose and Role
+
+The `integration.scheduled` package serves as the **automated, asynchronous integration engine** for the repository, responsible for maintaining data consistency between the core application and the external Manufacturing Resource Planning (MRP) system. Its primary role is to act as a reliable bridge that automates critical, bidirectional data flows essential for the manufacturing and supply chain management workflow. By leveraging scheduled tasks and message queues, this package ensures that the application's product catalog stays synchronized with the authoritative MRP data and that customer orders are systematically processed and recorded in the manufacturing system, all without requiring manual intervention.
+
+#### 2. How the Files Work Together
+
+The files within this package, `CreateOrderProcessTask` and `UpdateProductProcessTask`, do not interact with each other directly but instead work in concert to establish a complete, two-way communication channel with the MRP system. Their collaboration is orchestrated through the external MRP system and a shared Azure Queue Service, forming a cyclical data flow:
+
+*   **`UpdateProductProcessTask` (Data Synchronization Outbound):** This task initiates the first half of the cycle by acting as a data publisher. On a scheduled basis, it polls the MRP system—the source of truth for parts and inventory—for the latest product catalog information. It then packages this data into `ProductMessage` objects and places them onto an Azure queue, making the updated information available for other parts of the application to consume asynchronously.
+
+*   **`CreateOrderProcessTask` (Order Processing Inbound):** This task completes the cycle by acting as a message consumer. It polls the same (or a different) Azure queue for `OrderMessage` objects, which represent new order requests originating from the web frontend. For each message found, it makes an API call to create a corresponding order in the MRP system, thereby translating a customer's intent into a formal manufacturing request.
+
+Together, they ensure that information flows out from the MRP (products) and flows into the MRP (orders), creating a closed-loop, automated process that is the backbone of the integration layer.
+
+#### 3. Key Functionalities Provided
+
+This package provides several core functionalities essential for a robust manufacturing and supply chain system:
+
+*   **Automated Product Data Synchronization:** Periodically fetches the latest product, inventory, and pricing data from the MRP system and publishes it for internal processing, ensuring data consistency across the enterprise.
+*   **Automated Order Ingestion and Creation:** Reliably consumes queued order requests and creates them as formal orders within the MRP system, decoupling the user-facing order submission from the core manufacturing process.
+*   **Asynchronous and Decoupled Communication:** Utilizes Azure Queue Service to separate the core application from the MRP system, enhancing resilience. If one system is temporarily unavailable, messages are preserved in the queue and processed when the system is back online.
+*   **Resilient Processing and Retry Logic:** The scheduled nature of the tasks provides inherent resilience. If an API call fails or a message cannot be processed, the task will attempt to process it again on its next scheduled run, preventing data loss.
+*   **Comprehensive Auditing and Monitoring:** Implements extensive logging using SLF4J to create a clear audit trail for all data synchronization and order creation activities, which is critical for troubleshooting, compliance, and operational visibility.
+
+#### 4. Notable Patterns and Architectural Decisions
+
+The package demonstrates several mature enterprise integration patterns and architectural choices:
+
+*   **Scheduled Task Polling Pattern:** Both classes implement scheduled execution (likely using Spring's `@Scheduled` annotation). This is a classic pattern for integration tasks that provides a simple, resilient mechanism for polling external systems or message queues without the complexity of long-running, persistent consumers.
+*   **Enterprise Integration Patterns (EIP):** The package employs key EIPs, most notably:
+    *   **Point-to-Point Channel:** The Azure queue acts as a channel that delivers a message from a single producer (`UpdateProductProcessTask`) to a single consumer (`CreateOrderProcessTask`'s counterpart, though this task consumes a different type of message).
+    *   **Message Translator:** Both classes act as translators, converting data between the external MRP system's format and the internal `ProductMessage`/`OrderMessage` formats, and vice-versa for API calls.
+*   **Queue-based Decoupling:** The most significant architectural decision is the use of a message queue to decouple the application's components from the MRP system. This is a cornerstone of modern, resilient microservice and distributed system architectures, allowing for independent scaling, deployment, and maintenance of the integrated systems.
+*   **Separation of Concerns:** The package cleanly separates the two primary integration concerns—product data synchronization and order processing—into distinct, dedicated classes. This makes the system easier to understand, maintain, and extend.
+
+### 5. Package: `integration.models.website`
+**Files**: 4
+
+
+### Package-Level Summary: `integration.models.website`
+
+#### 1. Overall Purpose and Role
+
+The `integration.models.website` package serves as a critical **data contract and adaptation layer** within the broader MRP (Manufacturing Resource Planning) system. Its primary purpose is to facilitate clean, decoupled communication between the core back-end services (handling inventory, catalog, and order processing) and the external, customer-facing website. This package achieves this by defining a set of pure data models—specifically, Data Transfer Objects (DTOs)—that standardize the shape and structure of data as it crosses this integration boundary. In essence, it acts as a translator, ensuring that the website receives data in a format it can easily consume and that it sends order data to the back-end in a structure the system is prepared to process.
+
+#### 2. How the Files Work Together
+
+The classes in this package collaborate to handle the two primary data flows between the website and the MRP system: **product information display** and **order submission**.
+
+*   **Product Information Flow (Back-end to Website):**
+    1.  The process originates when the website needs to display product information. The back-end MRP system holds a master catalog, likely represented by internal objects like `CatalogItem`.
+    2.  The `ProductMessage` class acts as the container for this data. It is initialized with a list of internal `CatalogItem` objects.
+    3.  Within its constructor, `ProductMessage` performs the crucial translation step: for each `CatalogItem`, it creates a corresponding, website-specific `ProductItem` DTO. This `ProductItem` is a simplified view, containing only the data relevant to a customer on the website (SKU, inventory levels, lead time).
+    4.  The fully populated `ProductMessage`, now holding a list of `ProductItem` objects, is transmitted to the website for rendering the online catalog.
+
+*   **Order Submission Flow (Website to Back-end):**
+    1.  When a customer finalizes a purchase on the website, the system needs to send a structured order payload to the back-end.
+    2.  For each product in the shopping cart, an `OrderItem` DTO is created, capturing the essential `SKU` and `price` for that line item.
+    3.  All individual `OrderItem` objects, along with comprehensive customer details (name, dealer, shipping address), order date, and calculated financials (total cost, discounts), are bundled into a single `OrderMessage` DTO.
+    4.  This `OrderMessage` object serves as the complete and standardized order payload, which is sent to the back-end order processing service to initiate fulfillment, update inventory, and manage the shipment lifecycle.
+
+In this way, `ProductMessage` and `ProductItem` handle the "query" or "read" side of the integration, while `OrderMessage` and `OrderItem` handle the "command" or "write" side.
+
+#### 3. Key Functionalities
+
+This package provides the following key functionalities to the application:
+
+*   **Data Abstraction and Transformation:** It shields the website from the complexities of the internal MRP data model. The `ProductItem`'s ability to be created from a `CatalogItem` is a prime example of this, exposing only necessary information.
+*   **Standardized Data Contracts:** By defining explicit DTOs, the package establishes a clear and unchanging contract for data exchange, reducing integration errors and simplifying maintenance.
+*   **Data Aggregation:** The `ProductMessage` and `OrderMessage` classes serve as logical containers, aggregating lists of items (`ProductItem`, `OrderItem`) into a single, manageable payload for network transmission (e.g., via a REST API).
+*   **Serialization and Deserialization Support:** The standard JavaBean pattern (public getters and setters) used across all classes makes them ideal for serialization to and from formats like JSON, which is the standard for modern web APIs.
+
+#### 4. Notable Patterns and Architectural Decisions
+
+The package exhibits several clear and deliberate architectural patterns:
+
+*   **Data Transfer Object (DTO) Pattern:** This is the dominant pattern. Every class (`OrderMessage`, `OrderItem`, `ProductItem`, `ProductMessage`) is a pure DTO. They contain no business logic; their sole responsibility is to carry data between processes. This design choice is fundamental to achieving decoupling.
+*   **Adapter Pattern:** The `ProductItem` class acts as an adapter. It adapts the interface of the internal `CatalogItem` to meet the needs of the website client, providing a different "view" of the same underlying data.
+*   **Composition Pattern:** The relationship between the message classes and their respective item classes is a clear example of composition. An `OrderMessage` *has-a* list of `OrderItem`s, and a `ProductMessage` *has-a* list of `ProductItem`s. This creates a natural and intuitive data hierarchy for complex entities like orders and product catalogs.
+*   **Separation of Concerns:** This package is a textbook example of separating the concern of data integration from business logic and presentation. It isolates "how data is structured for transit" into one dedicated place, making the entire system more modular, testable, and maintainable.
+
+### 6. Package: `integration.models`
+**Files**: 1
+
+
+### Package-Level Summary: `integration.models`
+
+---
+
+#### 1. Overall Purpose and Role in the Repository
+
+The `integration.models` package serves as the foundational data contract layer for the system's external integrations. Its primary role is to define, standardize, and encapsulate the data structures used for communication with external systems, such as message queues, APIs, and other third-party services. In the context of a manufacturing and supply chain management system like Parts Unlimited MRP, this package is critical for orchestrating asynchronous, event-driven workflows like processing customer orders, updating real-time inventory levels, and triggering manufacturing or shipment notifications. By providing a dedicated space for these data models, the package isolates the core business logic from the complexities and specific implementation details of external technologies, thereby promoting system maintainability, testability, and flexibility.
+
+#### 2. How the Files in the Package Work Together
+
+While only one file summary was provided, the structure and purpose of `QueueResponse.java` allow for a clear inference of the package's collaborative dynamics.
+
+The `QueueResponse` class acts as the central artifact for asynchronous message handling. It is designed to be the output of a component responsible for polling and initial processing from an external queuing system (e.g., an `AzureQueueListener`). The workflow would be as follows:
+
+1.  An **integration gateway or service** (likely in another `integration.service` or `integration.gateway` package) retrieves a raw message from an external system like an Azure Storage Queue.
+2.  This component deserializes the message's content into a specific business object (e.g., `NewOrderRequest`, `InventoryAdjustment`).
+3.  It then instantiates a `QueueResponse`, passing in both the raw `CloudQueueMessage` (for metadata and acknowledgment) and the newly deserialized business object as the generic type ``.
+4.  This fully-formed `QueueResponse<BusinessObject>` is then passed into the core business logic layer (e.g., an `OrderProcessingService`).
+
+The business service consumes the `responseBody` to perform its tasks. Crucially, upon successful completion, it uses the original `CloudQueueMessage` (accessed via the getter in `QueueResponse`) to formally acknowledge and delete the message from the queue, preventing reprocessing.
+
+This pattern demonstrates that files within the `integration.models` package, like `QueueResponse` and other potential DTOs (e.g., `OrderStatusPayload`, `ShipmentNotification`), work together as a common vocabulary. They provide a predictable and type-safe structure for data as it flows from the system's perimeter to its core, ensuring all components understand the data's shape and intent without being coupled to the external source.
+
+#### 3. Key Functionalities Provided by this Package
+
+The `integration.models` package provides several key functionalities essential for a robust enterprise application:
+
+*   **Data Abstraction and Encapsulation:** It hides the low-level, technology-specific details of external systems (e.g., Azure's `CloudQueueMessage`) behind clean, business-focused data objects.
+*   **Type Safety:** The use of generics, as seen in `QueueResponse`, allows the system to enforce type safety at compile time. This reduces runtime errors when processing different kinds of business messages.
+*   **Data Integrity and Immutability:** By promoting an immutable object pattern (read-only after creation), the package guarantees that the data payload cannot be inadvertently modified during its journey through the application. This is especially critical in multi-threaded, asynchronous environments.
+*   **Decoupling:** Core business services depend on abstract models like `QueueResponse` rather than concrete integration technologies. This allows the underlying queuing system or API to be swapped with minimal to no changes to the business logic.
+*   **Standardization:** The package enforces a consistent pattern for handling integration data. All asynchronous processing will leverage the same `QueueResponse` structure, which simplifies development, debugging, and maintenance across different integration workflows.
+
+#### 4. Notable Patterns and Architectural Decisions
+
+The `integration.models` package exemplifies several key software design patterns and architectural decisions:
+
+*   **Data Transfer Object (DTO) Pattern:** `QueueResponse` is a classic DTO, created solely to transfer data between the integration layer and the application layer. It is a simple, serializable object with no business logic.
+*   **Immutable Object Pattern:** The design of `QueueResponse` with only getters and final fields makes it immutable. This architectural choice prevents side effects and makes the object inherently thread-safe, a significant advantage in concurrent processing scenarios common in supply chain systems.
+*   **Generic Type Parameterization:** The use of `` in `QueueResponse` is a powerful architectural decision for reusability. It allows a single class to represent the response for *any* type of business payload, avoiding code duplication and promoting a flexible, scalable design.
+*   **Separation of Concerns:** The very existence of this package is a testament to a clean architecture principle. It clearly separates *what* the data is (the models) from *how* it is retrieved (gateways/listeners) and *how* it is processed (services). This leads to a more organized, modular, and maintainable codebase.
+
+### 7. Package: `integration.models.mrp`
+**Files**: 8
+
+
+### Package-Level Summary: `integration.models.mrp`
+
+#### 1. Overall Purpose and Role
+
+The `integration.models.mrp` package serves as the foundational **data contract layer** for the Parts Unlimited Manufacturing Resource Planning (MRP) system. Its primary role is not to implement business logic but to define a standardized, canonical set of data structures—specifically Data Transfer Objects (DTOs)—that facilitate seamless communication and data exchange within the application and with external systems.
+
+This package is the "lingua franca" for the MRP system's integration points, decoupling core services, the web front-end, databases, and external logistics providers. By providing a well-defined model for every key entity in the order-to-fulfillment lifecycle, it ensures data consistency, integrity, and maintainability across the entire manufacturing and supply chain management ecosystem.
+
+#### 2. How Files Work Together to Achieve Goals
+
+The classes within this package are strategically designed to model the complete flow of a customer order, from initial inquiry to final delivery. They work together through a sequence of well-defined relationships and transformations, telling a story of the manufacturing and fulfillment process:
+
+1.  **Product & Quoting Phase:** The process often begins with a customer inquiry about a part, represented by the **`CatalogItem`**. To provide a price, the system generates a **`Quote`**, which acts as a container for the overall quotation details (customer info, discounts, validity). A single `Quote` is composed of one or more **`QuoteItemInfo`** objects, each representing a line item with a specific SKU and price, which can be transformed directly from website order items.
+
+2.  **Order Creation Phase:** When a customer accepts a quote, a formal **`Order`** is created. This object is central, linking the business transaction back to its originating quote via the `quoteId`, solidifying the customer's commitment.
+
+3.  **Fulfillment & Shipping Phase:** Once an order is ready for fulfillment, a **`ShipmentRecord`** is instantiated to manage the logistics. This object is a comprehensive hub for all shipping information. It is directly associated with the `orderId` and is composed of several other models from this package:
+    *   **`DeliveryAddress`** specifies the precise destination, including any special handling instructions.
+    *   **`PhoneInfo`** provides structured contact details, enabling context-aware communication with the recipient or carrier.
+    *   As the shipment progresses, its status is tracked through a chronological list of **`ShipmentEventInfo`** objects appended to the `ShipmentRecord`. This creates an immutable audit trail of the shipment's journey, from "Shipped" to "Delivered".
+
+This compositional structure (`Quote` -> `QuoteItemInfo`, `ShipmentRecord` -> `ShipmentEventInfo`, etc.) allows the system to build complex business entities from smaller, reusable, and semantically clear components.
+
+#### 3. Key Functionalities
+
+The package, as a whole, provides the following key functionalities to the MRP system:
+
+*   **Quoting and Pricing Management:** Through the `Quote` and `QuoteItemInfo` classes, the system can generate, structure, and manage formal price quotations, including customer details, line-item costs, discounts, and expiration dates.
+*   **Canonical Order Representation:** The `Order` class provides a single, consistent data structure for customer orders, used throughout the application for processing, tracking, and persistence.
+*   **Product Catalog and Inventory Abstraction:** The `CatalogItem` class offers a standardized view of parts and products, including crucial data like price, stock levels, and supplier lead time, which is essential for production planning and order promising.
+*   **End-to-End Shipment Lifecycle Tracking:** The combination of `ShipmentRecord`, `ShipmentEventInfo`, `DeliveryAddress`, and `PhoneInfo` enables robust logistics management, from creating a shipment to tracking its every move and managing delivery details.
+*   **Decoupled Data Integration:** All classes act as DTOs, providing a stable interface for REST APIs, message queues, and inter-service communication. This isolates the internal implementation of services from changes in external systems or data transport formats.
+
+#### 4. Notable Patterns and Architectural Decisions
+
+The design of this package exhibits several clear and deliberate architectural patterns:
+
+*   **Data Transfer Object (DTO) Pattern:** This is the dominant pattern. Every class is a POJO designed solely to transport data across boundaries (service layers, APIs). This choice maximizes decoupling, reduces chattiness in remote calls, and creates a clear integration contract.
+*   **Composition over Inheritance:** The package heavily favors composition to model complex relationships. A `Quote` *has* `QuoteItemInfo`s, and a `ShipmentRecord` *has* an `address`, `events`, and `contactInfo`. This provides greater flexibility and aligns well with the mutable nature of business data.
+*   **JavaBeans Convention:** All classes adhere to the JavaBeans pattern (private fields, public getters/setters, no-argument constructor). This is a pragmatic decision ensuring seamless compatibility with major Java frameworks like Spring (for dependency injection), Jackson (for JSON serialization/deserialization in REST APIs), and JPA/Hibernate (for database persistence).
+*   **Separation of Concerns:** The package is a model of purity—it contains no business logic (e.g., tax calculation), no data access logic (e.g., SQL queries), and no presentation logic. This strict separation makes the system more modular, testable, and easier to maintain. The classes are pure data carriers, reflecting a clean and layered architecture.
+*   **Domain-Driven Design (DDD) Bounded Context:** The package name itself (`integration.models.mrp`) suggests a DDD approach. These models represent the "MRP Integration" bounded context. An `Order` in this package is tailored for manufacturing and fulfillment, and may differ significantly from an `Order` in a billing or marketing context, thus preventing ambiguity and maintaining model integrity across different domains of the business.
+
+### 8. Package: `smpl.ordering`
+**Files**: 15
+
+
+Based on the provided file summaries, here is a comprehensive package-level summary for `smpl.ordering`:
+
+### 1. Overall Purpose and Role
+
+The `smpl.ordering` package is the core implementation of the **Ordering Service** microservice within the Parts Unlimited Manufacturing Resource Planning (MRP) system. Its primary purpose is to manage the end-to-end lifecycle of customer orders, from initial creation and validation to processing and fulfillment. This package encapsulates all the necessary components—from web API endpoints and business logic to data persistence and monitoring—required to operate as a standalone, deployable service. It serves as a critical bridge between customer-facing interactions and the internal manufacturing, inventory, and supply chain workflows, ensuring that incoming orders are correctly captured, validated against business rules, and reliably stored for downstream processing.
+
+### 2. How the Files Work Together to Achieve the Package's Goals
+
+The package functions as a cohesive Spring Boot application where each file has a distinct, interconnected role:
+
+*   **Application Bootstrap and Configuration:** The entire service is bootstrapped by `OrderingInitializer` (for traditional WAR deployments) which delegates to `OrderingConfiguration.java`. This main configuration class acts as the central conductor, orchestrating the application's setup. It utilizes other configuration-specific classes like `OrderingServiceProperties.java`, `MongoDBProperties.java`, and `PostgresqlProperties.java` to externalize settings and establish connections to both the primary MongoDB database and a secondary PostgreSQL database. This layer ensures the service is configured correctly for its specific environment.
+
+*   **Request Processing Pipeline:** Incoming HTTP requests for order-related operations are first processed by a chain of servlet filters. The `SimpleCORSFilter` enables the web frontend to communicate with the backend API. Immediately after, the `AppInsightsFilter` wraps the request to provide comprehensive monitoring and telemetry, tracking performance metrics and errors for operational insights in the manufacturing environment.
+
+*   **Core Business Logic and Validation:** Once a request passes the filters, it reaches the service's business logic (likely in controllers/services not detailed here). This core logic relies on the `Utility.java` class for standardized input validation of critical data like part numbers and order details. When validation fails or business rules are violated, the code throws structured, custom exceptions: `BadRequestException` for malformed client requests and `ConflictingRequestException` for conflicts with the current system state (e.g., insufficient inventory), enabling precise error handling and meaningful feedback.
+
+*   **Testing and Quality Assurance:** The package demonstrates a commitment to quality with a dedicated testing infrastructure. Integration tests are bootstrapped using `TestOrderingConfiguration.java` and managed via the JUnit `ConfigurationRule.java`. The `TestPath.java` interface enforces a reset mechanism for stateful components during tests, and `UtilityTest.java` ensures the correctness of fundamental utility functions used throughout the application.
+
+### 3. Key Functionalities Provided by this Package
+
+*   **Order Management:** Provides the foundational components for processing and managing manufacturing orders and quotes.
+*   **Web API Infrastructure:** Exposes RESTful endpoints configured with CORS support to facilitate integration with web-based user interfaces.
+*   **Comprehensive Monitoring and Observability:** Integrates with Microsoft Application Insights via a servlet filter (`AppInsightsFilter`) to provide real-time telemetry on request performance, error rates, and system health.
+*   **Hybrid Database Persistence:** Configures and manages connections to both a MongoDB database (for primary order/part data) and a PostgreSQL database (likely for integration or reporting), supporting a flexible data persistence strategy.
+*   **Robust Configuration Management:** Centralizes and externalizes configuration using Spring Boot properties classes (`OrderingServiceProperties`, `MongoDBProperties`, etc.), enhancing flexibility and maintainability across different deployment environments.
+*   **Structured Exception Handling:** Defines custom exceptions (`BadRequestException`, `ConflictingRequestException`) to provide clear, actionable error responses for different failure scenarios.
+*   **Foundation for Testing:** Supplies a complete testing framework with specialized configurations and utilities to ensure the reliability and correctness of the ordering logic.
+
+### 4. Notable Patterns or Architectural Decisions
+
+*   **Spring Boot Microservice Architecture:** The package is a textbook example of a self-contained Spring Boot microservice. It has its own main configuration (`OrderingConfiguration`), embedded server support, and is designed for independent deployment and scaling.
+*   **Separation of Cross-Cutting Concerns:** The use of Servlet Filters (`AppInsightsFilter`, `SimpleCORSFilter`) is a clear implementation of the Intercepting Filter pattern. This cleanly separates infrastructure-level concerns like monitoring and CORS from the core application logic.
+*   **Externalized Configuration:** A strong emphasis is placed on externalizing configuration via Spring Boot's `@ConfigurationProperties` annotation, supplemented by a legacy `PropertyHelper` utility. This allows for flexible deployment without code changes.
+*   **Custom Exception Hierarchy for API Semantics:** The creation of `BadRequestException` and `ConflictingRequestException` demonstrates an architectural decision to move beyond generic exceptions, enabling more granular error handling and clearer API communication.
+*   **Hybrid Persistence Strategy:** The configuration for both MongoDB (a NoSQL database) and PostgreSQL (a relational database) indicates a sophisticated, polyglot persistence approach. This architectural decision allows the service to use the best database for the specific type of data being handled.
+*   **Comprehensive Testability:** The inclusion of dedicated test configurations (`TestOrderingConfiguration`), JUnit rules (`ConfigurationRule`), and test utilities (`TestPath`, `UtilityTest`) reflects an architectural priority on testability and quality assurance.
+
+### 9. Package: `smpl.ordering.controllers`
+**Files**: 11
+
+
+## Package Summary: smpl.ordering.controllers
+
+### Overall Purpose and Role
+
+The `smpl.ordering.controllers` package serves as the primary API gateway layer for the Parts Unlimited Manufacturing Resource Planning (MRP) system, providing RESTful endpoints that manage the complete order-to-cash lifecycle in manufacturing and supply chain operations. This package orchestrates the interaction between client applications (web front-end, external integrations) and the backend data repositories, exposing all essential business operations through standardized HTTP interfaces.
+
+### How Files Work Together
+
+The controllers in this package form an interconnected ecosystem that supports the complete manufacturing workflow:
+
+**Business Flow Integration:**
+- **DealerController** manages supplier/partner information, providing the foundation for procurement relationships
+- **CatalogController** maintains the parts inventory that drives all downstream operations
+- **QuoteController** initiates the sales process by generating customer price quotes based on catalog data
+- **OrderController** converts quotes into actual orders and manages their lifecycle through status transitions
+- **ShipmentController** completes the fulfillment process by tracking physical deliveries
+- **PingController** ensures system reliability and operational visibility throughout
+
+**Cross-Cutting Concerns:**
+All controllers share common patterns:
+- Consistent CRUD operations with proper HTTP status codes
+- Robust error handling and input validation
+- Telemetry integration through Application Insights for monitoring
+- Factory pattern for repository access
+- Comprehensive test coverage ensuring reliability
+
+**Data Relationships:**
+The controllers maintain referential integrity across entities:
+- Quotes reference catalog items and dealers
+- Orders are created from quotes
+- Shipments are linked to orders
+- All operations validate prerequisite dependencies
+
+### Key Functionalities
+
+1. **Catalog Management**
+   - Complete CRUD operations for parts inventory
+   - Duplicate prevention and validation
+   - SKU-based retrieval and bulk operations
+
+2. **Quote Management**
+   - Quote creation, retrieval, and updates
+   - Customer-based quote filtering
+   - Quote-to-order conversion workflow
+
+3. **Order Processing**
+   - Order creation from quotes
+   - Status lifecycle management (Confirmed → Started → Shipped)
+   - Event tracking and audit trails
+   - Dealer-based order filtering
+
+4. **Shipment Tracking**
+   - End-to-end shipment lifecycle management
+   - Event-based progress tracking
+   - Enriched delivery data (combining shipments with orders/quotes)
+   - Status-based filtering
+
+5. **Dealer Management**
+   - Supplier/partner information maintenance
+   - Duplicate prevention and validation
+   - Integration with order and quote workflows
+
+6. **System Monitoring**
+   - Health check endpoints for load balancer integration
+   - Diagnostic information for operational teams
+   - Service availability monitoring
+
+### Notable Patterns and Architectural Decisions
+
+**REST API Design:**
+- Clean separation of concerns with dedicated controllers per domain entity
+- Consistent HTTP verb usage and status code patterns
+- Resource-oriented URL structures
+
+**Quality Assurance:**
+- 100% test coverage with dedicated test classes for each controller
+- Memory-based repositories for isolated testing
+- Comprehensive edge case and error scenario testing
+- Validation of both business logic and HTTP contract compliance
+
+**Monitoring and Observability:**
+- Integrated telemetry across all controllers
+- Structured exception tracking
+- Performance monitoring capabilities (notably in DealerController)
+
+**Data Validation and Integrity:**
+- Consistent input validation patterns across all controllers
+- Duplicate prevention mechanisms
+- Referential integrity checks between related entities
+- Proper error handling with meaningful HTTP status responses
+
+**Spring Framework Integration:**
+- Leverages Spring Boot's REST controller capabilities
+- Factory pattern for repository abstraction
+- Dependency injection for testability and modularity
+
+This package represents a well-architected, production-ready API layer that enables the Parts Unlimited MRP system to manage the complete manufacturing supply chain workflow from parts inventory through order fulfillment, with emphasis on reliability, observability, and maintainability.
+
+### 10. Package: `smpl.ordering.models`
+**Files**: 13
+
+
+### Package-Level Summary: `smpl.ordering.models`
+
+#### 1. Overall Purpose and Role in the Repository
+
+The `smpl.ordering.models` package serves as the foundational **domain model layer** for the ordering subsystem within the Parts Unlimited Manufacturing Resource Planning (MRP) system. Its primary purpose is to define a rich, type-safe, and structured vocabulary of data entities that represent the entire lifecycle of a customer order—from the initial quotation phase through order confirmation, production, shipment, and final installation. This package is the "single source of truth" for the core data structures used across the entire repository, ensuring consistency and enforcing business rules at the data level for all components involved in the supply chain management workflow.
+
+---
+
+#### 2. How the Files Work Together to Achieve the Package's Goals
+
+The classes within this package are meticulously designed to work together, mirroring the chronological and hierarchical flow of a real-world manufacturing order. The interactions form a cohesive web that tracks a transaction from inception to completion.
+
+The workflow begins with the **`CatalogItem`**, which defines the products available. A **`DealerInfo`** (supplier) creates a **`Quote`**, which is a composite entity containing a list of **`QuoteItemInfo`** objects, each referencing a `CatalogItem` SKU and its quoted price.
+
+When a customer accepts the quote, an **`Order`** is generated. This core entity is linked to the original `Quote` via its `quoteId` and is immediately assigned an initial **`OrderStatus`**. The `Order` class itself contains an immutable list of **`OrderEventInfo`** objects, which are added to create a permanent, auditable log of the order's journey. When an order's status changes, an **`OrderUpdateInfo`** object—a composite of a new `OrderStatus` and an `OrderEventInfo`—is likely used to encapsulate this state transition.
+
+Once production is complete, a **`ShipmentRecord`** is created to manage the logistics. This record utilizes reusable value objects like **`DeliveryAddress`** and **`PhoneInfo`** to store contact and destination details. As the shipment progresses, granular **`ShipmentEventInfo`** objects are logged to the `ShipmentRecord` to provide detailed tracking.
+
+Finally, the **`Delivery`** class acts as a crucial **aggregator**, tying together the `Quote`, the `Order`, and the `ShipmentRecord` into a single, unified object. This provides a holistic, top-level view of the entire transaction, simplifying reporting and end-to-end status checks.
+
+---
+
+#### 3. Key Functionalities Provided by this Package
+
+This package provides the essential data structures to enable the following core business functionalities:
+
+*   **Quote Generation & Management:** Through the `Quote` and `QuoteItemInfo` classes, the system can generate detailed, multi-item price quotes for customers, including validity periods and dealer information (`DealerInfo`).
+*   **Order Lifecycle Management:** The `Order` class, in conjunction with the `OrderStatus` enum and `OrderEventInfo` log, provides a robust framework for tracking an order's state through a predefined, nine-stage fulfillment process.
+*   **Comprehensive Shipment & Delivery Tracking:** The `ShipmentRecord` and `ShipmentEventInfo` classes enable granular, chronological tracking of a shipment's progress, from the warehouse to the customer's doorstep, complete with validation and address management.
+*   **Product & Catalog Representation:** The `CatalogItem` class provides a validated model for all products in the system, encapsulating SKU, pricing, inventory levels, and lead times.
+*   **Stakeholder & Contact Management:** Reusable components like `DealerInfo`, `PhoneInfo`, and `DeliveryAddress` standardize how suppliers, customers, and locations are represented throughout the system.
+*   **End-to-End Transaction Aggregation:** The `Delivery` class unifies quotes, orders, and shipments into a single, comprehensive view, facilitating high-level reporting and operational oversight.
+*   **Data Integrity & Auditability:** Built-in validation methods (e.g., in `Quote`, `ShipmentRecord`, `DeliveryAddress`) and immutable audit trails (e.g., the `events` list in `Order`) ensure that data remains consistent and a trustworthy history of all actions is maintained.
+
+---
+
+#### 4. Notable Patterns and Architectural Decisions
+
+The package demonstrates several strong architectural patterns and design decisions common in well-structured enterprise applications:
+
+*   **Domain-Driven Design (DDD) Principles:** The package is a clear example of a DDD-oriented model, where the classes (`Order`, `Quote`, `Shipment`) are rich domain objects that encapsulate both data and business rules (like validation).
+*   **Data Transfer Object (DTO) / Value Object Pattern:** Classes like `PhoneInfo`, `DeliveryAddress`, `ShipmentEventInfo`, `OrderEventInfo`, and `OrderUpdateInfo` act as simple, immutable data containers. They are designed to transport data efficiently and can be reused across different entities, reducing code duplication.
+*   **Composition over Inheritance:** The package heavily favors composition. For instance, a `Quote` *has* `QuoteItemInfo`s, an `Order` *has* `OrderEventInfo`s, and a `Delivery` *has* a `Quote`, `Order`, and `ShipmentRecord`. This creates flexible and maintainable object relationships.
+*   **Type-Safe Enumeration:** The use of the `OrderStatus` enum instead of strings or integers is a critical decision that prevents invalid states, improves code readability, and ensures compile-time safety for order state management.
+*   **JavaBean Convention:** Nearly all classes adhere to the JavaBean pattern (private fields, public getters/setters), making them easily serializable, compatible with UI binding frameworks, and simple to manage.
+*   **Embedded Data Validation:** Placing `validate()` methods directly within the model classes (e.g., `Quote.validate()`, `ShipmentRecord.validate()`) enforces data integrity at the source, catching errors before they can propagate through the system. This is a form of the Self-Validation pattern.
+*   **Immutable Audit Trails:** The design of the `Order` class with its list of `OrderEventInfo` objects demonstrates a clear commitment to creating a non-modifiable history, which is essential for financial compliance, customer dispute resolution, and operational analysis.
+
+### 11. Package: `smpl.ordering.repositories`
+**Files**: 11
+
+
+### Package-level summary for `smpl.ordering.repositories`
+
+#### 1. Overall Purpose and Role
+
+The `smpl.ordering.repositories` package serves as the foundational **data access layer** for the Parts Unlimited Manufacturing Resource Planning (MRP) system. Its primary purpose is to provide a clean, abstracted, and reliable mechanism for managing the persistence of all core business entities—specifically, catalog items, dealers, quotes, orders, and shipments. By defining a clear architectural boundary between the application's business logic (services) and the underlying data storage mechanisms (e.g., MongoDB), this package ensures that the manufacturing and supply chain operations are decoupled from any specific database technology. It acts as the single source of truth and the central gateway for all CRUD (Create, Read, Update, Delete) operations, guaranteeing data integrity and consistency throughout the entire order lifecycle, from initial quote generation to final shipment fulfillment.
+
+#### 2. How Files Work Together
+
+The files within this package collaborate to form a cohesive and robust data management subsystem:
+
+*   **`RepositoryFactory` as the Central Orchestrator:** The `RepositoryFactory` is the entry point for the entire package. Business logic components request repository instances from this factory. The factory encapsulates the logic for deciding whether to provide a production-ready implementation (e.g., MongoDB-based) or a lightweight in-memory mock implementation for testing. This centralizes configuration and dependency injection, making the system adaptable to different environments without modifying the calling code.
+
+*   **Repository Interfaces as Specialized Contracts:** The core repositories (`QuoteRepository`, `ShipmentRepository`, `DealersRepository`, `CatalogItemsRepository`, `OrderRepository`) are interfaces that define a specific contract for interacting with a particular business entity. Each one provides tailored operations beyond simple CRUD, such as querying orders by status or finding quotes by a customer's name. While these interfaces are decoupled from one another, the data they manage is deeply interconnected in the business domain. For example, an `Order` is created based on a `Quote` and is fulfilled by creating a `Shipment`; both may be associated with a `Dealer` and consist of items from the `CatalogItems` repository.
+
+*   **Test Classes as a Collective Validation Layer:** The test files (`CatalogItemsRepositoryTest`, `QuoteRepositoryTest`, etc.) work together to systematically validate the entire package's correctness and reliability. Each test class rigorously verifies the behavior and data integrity guarantees of its corresponding repository, including positive paths, edge cases, and critical features like optimistic concurrency control. Collectively, they build confidence in the entire data access layer, ensuring that the core data required for manufacturing and supply chain operations is always handled correctly.
+
+#### 3. Key Functionalities
+
+This package provides the following key functionalities to the MRP system:
+
+*   **Complete CRUD Operations:** Full Create, Read, Update, and Delete capabilities for all major domain entities (Quotes, Orders, Shipments, Dealers, Catalog Items).
+*   **Domain-Specific Queries:** Specialized query methods for business workflows, such as finding orders by their fulfillment status, retrieving quotes for a specific customer, or looking up a dealer by name.
+*   **Optimistic Concurrency Control:** Advanced data integrity management using an eTag mechanism to prevent lost updates and conflicts when multiple users or processes attempt to modify the same data concurrently.
+*   **Abstracted Persistence:** A factory-based system that allows for seamless switching between different data storage backends, facilitating development, testing, and production deployment without code changes.
+*   **Lifecycle Event Tracking:** Specific functionality for appending events to a shipment's history, enabling a comprehensive audit trail for order fulfillment.
+*   **Centralized & Type-Safe Data Access:** A unified, type-safe interface for all data operations, reducing the risk of runtime errors and improving developer productivity.
+
+#### 4. Notable Patterns or Architectural Decisions
+
+The package's design demonstrates several important software engineering patterns and architectural decisions:
+
+*   **Repository Pattern:** This is the dominant pattern, used consistently across all data access components. It abstracts the data layer, providing a more object-oriented and domain-centric view of data storage, which decouples the application from persistence details.
+*   **Factory Pattern:** The `RepositoryFactory` implements the Factory pattern to encapsulate the creation logic for repository instances, promoting loose coupling and centralizing configuration.
+*   **Interface-Based Design:** All core repositories are defined as interfaces, not concrete classes. This is a critical decision that enables polymorphism, enhances testability (by allowing easy mocking), and facilitates swapping out implementations.
+*   **Optimistic Concurrency Control:** The use of eTags is a deliberate architectural choice to handle concurrency in a multi-user MRP environment, prioritizing scalability and performance over pessimistic locking.
+*   **Emphasis on Testability:** The 1:1 ratio of repository classes to comprehensive test classes indicates a strong architectural commitment to quality, reliability, and maintainability, likely influenced by Test-Driven Development (TDD) principles.
+*   **Domain-Driven Design (DDD) Influence:** The package structure is organized around core domain entities (Order, Quote, etc.) rather than technical layers, which is a hallmark of DDD and ensures the software model accurately reflects the business domain.
+
+### 12. Package: `smpl.ordering.repositories.mongodb`
+**Files**: 6
+
+
+### Package-level Summary: `smpl.ordering.repositories.mongodb`
+
+---
+
+#### 1. Overall Purpose and Role of the Package
+
+The `smpl.ordering.repositories.mongodb` package is the foundational data access layer for the ordering module of the Parts Unlimited Manufacturing Resource Planning (MRP) system. Its primary role is to provide a reliable, abstracted, and persistent interface for all database operations concerning the core entities of the manufacturing and supply chain workflow. By leveraging MongoDB as its underlying database technology, this package manages the entire lifecycle of key business objects: **dealers**, **catalog items (parts)**, **quotes**, **orders**, and **shipments**. It effectively isolates the application's business logic from the complexities of data persistence, ensuring data integrity, consistency, and resilience for the critical order-to-fulfillment process.
+
+#### 2. How the Files in the Package Work Together
+
+The files within this package form a cohesive and interconnected system that mirrors the natural business workflow of the supply chain, all built upon a shared, resilient foundation.
+
+*   **Foundation: `MongoOperationsWithRetry`**
+    This class is the technical bedrock of the package. It is not a business repository itself but a critical infrastructure component that all other repository classes (`MongoShipmentRepository`, `MongoDealersRepository`, etc.) depend on. It acts as a wrapper around Spring's standard `MongoOperations`, adding essential cross-cutting concerns like automatic retry logic for transient network failures and comprehensive telemetry tracking via Application Insights. This ensures that all data operations in the package are inherently more robust and observable.
+
+*   **Interdependent Business Repositories**
+    The remaining files are business-centric repositories that exhibit a clear dependency chain, reflecting the order processing flow:
+    1.  **`MongoDealersRepository`**: Manages customer/dealer information, the starting point for any transaction.
+    2.  **`MongoCatalogItemsRepository`**: Manages the inventory of parts that are quoted and ordered. It serves as a foundational reference for both quoting and ordering.
+    3.  **`MongoQuoteRepository`**: Creates quotes for specific dealers and parts. It depends on `MongoDealersRepository` to validate that a dealer exists before a quote can be created.
+    4.  **`MongoOrderRepository`**: Converts quotes into formal orders. It has a direct dependency on `MongoQuoteRepository`, often looking up quote details to create an order, thus maintaining the integrity of the quote-to-order relationship.
+    5.  **`MongoShipmentRepository`**: Manages the physical fulfillment of orders. It depends on `MongoOrderRepository` to ensure that shipments can only be created for valid, existing orders.
+
+This structured interaction ensures that data integrity is enforced at the data access layer. For example, a quote cannot be orphaned from its dealer, nor can an order be created without a corresponding quote, and a shipment cannot exist without a source order.
+
+#### 3. Key Functionalities Provided by this Package
+
+The package provides a comprehensive suite of functionalities essential for a modern MRP system:
+
+*   **Complete CRUD Operations**: All repositories offer full Create, Read, Update, and Delete capabilities for their respective entities, enabling complete management of business data.
+*   **Order Lifecycle Management**: The package collectively supports the entire order fulfillment pipeline from start to finish. It tracks status changes (e.g., order status, shipment status), manages transitions between states (quote to order to shipment), and records lifecycle events (e.g., shipment events).
+*   **Data Integrity and Validation**: Business rules are enforced at the repository level. This includes referential integrity checks (e.g., ensuring a dealer exists before creating a quote) and business constraint enforcement (e.g., preventing duplicate shipments).
+*   **Resilient Data Operations**: Through `MongoOperationsWithRetry`, the package provides built-in resilience against transient database connectivity issues, particularly socket timeouts, ensuring that critical operations like order creation or shipment updates are more likely to succeed.
+*   **Advanced Querying**: The repositories support various query methods beyond simple primary key lookups, including retrieving entities by status, customer name, dealer name, or other business-relevant criteria, which is vital for reporting and operational dashboards.
+*   **Thread-Safe ID Generation**: For critical entities like orders, the package implements thread-safe mechanisms for generating unique identifiers, preventing data corruption in high-concurrency environments.
+*   **Testing and Utilities**: The inclusion of `reset()` methods in the repositories provides essential utilities for clearing database state, facilitating automated and manual testing scenarios.
+
+#### 4. Notable Patterns and Architectural Decisions
+
+The design of this package exhibits several key software engineering patterns and architectural choices that contribute to its quality and maintainability:
+
+*   **Repository Pattern**: This is the dominant pattern in the package. Each repository class (`MongoXxxRepository`) encapsulates all data access logic for a specific aggregate root (`Xxx`), providing a clean, collection-like interface to the application layer. This decouples the business logic from the database technology, making the system easier to test and potentially migrate.
+*   **Decorator/Wrapper Pattern**: `MongoOperationsWithRetry` is a classic implementation of the Decorator pattern. It takes the existing `MongoOperations` component and adds new responsibilities (retry logic, telemetry) without altering its core interface. This elegantly separates cross-cutting concerns from business logic.
+*   **Data Transfer Object (DTO) Pattern**: The summary of `MongoDealersRepository` explicitly mentions transforming the internal `Dealer` database entity to a public `DealerInfo` DTO. This pattern is used to create a clean separation between the persistence model (optimized for database storage) and the API model (optimized for client consumption), enhancing security and flexibility.
+*   **Dependency Injection**: The structure strongly implies the use of Spring's Dependency Injection. Repositories are not creating their dependencies (like `MongoOperationsWithRetry` or other repositories) themselves; they are injected, which promotes loose coupling and enhances testability.
+*   **NoSQL Document Database (MongoDB)**: The choice of MongoDB is a significant architectural decision well-suited for this domain. Its flexible schema can easily accommodate the varying fields and complex nested structures common in orders, quotes, and shipments, which can be rigid in traditional relational databases. This allows for greater agility in evolving the business data model.
+
+### 13. Package: `smpl.ordering.repositories.mock`
+**Files**: 5
+
+
+### Package-level Summary: `smpl.ordering.repositories.mock`
+
+#### 1. Overall Purpose and Role
+
+The `smpl.ordering.repositories.mock` package serves as an in-memory, test-driven data persistence layer for the Parts Unlimited MRP (Manufacturing Resource Planning) system's ordering subsystem. Its primary role is to provide lightweight, dependency-free mock implementations of the core data repositories, simulating a database without requiring actual database connectivity. This enables rapid development, streamlined unit testing, and integration testing of the application's business logic by providing predictable, controllable, and fast data access for all major entities in the supply chain workflow—from dealers and catalog items to quotes, orders, and shipments.
+
+#### 2. How the Files Work Together
+
+The repositories within this package are architecturally designed to mirror the logical flow of a manufacturing supply chain, establishing clear dependencies that reflect real-world business processes.
+
+*   **Foundational Data**: The workflow begins with `MockDealersRepository` and `MockCatalogItemsRepository`, which provide the essential static data required to initiate any transaction. Dealers are the actors, and catalog items are the products they sell.
+*   **Quotation Lifecycle**: `MockQuoteRepository` depends on `MockDealersRepository`. When a new quote is created, it validates the existence of the specified dealer, ensuring that only authorized parties can generate price quotations for customers.
+*   **Order Conversion and Management**: `MockOrderRepository` is the central hub of the package. It integrates with `MockQuoteRepository` to facilitate the critical "quote-to-order" conversion process, ensuring an order can only be created from a valid, existing quote. This establishes a clear audit trail from initial pricing to final order commitment.
+*   **Fulfillment and Shipment**: `MockShipmentRepository` depends on `MockOrderRepository`. Before a shipment record can be created, it validates the existence of the corresponding order, enforcing the business rule that shipments are a direct consequence of fulfilled orders.
+
+This interconnected design creates a cohesive, end-to-end simulation of the order fulfillment pipeline, allowing developers to test complex workflows involving multiple entities and their interactions within the supply chain.
+
+#### 3. Key Functionalities
+
+The package provides a comprehensive set of functionalities that collectively simulate the entire ordering and fulfillment process:
+
+*   **Complete CRUD Operations**: All repositories support full Create, Read, Update, and Delete operations for their respective entities (`DealerInfo`, `CatalogItem`, `Quote`, `OrderRecord`, `ShipmentRecord`).
+*   **Business Entity Lifecycle Management**: The package manages the entire lifecycle from quote creation (`MockQuoteRepository`) to order status progression (`MockOrderRepository`) and finally to shipment creation and event tracking (`MockShipmentRepository`).
+*   **Advanced Querying and Filtering**: Repositories offer specialized query methods beyond simple ID lookups, including filtering orders by status, dealer, or quote ID, and searching for quotes by customer name, enabling comprehensive testing of service-layer business logic.
+*   **Data Integrity and Validation**: Cross-repository dependencies enforce critical business rules, such as validating dealer existence for quotes and order existence for shipments, preventing the creation of orphaned or invalid records.
+*   **Test-Oriented Utilities**: Each mock repository includes a `reset()` method to clear its state, providing test isolation. Features like thread-safe unique ID generation (`MockOrderRepository`) and pre-populated sample data (`MockCatalogItemsRepository`) further simplify the setup of test scenarios.
+
+#### 4. Notable Patterns and Architectural Decisions
+
+The package exhibits several key design patterns and architectural decisions aimed at testability, maintainability, and clear separation of concerns:
+
+*   **Repository Pattern**: Each class is a concrete implementation of a repository interface (e.g., `OrderRepository`, `QuoteRepository`). This decouples the application's service layer from the specific data access technology, allowing the mock implementations to be swapped seamlessly with production database versions.
+*   **Mock Object (Test Double) Pattern**: The entire package is an implementation of this pattern, providing realistic stand-ins for production components to support a test-first development methodology.
+*   **In-Memory Data Store**: The consistent use of internal collections (like `Map` or `ConcurrentHashMap`) as the data storage mechanism is a deliberate choice for speed, simplicity, and volatility, which are ideal for testing environments.
+*   **Dependency Injection**: Repositories are designed to accept their dependencies (e.g., `MockOrderRepository` requires a `QuoteRepository`) via their constructors. This promotes loose coupling and makes the relationships between business entities explicit and testable.
+*   **Defensive Programming**: Practices such as defensive copying of returned collections (`MockDealersRepository`) are employed to prevent external code from inadvertently modifying the mock's internal state, ensuring test reliability and predictability.
+
+### 14. Package: `smpl.ordering.repositories.mongodb.models`
+**Files**: 5
+
+
+### Package-level summary for `smpl.ordering.repositories.mongodb.models`
+
+#### 1. Overall Purpose and Role
+
+The `smpl.ordering.repositories.mongodb.models` package serves as the foundational **persistence layer** for the Parts Unlimited Manufacturing Resource Planning (MRP) system's core ordering and supply chain data. Its primary role is to define the document schemas for key business entities as they are stored in the MongoDB database. This package acts as a critical bridge, isolating the application's core business logic and domain models from the specific details of the data store. By providing a clear, structured, and reliable way to persist and retrieve data, this package underpins the entire order lifecycle—from quoting and ordering to shipment and dealer management—ensuring data integrity and consistency within the MRP system.
+
+#### 2. How the Files Work Together to Achieve Package Goals
+
+The classes within this package are not isolated; they are designed to model a cohesive business workflow. Their interaction is defined through relationships and shared identifiers, creating a data chain that mirrors the real-world manufacturing and supply chain process:
+
+*   **Foundation:** `CatalogItem` defines the core products available. `Dealer` represents the suppliers or distributors. These two entities provide the fundamental "what" (parts) and "who" (suppliers) for all transactions.
+*   **Initiation:** When a customer inquiry is made, a `QuoteDetails` document is created. This document contains references to `CatalogItem`s (the parts being quoted) and `Dealer` information, forming a formal price proposal.
+*   **Fulfillment:** Once a quote is accepted, an `OrderDetails` document is generated. Critically, it contains a `quoteId`, establishing a direct link back to the originating `QuoteDetails` and ensuring traceability from proposal to purchase order.
+*   **Delivery:** When the order is ready to be shipped, a `ShipmentDetails` document is created. This document holds a reference to the `orderId`, linking it directly to the `OrderDetails` and, by extension, the original quote.
+
+This interconnected design allows the MRP system to reconstruct the complete lifecycle of any transaction. A user can start with a `ShipmentDetails` record, trace it back to its `OrderDetails`, find the original `QuoteDetails`, and see the specific `CatalogItem`s involved, all while identifying the responsible `Dealer`. The models work together to create a persistent, auditable trail of the entire supply chain operation.
+
+#### 3. Key Functionalities
+
+This package provides several key functionalities that enable the broader application:
+
+*   **Document Schema Definition:** Each class (`OrderDetails`, `Dealer`, `QuoteDetails`, etc.) uses Spring Data MongoDB annotations to explicitly define the schema and mapping for a MongoDB collection. This ensures data is stored in a predictable and structured format.
+*   **Domain-to-Persistence Model Transformation:** A consistent and crucial feature across all files is the provision of bidirectional conversion methods. For example, `QuoteDetails` has a constructor `QuoteDetails(Quote quote)` and a method `toQuote()`. This creates a clean separation between the domain layer's `Quote` object (which contains business logic) and the persistence layer's `QuoteDetails` (a simple data structure), allowing seamless data transfer without coupling the layers.
+*   **State Lifecycle Tracking:** The models are designed to capture the dynamic nature of the business process. `OrderDetails` contains an `eventHistory` for tracking status changes, and `ShipmentDetails` maintains a log of `ShipmentEventInfo` objects. This functionality is essential for real-time order tracking, audit trails, and customer visibility.
+*   **Facilitation of Data Access:** The adherence to standard JavaBean patterns (private fields with public getters and setters) allows the Spring Data MongoDB framework to easily map to, from, and query these documents, dramatically simplifying the implementation of the repository layer.
+
+#### 4. Notable Patterns and Architectural Decisions
+
+The package exhibits several important architectural patterns and decisions:
+
+*   **Repository Pattern with Distinct Persistence Models:** This is the most significant architectural decision. The package implements the 'M' (Model) component of the Repository pattern using dedicated Persistence Models (also known as Data Transfer Objects or DTOs). It deliberately avoids using the core domain objects (`smpl.ordering.models.Order`, etc.) directly for database interaction.
+*   **Decoupling of Business and Persistence Logic:** By maintaining separate classes for persistence (`OrderDetails`) and business domain (`Order`), the architecture achieves a high degree of decoupling. The domain layer remains pure and free from persistence-specific annotations (like `@Document` or `@Id`), making it more portable and easier to test. This separation allows the database schema to evolve independently of the core business logic.
+*   **Bidirectional Mapper Pattern:** The consistent use of constructor-based mapping from domain-to-persistence and `to...()` methods for persistence-to-domain is a clear implementation of the Mapper pattern. This centralizes the transformation logic and makes the conversion between layers explicit and maintainable.
+*   **Framework Integration via Convention:** The heavy reliance on annotations from Spring Data MongoDB and the JavaBean convention demonstrates an architectural choice to leverage a powerful framework to minimize boilerplate code and accelerate development, while still maintaining a clean, layered architecture.
+
+### 15. Package: `smpl.ordering.repositories.mock.test`
+**Files**: 5
+
+
+### Package-level Summary: smpl.ordering.repositories.mock.test
+
+#### 1. Overall Purpose and Role
+
+The `smpl.ordering.repositories.mock.test` package serves as a dedicated testing suite for validating the data access layer of the Parts Unlimited Manufacturing Resource Planning (MRP) system. Its primary role is to ensure the reliability and correctness of all repository logic by running tests against lightweight, in-memory mock implementations. This enables developers to perform rapid, isolated unit testing of critical supply chain functionalities—including order management, quoting, shipping, dealer management, and inventory control—without the overhead, latency, or external dependencies of a live database. The package is fundamental to maintaining code quality and accelerating the development lifecycle within the broader repository.
+
+#### 2. How the Files Work Together
+
+The files within this package operate in a highly coordinated and standardized manner, built on a shared architectural pattern to achieve their goals:
+
+*   **Shared Test Configuration:** Each test class (e.g., `MockOrderRepositoryTest`, `MockShipmentRepositoryTest`) acts as a configuration hub. Its main responsibility is to set up the test environment by configuring a central `RepositoryFactory` to use in-memory ("memory") repository implementations instead of their persistent counterparts.
+*   **Inheritance of Test Logic:** A key architectural decision is the heavy use of inheritance. Classes like `MockDealersRepositoryTest` and `MockQuoteRepositoryTest` inherit a comprehensive suite of test methods from their respective parent classes (e.g., `DealersRepositoryTest`). The parent classes contain the generic test logic for CRUD operations, while the mock-specific test classes in this package provide the specific mock context. This "test template" pattern ensures that the exact same business logic validations are performed against both the mock and the persistent database repositories.
+*   **Comprehensive Domain Coverage:** The files collectively cover every major data entity in the MRP system's ordering workflow:
+    *   `MockCatalogItemsRepositoryTest` validates the parts catalog.
+    *   `MockDealersRepositoryTest` validates dealer data management.
+    *   `MockQuoteRepositoryTest` validates the sales quoting process.
+    *   `MockShipmentRepositoryTest` validates logistics and fulfillment tracking.
+    *   `MockOrderRepositoryTest` validates the core customer order lifecycle.
+
+By working together, these files ensure that the entire data persistence layer for the supply chain module is consistently and thoroughly validated in a fast, isolated environment, guaranteeing that the mock implementations faithfully mirror the behavior of the production-ready repositories.
+
+#### 3. Key Functionalities Provided by the Package
+
+The package provides the following key functionalities:
+
+*   **Isolated Unit Testing:** Enables fast execution of repository tests by eliminating the need for database connections, setup, and teardown, ensuring test runs are deterministic and not affected by external factors.
+*   **Comprehensive CRUD Validation:** Provides a full suite of tests for Create, Read, Update, and Delete operations for all major domain entities (orders, quotes, shipments, dealers, catalog items).
+*   **Complex Query Logic Verification:** Tests more advanced data retrieval methods, such as finding orders by status, retrieving shipments by ID, or fetching quotes by customer name.
+*   **Behavioral Consistency Assurance:** Ensures that mock repositories are valid stand-ins for the real repositories by running the same logical test suites against both, which is crucial for integration testing and for other services that depend on these repositories.
+*   **Rapid Feedback for Developers:** By providing quick test execution, the package gives developers immediate feedback on changes to the data access layer, supporting agile development practices.
+
+#### 4. Notable Patterns and Architectural Decisions
+
+The package exhibits several notable and effective software design patterns and architectural decisions:
+
+*   **Template Method Pattern:** The use of inheritance where parent classes define the *skeleton* of a test algorithm (the test methods) and child classes (the mock test classes) override specific steps (like the `setUp` method to configure the `RepositoryFactory`) is a clear implementation of the Template Method pattern. This promotes maximum code reuse for test logic.
+*   **Factory Pattern for Abstraction:** The reliance on a `RepositoryFactory` to abstract the creation of repository instances is a classic implementation of the Factory pattern. This effectively decouples the test code from the concrete repository implementations, allowing the test suite to seamlessly switch between in-memory and persistent storage with a simple configuration change.
+*   **Separation of Concerns:** The architecture cleanly separates *what* is being tested (the business logic defined in parent test classes) from *how* it is being tested (the mock environment configured in the child classes). This makes the test suite easier to maintain and understand.
+*   **Test-Driven Design for Testability:** The very existence of this package indicates a deliberate architectural decision to prioritize testability. The repository layer is designed to be swappable, allowing for robust mock implementations that are first-class citizens in the testing strategy, which is essential for a complex system like an MRP.
+
+### 16. Package: `smpl.ordering.repositories.mongodb.test`
+**Files**: 6
+
+
+## Package-Level Summary: smpl.ordering.repositories.mongodb.test
+
+### Overall Purpose and Role
+The `smpl.ordering.repositories.mongodb.test` package serves as the dedicated testing suite for validating MongoDB-based repository implementations within the Parts Unlimited Manufacturing Resource Planning (MRP) system. This package plays a critical role in ensuring the reliability and correctness of the MongoDB persistence layer, which is essential for maintaining data integrity across the supply chain management operations. It acts as the verification layer that confirms MongoDB can properly handle all data storage and retrieval requirements for core business entities in the manufacturing and ordering domains.
+
+### File Interactions and Collaborative Functionality
+
+The package demonstrates a well-structured testing architecture with clear separation of concerns:
+
+1. **Marker Interface Pattern**: The `IntegrationTests.java` interface serves as a programmatic tag that all concrete test classes implement, enabling test frameworks to distinguish MongoDB integration tests from other test types.
+
+2. **Inheritance-Based Test Architecture**: Each entity-specific test class (`MongoDealersRepositoryTest`, `MongoShipmentRepositoryTest`, `MongoQuoteRepositoryTest`, `MongoOrderRepositoryTest`, and `MongoCatalogItemsRepositoryTest`) follows a consistent inheritance pattern where they:
+   - Extend base repository test classes (defined outside this package)
+   - Configure MongoDB-specific test environments using `RepositoryFactory`
+   - Delegate actual test execution logic to parent classes
+   - Focus solely on MongoDB environment setup and configuration
+
+3. **Test Environment Configuration**: All test classes collaborate to establish a consistent MongoDB testing environment, typically using `ConfigurationRule` and resetting the `RepositoryFactory` to ensure MongoDB is the active persistence mechanism during test execution.
+
+### Key Functionalities Provided
+
+1. **Comprehensive CRUD Validation**: The package validates complete Create, Read, Update, and Delete operations for all critical business entities:
+   - Dealers (suppliers and partners)
+   - Shipments (order fulfillment tracking)
+   - Quotes (pricing and estimation)
+   - Orders (customer orders)
+   - Catalog Items (parts inventory)
+
+2. **MongoDB-Specific Integration Testing**: Ensures MongoDB-specific behaviors, data types, indexing, and query optimizations work correctly for the MRP domain.
+
+3. **Data Persistence Integrity Verification**: Validates that the MongoDB implementation maintains data consistency and transactional integrity for complex manufacturing workflows.
+
+4. **Test Categorization and Execution Control**: Through the `IntegrationTests` marker interface, provides build-time and runtime control over which tests execute based on resource requirements and execution time considerations.
+
+### Notable Patterns and Architectural Decisions
+
+1. **Template Method Pattern**: The test classes implement a sophisticated version of the Template Method pattern where MongoDB-specific setup is handled in concrete classes, while generic test logic is inherited from base classes.
+
+2. **Technology-Specific Test Harness**: Each test class acts as a technology-specific adapter that bridges generic repository test cases with MongoDB implementation details, demonstrating excellent separation of concerns.
+
+3. **Configuration-Driven Testing**: The package uses configuration patterns (`RepositoryFactory`, `ConfigurationRule`) to switch between different persistence technologies, making the testing architecture extensible for future database implementations.
+
+4. **Domain-Centric Test Organization**: Tests are organized around business domains (dealers, shipments, quotes, orders, catalog) rather than technical layers, reflecting the package's alignment with business domain boundaries in the manufacturing and supply chain context.
+
+5. **Integration Test Isolation**: The marker interface pattern enables clean separation between fast unit tests and resource-intensive integration tests, optimizing developer productivity and build pipeline efficiency.
+
+This architectural approach ensures that while the MongoDB-specific implementation details are tested thoroughly, the actual business logic tests remain reusable across different persistence technologies, maintaining both test coverage and architectural flexibility in the MRP system.
+
+---
+## File Summaries
+### Package: `integration`
+#### Main.java
+
+- Role: The Main.java file serves as the application entry point and bootstrap component for the integration service in the Parts Unlimited MRP system. It initiates the Spring Boot application context specifically configured for background task execution.
+
+- Key Functionality: This file launches a Spring Boot application that registers two critical scheduled tasks: CreateOrderProcessTask and UpdateProductProcessTask. It configures the application context to manage these components as Spring beans, enabling automated, recurring execution of order creation and product update processes.
+
+- Purpose: The primary business purpose is to provide automated background processing capabilities for the manufacturing resource planning system. By scheduling these integration tasks, the system ensures continuous synchronization of order processing and product information, supporting efficient supply chain operations and maintaining data consistency across the manufacturing workflow without requiring manual intervention.
+
+#### Constants.java
+
+- Role: Acts as a centralized configuration repository for the `integration` package, defining system-wide constants required for external system communication and scheduled tasks.
+
+- Key Functionality: Provides a set of `public static final` fields that act as immutable configuration parameters. This includes timing values, such as `SCHEDULED_INTERVAL`, which dictates the frequency of background integration jobs. The class is designed to be non-instantiable (via a private constructor), enforcing its role as a utility class where values are accessed statically (e.g., `Constants.CONSTANT_NAME`) across the integration module.
+
+- Purpose: The primary purpose is to improve code maintainability and reduce configuration errors by centralizing all integration-related constants. By providing a single source of truth for values like polling frequencies, it simplifies configuration management and ensures consistent behavior across all integration processes. This is critical for reliable synchronization of data with suppliers, shippers, and other enterprise systems within the MRP application.
+
+
+### Package: `integration.infrastructure`
+#### ConfigurationHelpers.java
+
+- Role: Configuration management utility class that serves as a centralized property accessor for the Parts Unlimited MRP system, providing a single source of truth for application-wide configuration settings.
+
+- Key Functionality: Provides safe, fault-tolerant retrieval of configuration properties with type-specific accessors (getString, getInt), loads properties from classpath resources, and maintains a static properties cache for efficient access throughout the application lifecycle.
+
+- Purpose: Enables consistent and reliable access to critical system configuration parameters that drive manufacturing operations, inventory thresholds, integration endpoints, and business rules across the MRP system, ensuring all components operate with the same configuration settings while gracefully handling configuration errors to maintain system stability in manufacturing workflows.
+
+#### ConfigurationManager.java
+
+- Role: ConfigurationManager serves as a centralized configuration accessor in the integration infrastructure layer, providing a clean abstraction for retrieving cloud service and MRP system connection settings.
+- Key Functionality: Provides static utility methods for accessing Azure Storage configuration (connection strings, queue names for orders and inventory, queue timeouts) and MRP endpoint URLs. All methods delegate to ConfigurationHelpers while encapsulating specific configuration keys.
+- Purpose: To decouple the integration components from hardcoded configuration values by providing a single point of access for Azure cloud service settings and MRP system endpoints, enabling easier configuration management and cloud integration for the Parts Unlimited MRP system's order processing, inventory management, and external system connectivity requirements.
+
+
+### Package: `integration.models`
+#### QueueResponse.java
+
+- Role: The `QueueResponse` class acts as a Data Transfer Object (DTO) within the integration layer. Its primary role is to standardize the representation of a message that has been successfully retrieved from an external queuing system (Azure Storage Queue) and processed for its business content. It serves as a bridge between the low-level message handling infrastructure and the core business logic components that act on the message data.
+
+- Key Functionality: The main features of this class are centered around encapsulation and immutable data handling. It bundles two critical pieces of information: the raw `CloudQueueMessage` object, which contains metadata needed for queue management (e.g., message ID for deletion), and a processed, deserialized `responseBody` of a generic type `T`. It provides read-only access to this data through getter methods, ensuring that the object's state cannot be altered after creation, which promotes thread-safety and predictability in an asynchronous processing environment.
+
+- Purpose: The intended purpose of `QueueResponse` is to facilitate reliable, decoupled asynchronous processing for key manufacturing and supply chain workflows. In the context of Parts Unlimited MRP, this could include handling order processing, updating inventory levels, or triggering shipment notifications. By providing a single, immutable container for both the raw message and the structured business data, the class simplifies the consumer's logic, ensures data integrity during handoffs between components, and helps guarantee that tasks processed from the queue can be properly acknowledged, thereby improving the overall robustness of the system's integration capabilities.
+
+
+### Package: `integration.models.mrp`
+#### ShipmentEventInfo.java
+
+- Role: Data model/DTO in the integration layer for capturing shipment lifecycle events
+- Key Functionality: Encapsulates shipment event information with timestamp tracking and annotation capabilities through date and comments fields with standard accessors
+- Purpose: To standardize and transmit shipment event data between the MRP system and external logistics providers or enterprise systems, enabling end-to-end shipment visibility and tracking in the manufacturing supply chain
+
+#### QuoteItemInfo.java
+
+- Role: The `QuoteItemInfo` class serves as a Data Transfer Object (DTO) within the integration layer of the MRP system. Its primary role is to model a single line item of a price quote, facilitating the structured transfer of product and pricing information between different service components, specifically from the website's order context into the backend MRP system.
+
+- Key Functionality: The class encapsulates the essential data for a quote line item: the product's Stock Keeping Unit (`skuNumber`) and its price (`amount`). It provides a default constructor for generic instantiation and a specialized constructor to create a `QuoteItemInfo` object directly from a website `OrderItem`, effectively transforming data from one domain model to another. Standard getter and setter methods are included for accessing and modifying its fields.
+
+- Purpose: The purpose of this class is to provide a standardized and decoupled data structure for representing items on a manufacturing quote. It enables the MRP system to receive and process quote requests based on customer order inquiries without being tightly coupled to the website's data models. This supports the business process of generating formal price quotes for parts and maintains a clean, maintainable integration architecture between the web front end and the core MRP services.
+
+#### Quote.java
+
+- Role: The Quote class serves as a core data model in the integration layer of the Parts Unlimited MRP system, specifically for transforming customer orders into formal price quotations as part of the manufacturing workflow.
+
+- Key Functionality: The class provides comprehensive quote management capabilities including generation of unique quote identifiers, customer and dealer information handling, geographic location data management (city, state, postal code), cost calculations with discount support, quote expiration tracking through the validUntil field, and maintenance of detailed line items through the quoteItems collection.
+
+- Purpose: This class facilitates the critical business process of generating price quotations from customer orders in the manufacturing domain. It enables the system to convert incoming order requests into structured quote objects that capture all necessary pricing, customer, and product information while maintaining business rules around quote validity and discount calculations, ultimately supporting the order-to-fulfillment workflow in the MRP system.
+
+#### ShipmentRecord.java
+
+- Role: The ShipmentRecord class serves as a core data model within the MRP system's integration layer. It represents a single shipment and functions as a data transfer object (DTO) to encapsulate all shipment-related information as it moves between different services, such as the order and shipment tracking components.
+
+- Key Functionality: Key functionality includes storing a comprehensive set of shipment details: the originating `orderId`, a calculated `deliveryDate`, the full `deliveryAddress`, and primary/alternate contact information. A crucial feature is the `events` list, which maintains a chronological log of the shipment's status, enabling full lifecycle tracking. The class provides constructors to initialize a record directly from an `OrderMessage` and standard getters/setters for state access and modification.
+
+- Purpose: The primary purpose of this class is to enable the business process of order fulfillment and shipment tracking within the manufacturing and supply chain domain. By providing a structured and complete representation of a shipment, it allows the system to manage the logistics of delivering parts to customers. Its business value lies in ensuring delivery accuracy, providing transparency into shipment status, and facilitating communication with customers regarding their orders.
+
+#### PhoneInfo.java
+
+- Role: The `PhoneInfo` class serves as a Data Transfer Object (DTO) within the `integration.models.mrp` package. Its primary role is to represent and transport structured contact information, specifically phone numbers, across different services and external integrations within the Parts Unlimited MRP system.
+
+- Key Functionality: The class encapsulates two key pieces of information: the `phoneNumber` itself (as a String to accommodate various formats) and a `kind` classifier (also a String). This allows for the categorization of phone numbers, such as distinguishing a supplier's main line from a shipping desk's contact number. It provides standard getter and setter methods for both fields, adhering to JavaBeans conventions, and includes constructors for easy object instantiation.
+
+- Purpose: The purpose of the `PhoneInfo` class is to provide a standardized, structured, and semantically rich way to handle phone number data within the MRP application's integration layer. By including a `kind` attribute, it enables more intelligent and context-aware communication. For instance, the system can be configured to use a specific 'kind' of number for shipment alerts versus another for order verifications. This improves the reliability and automation of communication with suppliers, carriers, and customers, which is critical for efficient supply chain management.
+
+#### CatalogItem.java
+
+- Role: The CatalogItem class serves as a core data model or Data Transfer Object (DTO) within the integration layer of the MRP system. Its primary role is to define the structured data contract for a single part or product, enabling consistent communication of catalog information between different services and components of the Parts Unlimited application.
+
+- Key Functionality: The class encapsulates all essential attributes of a catalog item, including a unique SKU, a human-readable description, a unit of measure, its price, current inventory count, and supplier lead time. It provides read-only access to this data through standard getter methods, making it a structured and immutable carrier of product information used in API responses and internal service communication.
+
+- Purpose: The purpose of the CatalogItem class is to provide a standardized and reliable representation of a part's core inventory and pricing information. By defining a clear data contract for part data, it underpins critical business processes such as generating quotes, processing customer orders, tracking stock levels, and managing production planning based on accurate lead times and inventory data. This ensures data integrity and consistency across the entire supply chain management workflow.
+
+#### Order.java
+
+- Role: This file serves as a Data Transfer Object (DTO) for a customer order within the MRP system. It is a foundational model class located in the integration layer, responsible for defining the structure of an order as it is passed between different services, persisted to the database, and communicated via REST APIs.
+
+- Key Functionality: The `Order` class defines the core attributes of an order, including a unique `orderId`, a reference `quoteId` linking it to a prior sales quote, an `orderDate` for tracking, and a `status` to indicate its position in the fulfillment lifecycle. It functions as a standard Plain Old Java Object (POJO) with private fields, a no-argument constructor (for instantiation by frameworks like Jackson), and public getter and setter methods for each attribute, ensuring proper encapsulation and controlled access to the order's data.
+
+- Purpose: The primary purpose of this class is to provide a consistent and canonical representation of an order throughout the Parts Unlimited MRP application. By standardizing the order's data structure, it enables reliable data persistence, facilitates seamless integration between the order, integration, and web front-end components, and supports the entire order management workflow—from initial creation (based on a quote) to processing, shipment tracking, and final status updates. This structured model is essential for the core business function of order fulfillment in the manufacturing and supply chain domain.
+
+#### DeliveryAddress.java
+
+- Role: This class serves as a data model, or Data Transfer Object (DTO), within the MRP integration layer. It is specifically designed to represent and transport delivery address information between different components and services of the Parts Unlimited application, such as between the order service and the shipment tracking system, or for serializing data in REST API communications.
+
+- Key Functionality: The `DeliveryAddress` class encapsulates the essential components of a physical delivery destination. It includes standard address fields—street, city, state, and postal code—as well as a field for special instructions to accommodate unique delivery requirements. The class follows JavaBean conventions, providing public getter and setter methods for all its properties, which makes it highly compatible with data-binding frameworks, JSON/XML serialization, and persistence mechanisms like MongoDB.
+
+- Purpose: The primary purpose of this class is to provide a standardized, structured, and reliable representation of a delivery location within the supply chain management workflow. It is fundamental to the order fulfillment and shipment tracking processes, ensuring that parts and products are routed to the correct destination. By including special instructions, it supports flexible logistics operations, ultimately contributing to customer satisfaction and operational efficiency in the manufacturing and distribution process.
+
+
+### Package: `integration.models.website`
+#### OrderMessage.java
+
+- Role: The `OrderMessage` class serves as a Data Transfer Object (DTO) within the integration layer. Its primary role is to model and structure order data that is communicated between the website front-end and the backend order processing services.
+
+- Key Functionality: The class encapsulates a complete set of attributes for a customer order. This includes customer and dealer information, a full shipping address, the order date, a list of ordered items, and financial calculations like the total cost and any applied discounts. It provides standard JavaBean getter and setter methods for all its fields, enabling easy data access and manipulation, particularly for API communication and data binding.
+
+- Purpose: The purpose of `OrderMessage` is to provide a standardized and structured payload for transmitting order information across different components of the MRP system. By acting as a contract for order data, it facilitates clean integration between the website and backend services, ensuring that all necessary order details are consistently transferred and processed. This structure is crucial for initiating the order fulfillment, inventory management, and shipment tracking workflows within the Parts Unlimited application.
+
+#### OrderItem.java
+
+- Role: The `OrderItem` class acts as a data model, specifically a Data Transfer Object (DTO), within the integration layer for the website component. Its primary role is to represent a single line item within a customer's order as it moves between different parts of the MRP system, such as from the web front end to the backend order processing service.
+
+- Key Functionality: The key functionality of `OrderItem` is to encapsulate the core data for a single product on an order. It stores the product's unique Stock Keeping Unit (SKU) and its price. The class provides standard accessor (getter) and mutator (setter) methods for these attributes, enabling controlled read and write access to the item's data, which is essential for maintaining data integrity during system integration.
+
+- Purpose: The intended purpose of the `OrderItem` class is to provide a standardized and reliable structure for representing and transmitting order line item information throughout the Parts Unlimited MRP system. By defining a clear model for an item's SKU and price, this class facilitates accurate order creation, processing, and fulfillment. Its business value lies in ensuring data consistency and integrity during the order lifecycle, from the moment a customer adds a part to their cart on the website to its final processing in the back-end services.
+
+#### ProductItem.java
+
+- Role: Data Transfer Object (DTO) for the website layer, acting as a data model for product information presented to the user-facing web application.
+- Key Functionality: Encapsulates core product attributes: Stock Keeping Unit (SKU), current inventory levels, and procurement lead time. It provides a mechanism to create a `ProductItem` instance from a core `CatalogItem` object, effectively mapping data from the MRP system to the website's data model. Includes standard JavaBean getter and setter methods for accessing and modifying its properties.
+- Purpose: The primary purpose is to decouple the web frontend from the internal MRP data structures. It provides a lightweight, tailored representation of a product, containing only the data necessary for website functions (like displaying stock and estimated delivery times). This facilitates clean integration and simplifies data exchange between the backend services and the web UI, enhancing system maintainability.
+
+#### ProductMessage.java
+
+- Role: The `ProductMessage` class serves as a Data Transfer Object (DTO) for the website component. Its primary role is to act as a standardized data carrier for product information as it moves between the MRP integration service and the web front end, effectively decoupling the core data model from the web presentation layer.
+
+- Key Functionality: The main features of this class are to aggregate product data into a list (`productList`). It provides a constructor to create an empty message and a key constructor that transforms a list of internal MRP `CatalogItem` objects into a list of `ProductItem` objects, preparing the data for web consumption. Standard getter and setter methods are included to manage the encapsulated product list.
+
+- Purpose: The intended purpose of `ProductMessage` is to facilitate the seamless integration of product data into the website. It enables the system to take raw parts and product data from the MRP's catalog and package it into a structured message suitable for displaying an online product catalog, generating quotes, or processing orders on the web interface. This abstraction simplifies data handling and ensures the web components receive data in a consistent, predictable format.
+
+
+### Package: `integration.scheduled`
+#### CreateOrderProcessTask.java
+
+- Role: CreateOrderProcessTask is a scheduled integration component that serves as a bridge between the Azure message queue system and the external MRP system. It operates as a message consumer in the integration layer, responsible for automatically processing queued order requests and translating them into actual orders within the Manufacturing Resource Planning system.
+
+- Key Functionality: The class implements a scheduled task that continuously polls an Azure queue for OrderMessage objects, creates corresponding orders in the MRP system via API calls, and manages message lifecycle by deleting processed messages. It includes comprehensive error handling, logging for audit trails, and configuration management for MRP endpoint connectivity. The task runs on a scheduled basis, processing all available messages in the queue during each execution cycle.
+
+- Purpose: This component enables automated, reliable order processing in the Parts Unlimited MRP system by decoupling order intake from order creation. It ensures that orders submitted through the web frontend and placed in the queue are systematically processed and recorded in the MRP system, maintaining data consistency across the manufacturing workflow. The scheduled approach provides resilience, allowing temporary system issues to be resolved when the next execution cycle runs, while the comprehensive logging enables troubleshooting and audit capabilities for the order fulfillment process.
+
+#### UpdateProductProcessTask.java
+
+- Role: UpdateProductProcessTask serves as a critical integration component in the scheduled tasks module, acting as the data synchronization bridge between the external MRP system and the internal message processing infrastructure. It operates as a scheduled service that ensures continuous data flow in the Parts Unlimited MRP application's integration layer.
+
+- Key Functionality: The class implements Spring-based scheduled execution to periodically fetch catalog item data from an external Material Requirements Planning system, validate the retrieved data, wrap it in ProductMessage objects, and publish it to an Azure Queue Service for downstream asynchronous processing. It includes comprehensive error handling and logging using SLF4J for operational monitoring and troubleshooting.
+
+- Purpose: The intended purpose is to automate the synchronization of product catalog data between the MRP system (authoritative source for parts and inventory) and the application's processing pipeline. This ensures that inventory, pricing, and product information remain consistent across the manufacturing and supply chain management system, supporting accurate order processing, production planning, and inventory management while maintaining system reliability through decoupled, asynchronous communication patterns.
+
+
+### Package: `integration.services`
+#### QueueService.java
+
+- Role: QueueService is an integration service component that provides a messaging abstraction layer using Azure Storage queues for the Parts Unlimited MRP system. It facilitates asynchronous communication between different services and components within the manufacturing and supply chain management domain.
+
+- Key Functionality: The class provides type-safe queue operations including message retrieval with automatic JSON deserialization, message addition with JSON serialization, and message deletion. It implements robust error handling by removing problematic messages that fail to deserialize, preventing infinite processing loops. The service uses generics to maintain type safety while allowing flexibility for different message types.
+
+- Purpose: This service enables reliable asynchronous processing for critical manufacturing workflows such as order processing, inventory updates, and shipment notifications. By providing a queue-based messaging system, it helps decouple system components, improve scalability, and ensure reliable delivery of messages between services in the supply chain. This is essential for maintaining system responsiveness and handling peak loads in the manufacturing resource planning environment.
+
+#### QueueFactory.java
+
+- Role: QueueFactory serves as a centralized factory and cache manager for Azure Storage queues within the integration layer of the MRP system. It abstracts the complexity of queue management and provides a single point of access for all asynchronous messaging components in the application.
+
+- Key Functionality: The class implements a lazy-loading, thread-safe caching mechanism for CloudQueue objects. It provides efficient queue retrieval through an in-memory dictionary, automatically creates queues on-demand if they don't exist, and manages connection strings and storage account configurations. The factory pattern ensures consistent queue handling across the entire integration service.
+
+- Purpose: This class enables reliable and efficient asynchronous communication between different components of the MRP system, such as order processing, inventory updates, and shipment tracking. By caching queue references and handling Azure Storage operations transparently, it reduces latency, minimizes API calls, and ensures scalability for high-volume manufacturing operations. This is critical for maintaining real-time synchronization between inventory levels, order fulfillment, and supplier communications in the Parts Unlimited MRP application.
+
+#### MrpConnectService.java
+
+- **Role**: The MrpConnectService class serves as a critical integration gateway between the Parts Unlimited MRP application and external Manufacturing Resource Planning systems. It acts as a service layer component that abstracts all communication with the MRP backend, providing a clean interface for the application to interact with manufacturing operations.
+
+- **Key Functionality**: This class provides comprehensive integration capabilities including catalog management, quote generation, order processing, and shipment tracking. It handles HTTP-based REST API communications using Spring's RestTemplate to create quotes, convert quotes to orders, process shipments, and retrieve product catalogs. The class orchestrates complete order workflows by coordinating multiple dependent operations and logging each step for traceability.
+
+- **Purpose**: The primary purpose of this service is to enable seamless integration with external MRP systems, facilitating the complete order-to-fulfillment lifecycle in the Parts Unlimited manufacturing environment. It encapsulates the complexity of external system communication while providing a reliable interface for catalog retrieval, order creation, and shipment tracking. This integration is essential for maintaining accurate inventory levels, processing customer orders efficiently, and coordinating manufacturing operations across the supply chain.
+
+
+### Package: `smpl.ordering`
+#### AppInsightsFilter.java
+
+- Role: The AppInsightsFilter class serves as a monitoring and observability component in the Parts Unlimited MRP system, acting as a servlet filter that intercepts all HTTP requests to collect telemetry data for application performance monitoring and analytics.
+
+- Key Functionality: The filter implements comprehensive request tracking by capturing HTTP request metadata (method, URI, query parameters), measuring execution duration, monitoring response status codes, tracking exceptions, and managing session and operation identifiers. It integrates with Microsoft Application Insights to send telemetry data for monitoring dashboard visualization and alerting.
+
+- Purpose: In the manufacturing and supply chain domain context, this filter provides critical observability for the MRP system's web operations, enabling real-time monitoring of parts inventory queries, order processing requests, shipment tracking activities, and integration system interactions. It helps identify performance bottlenecks, detect system failures early, and provides operational insights essential for maintaining reliable manufacturing workflow operations and ensuring smooth order fulfillment processes.
+
+#### OrderingConfiguration.java
+
+- Role: Spring Boot configuration and application entry point class for the Ordering Service component in the Parts Unlimited MRP system
+- Key Functionality: Configures MongoDB database connectivity with Docker container support, sets up repository factories for data access, configures Application Insights telemetry for monitoring, manages application context injection, and serves as the primary startup class for the ordering service
+- Purpose: To provide the foundational configuration and infrastructure setup for the order processing component of the Manufacturing Resource Planning system, enabling parts catalog management, order processing, and integration with external systems through proper database connectivity, telemetry collection, and service component wiring
+
+#### BadRequestException.java
+
+- Role: This class serves as a specific, custom exception type within the `smpl.ordering` package. It is a fundamental building block for the application's API error handling mechanism, used to signify that a client's request is malformed, contains invalid data, or violates business rules related to ordering.
+
+- Key Functionality: The primary function of `BadRequestException` is to provide a standardized way for the order processing logic to communicate client-side errors. It achieves this by wrapping a descriptive error message, which explains why a request is invalid (e.g., invalid part ID, missing required order fields, or an unsupported quantity). This exception is typically thrown during the validation of incoming requests for orders or quotes.
+
+- Purpose: The purpose of this class is to improve the robustness and usability of the Parts Unlimited MRP ordering system. By providing a clear and consistent error type, it allows the system to gracefully handle invalid input and return meaningful feedback to the client (e.g., as an HTTP 400 Bad Request). This prevents the processing of incorrect orders, maintains data integrity within the manufacturing workflow, and makes the API more predictable and easier to integrate with.
+
+#### ConflictingRequestException.java
+
+- Role: Acts as a specific exception type within the ordering subsystem to signal that a request cannot be processed due to a conflict with the current system state or business rules.
+- Key Functionality: Provides a constructor to initialize the exception with a descriptive message detailing the cause of the conflict. It inherits standard exception behavior, allowing for structured error handling using `try-catch` blocks specific to this conflict type.
+- Purpose: To improve the robustness and user experience of the MRP system by enabling precise error handling for common ordering conflicts. This allows the application to provide meaningful feedback to users (e.g., for inventory issues) or trigger specific automated responses, rather than failing with a generic error.
+
+#### OrderingInitializer.java
+
+- Role: The OrderingInitializer serves as the bootstrap and configuration entry point for the ordering service component within the Parts Unlimited MRP system, extending SpringBootServletInitializer to support traditional WAR deployments in a manufacturing environment.
+
+- Key Functionality: Configures Spring Boot application context using OrderingConfiguration as the primary source, initializes web application startup sequence, captures and maintains the application's context path for runtime operations, and provides static access to application path information throughout the ordering module lifecycle.
+
+- Purpose: To ensure proper initialization of the ordering service module that handles critical MRP workflows including customer order processing, parts procurement, and order fulfillment. This class provides the foundational setup required for the ordering component to integrate with the broader manufacturing and supply chain management system, enabling seamless access to configuration files and resources needed for inventory management and production planning operations.
+
+#### TestPath.java
+
+- Role: This interface acts as a testing utility contract within the MRP application's automated testing framework. It defines a common behavior for components that participate in test scenarios, particularly those representing a workflow or a stateful path that needs to be controlled during testing.
+
+- Key Functionality: The key functionality is the declaration of a single `reset()` method. This enforces a standard mechanism, ensuring that any class implementing this interface can be programmatically returned to a known, initial state. This is essential for the setup and teardown phases of automated tests.
+
+- Purpose: The intended purpose is to ensure test isolation and repeatability. By providing a guaranteed way to reset components before each test run, the interface helps validate the accuracy of complex manufacturing and supply chain workflows, such as order processing or inventory management. This directly contributes to business value by ensuring the reliability, quality, and correctness of the core MRP system functions.
+
+#### SimpleCORSFilter.java
+
+- Role: This class functions as a web request interceptor or servlet filter within the ordering service. Its specific role is to handle Cross-Origin Resource Sharing (CORS) for the application's REST APIs, acting as an infrastructure component that facilitates communication between the front-end and back-end.
+
+- Key Functionality: The primary functionality involves intercepting incoming HTTP requests and programmatically adding CORS-related headers to the HTTP response. It sets headers such as `Access-Control-Allow-Origin` to "*", `Access-Control-Allow-Methods`, and `Access-Control-Allow-Headers`, effectively allowing requests from any web origin. After adding these headers, it passes the request along the filter chain to continue normal processing.
+
+- Purpose: The purpose of this filter is to overcome the browser's same-origin security policy, which is a common requirement in modern web applications where the user interface (e.g., a single-page application) is served from a different domain than the backend API. For the Parts Unlimited MRP system, this filter is essential for enabling the web-based front end to communicate with the ordering and catalog services. Its business value is to enable a decoupled, modern application architecture, ensuring that users can interact with the MRP system's features (like placing orders, viewing inventory, and tracking shipments) through a standard web browser.
+
+#### OrderingServiceProperties.java
+
+- Role: This class acts as a centralized Spring Boot configuration properties holder for the Ordering Service. Its role is to externalize key operational settings, allowing them to be managed outside the application code, typically in `application.properties` or similar configuration files.
+- Key Functionality: The class provides getter and setter methods for four main configuration properties: `storage` to define the data persistence strategy, `pingMessage` for customizing health check responses, `validationMessage` for communicating validation logic status, and `instrumentationKey` for enabling telemetry integration with external monitoring systems.
+- Purpose: The purpose of this class is to enhance the flexibility, maintainability, and observability of the Ordering Service. By decoupling configuration from code, it enables system administrators to easily adapt the service's behavior for different deployment environments (e.g., development, testing, production), switch storage mechanisms, and enable critical monitoring without requiring code recompilation. This supports the reliable operation and management of the order processing function within the MRP system.
+
+#### PostgresqlProperties.java
+
+- Role: It is a Spring Boot configuration properties class designed to encapsulate the connection details for a PostgreSQL database.
+- Key Functionality: Its main functionality is to hold and provide access to the four core parameters required for a JDBC connection: the database URL, the JDBC driver class name, and the username and password for authentication.
+- Purpose: The purpose of this class is to enable the MRP system to connect to and interact with a PostgreSQL database. This is essential for integrating with external systems, performing reporting, or managing specific data that is stored in a relational database format, complementing the primary MongoDB data store used for parts and orders.
+
+#### PropertyHelper.java
+**Role**: PropertyHelper serves as the central configuration management utility in the Parts Unlimited MRP system, providing a global access point for application settings used across manufacturing and supply chain operations.
+**Key Functionality**: - Loads configuration properties from external files in the classpath - Maintains a singleton-like static Properties object for application-wide settings - Provides static methods for accessing configuration data across components - Externalizes system parameters for flexibility in manufacturing environments
+**Purpose**: Enables the MRP system to maintain configurable settings for database connections, API endpoints, inventory thresholds, and other business-critical parameters required for parts catalog management, order processing, and shipment tracking. The class facilitates deployment flexibility across different manufacturing environments by separating configuration from application code, though it contains critical bugs in exception handling and encapsulation that could compromise system stability in production manufacturing operations.
+
+#### Utility.java
+
+- Role: The `Utility` class serves as a foundational helper and infrastructure component within the Parts Unlimited MRP system. It provides static, reusable methods for common tasks, supporting other services and components across the application by standardizing validation and system access patterns.
+
+- Key Functionality: The class offers two primary areas of functionality:
+    1.  **Input Validation:** A set of methods (`validateStringField`, `isNullOrEmpty`) for validating string inputs, such as part numbers, customer names, or order IDs. It systematically checks for null or empty values and compiles a consolidated list of error messages, which is crucial for maintaining data quality in order processing and parts management.
+    2.  **Service Access:** A method (`getTelemetryClient`) to retrieve the Application Insights `TelemetryClient` bean from the Spring application context. This provides a standardized mechanism for components to log telemetry data, enabling application monitoring and diagnostics.
+
+- Purpose: The primary purpose of the `Utility` class is to promote code reuse, consistency, and reliability throughout the MRP application. By centralizing common input validation logic, it helps ensure data integrity for critical business entities like orders and parts, preventing downstream processing errors. The centralized access to the telemetry client standardizes application monitoring, aiding in the rapid diagnosis of issues within the manufacturing and supply chain workflows. Ultimately, this class supports the stability and maintainability of the entire system.
+
+#### MongoDBProperties.java
+
+- Role: This class acts as a dedicated configuration holder for the MongoDB database connection within the Parts Unlimited MRP system. It centralizes the connection settings, allowing other components to reliably connect to the primary data store for managing manufacturing and order data.
+
+- Key Functionality: The class defines properties for the MongoDB server `host` and the target `database` name. It leverages Spring Boot's `@ConfigurationProperties` mechanism to automatically bind these settings from external configuration files (like `application.properties`), while also providing sensible default values for a standard development setup.
+
+- Purpose: The primary purpose is to externalize database connection configuration, promoting maintainability and deployment flexibility for the MRP application. It decouples the application's core logic from the specific details of the MongoDB connection, enabling easy configuration for different environments (development, testing, production) without code changes. This ensures the system can reliably connect to its central data repository for managing parts, orders, and shipments.
+
+#### ConfigurationRule.java
+
+- Role: This class serves as a JUnit Test Rule within the ordering module's test suite. Its primary role is to provide a standardized mechanism for bootstrapping the Spring application context before integration tests are executed, ensuring a consistent testing environment.
+
+- Key Functionality: The main functionality is centered around the `apply` method, which programmatically creates a `AnnotationConfigApplicationContext` to load the `TestOrderingConfiguration` class. This action initializes all necessary Spring beans and dependencies defined in the test configuration, thereby preparing the runtime environment for tests. However, it currently creates the context without managing its lifecycle, leading to a potential resource leak.
+
+- Purpose: The purpose of `ConfigurationRule` is to facilitate integration testing of the ordering system's components, such as order processing and quote generation. By setting up a fully-wired Spring context, it enables developers to test the interactions and configurations of various services in an environment that closely mimics production, thereby ensuring the reliability and correctness of the core MRP order management logic.
+
+#### UtilityTest.java
+
+- Role: UtilityTest is a unit test class that validates core utility functions used throughout the Parts Unlimited MRP system. As part of the testing infrastructure, it ensures the reliability of common utility operations that support manufacturing resource planning workflows.
+
+- Key Functionality: The class provides unit tests for utility methods including string null/empty validation and telemetry client configuration. It contains tests that verify the Utility.isNullOrEmpty() method handles various input scenarios correctly, and validates that the telemetry client is properly disabled in test environments.
+
+- Purpose: This test class serves as quality assurance for foundational utility functions that are likely used across order processing, inventory management, and shipment tracking components. By ensuring these basic utilities work correctly, it helps maintain data integrity and system reliability throughout the manufacturing supply chain management operations, supporting critical business processes like parts catalog management and order fulfillment.
+
+#### TestOrderingConfiguration.java
+
+- Role: This class serves as the central Spring configuration component for the Parts Unlimited MRP ordering system, providing foundational infrastructure setup for data persistence, monitoring, and application context management.
+
+- Key Functionality: The class configures MongoDB connectivity with singleton connection pooling, sets up application telemetry for monitoring, initializes repository factories for flexible storage backends, and manages the Spring application context as a global service locator. It handles environment-specific configuration for Docker deployments and supports multiple MongoDB hosts for scalability.
+
+- Purpose: This configuration file establishes the core data infrastructure required for the MRP ordering system to function reliably. It ensures efficient database connectivity, application monitoring capabilities, and flexible data storage options that are essential for managing parts inventory, processing customer orders, and tracking shipments in a manufacturing environment. The configuration enables the system to handle high-volume order processing while maintaining performance through connection pooling and providing observability for operational monitoring.
+
+
+### Package: `smpl.ordering.controllers`
+#### CatalogController.java
+
+**File-level Summary for CatalogController.java**
+
+- **Role**: This Spring REST controller serves as the primary API gateway for catalog management operations in the Parts Unlimited MRP system, acting as the interface between client applications and the catalog data repository.
+
+- **Key Functionality**: Provides comprehensive CRUD operations for catalog items including retrieving all parts or specific items by SKU, adding new parts with validation and duplicate checking, updating existing items (upsert), and removing parts from inventory. All operations include robust error handling, input validation, HTTP status code management, and telemetry integration for monitoring and debugging.
+
+- **Purpose**: Enables centralized management of the parts catalog that is fundamental to manufacturing operations including inventory control, order processing, quote generation, and production planning. The controller ensures data integrity through validation, prevents duplicate SKUs, and provides reliable access to parts information for both internal systems and external integrations, supporting the complete MRP workflow from parts procurement to order fulfillment.
+
+#### OrderController.java
+
+- Role: OrderController serves as the primary REST API controller for order management operations in the Parts Unlimited MRP system, acting as the main entry point for all HTTP requests related to order processing and lifecycle management.
+
+- Key Functionality: The controller provides comprehensive order management capabilities including CRUD operations (create, read, update, delete), order retrieval with filtering by dealer and status, quote-to-order conversion, event tracking for order lifecycle events, and status updates. It integrates with OrderRepository and QuoteRepository through a factory pattern, implements robust error handling with appropriate HTTP status codes, and includes telemetry integration for system monitoring and debugging.
+
+- Purpose: This controller fulfills the core order processing needs of the Manufacturing Resource Planning application by exposing RESTful endpoints that enable order management workflows. It bridges the web layer with the data persistence layer, facilitating order fulfillment processes, supporting the conversion of quotes to orders, enabling order tracking through events, and ensuring proper error handling and observability for the manufacturing supply chain operations.
+
+#### ShipmentController.java
+
+- Role: The ShipmentController serves as the primary REST API gateway for all shipment-related operations within the Parts Unlimited MRP system. It acts as the interface layer that exposes shipment management capabilities to the web front-end and other integrated services.
+
+- Key Functionality: It provides a comprehensive set of endpoints to manage the complete shipment lifecycle. Key capabilities include: creating new shipment records, retrieving individual shipments or collections (with optional status filtering), updating existing shipments, tracking shipment progress through event additions, and deleting shipments. It also offers a specialized endpoint to retrieve enriched delivery data by combining shipment records with their associated orders and quotes.
+
+- Purpose: The primary purpose of this controller is to facilitate the order fulfillment process by enabling the tracking and management of physical shipments. It provides the necessary interface for the system to record, monitor, and update the status of goods as they move through the supply chain, thereby ensuring operational visibility, enhancing customer service through delivery tracking, and finalizing the order-to-cash cycle.
+
+#### PingController.java
+
+- Role: This class serves as a dedicated health and monitoring controller for the Ordering Service within the Parts Unlimited MRP system. It is the primary entry point for external systems, such as load balancers and monitoring tools, to verify the service's operational status.
+
+- Key Functionality: Provides two primary endpoints: a simple 'ping' for basic liveness checks that returns an HTTP 200 OK, and a comprehensive 'status' endpoint that returns diagnostic information including service configuration messages, build number, and timestamp. It also incorporates robust error handling by tracking exceptions with Application Insights telemetry.
+
+- Purpose: The purpose of this controller is to ensure the reliability and operational visibility of the critical Ordering Service. It enables automated monitoring systems to verify service uptime and provides essential diagnostic information to operations and development teams, facilitating quick troubleshooting and maintaining the high availability required for continuous order processing in the manufacturing supply chain.
+
+#### QuoteController.java
+
+- Role: The QuoteController serves as the primary REST API layer for all quote-related operations in the Parts Unlimited MRP system. It acts as the public-facing gateway, translating HTTP requests into actions on quote data and orchestrating the interaction between the client and the data repository.
+
+- Key Functionality: This controller exposes a full suite of CRUD (Create, Read, Update, Delete) operations for quotes via REST endpoints. It handles creating new quotes, retrieving individual quotes by ID or lists of quotes by customer name, updating existing quotes, and deleting quotes. Across all operations, it implements robust input validation, returns standardized HTTP status codes for success and various error conditions, and integrates with a telemetry system for exception tracking and operational monitoring.
+
+- Purpose: The intended purpose of this controller is to provide a reliable, programmatic interface for managing the entire lifecycle of sales quotes within the manufacturing order process. It enables other system components, such as the web front end or external integration services, to automate and streamline the quoting workflow, which is a critical precursor to order fulfillment. By encapsulating quote logic within a well-defined REST API, it supports the business's need for efficient sales processing, customer communication, and integration with broader supply chain and enterprise systems.
+
+#### DealerController.java
+
+- Role: The `DealerController` acts as the REST API layer for all dealer-related operations within the Parts Unlimited MRP system. It serves as the primary entry point for HTTP requests, bridging external clients or the web front-end with the backend dealer data repository.
+
+- Key Functionality: Provides a complete set of CRUD (Create, Read, Update, Delete) endpoints for dealer management. Key features include listing all dealers (with an intentional performance monitoring capability), retrieving a specific dealer by name, adding new dealers with validation and duplicate checks, updating existing dealer information, and removing dealers. The controller also implements robust error handling with appropriate HTTP status codes and integrates with a telemetry system for application performance monitoring and exception tracking.
+
+- Purpose: The purpose of this class is to programmatically manage dealer information, a critical component of the manufacturing and supply chain domain. By providing a reliable and standardized API, it enables the broader MRP system to maintain an accurate and up-to-date catalog of dealers. This is essential for downstream business functions such as order processing, parts procurement, and shipment coordination, ensuring data consistency and facilitating integration with other system components.
+
+#### ShipmentControllerTest.java
+
+- Role: Test class for the ShipmentController component in the MRP system, providing comprehensive unit test coverage for shipment management functionality to ensure reliable order fulfillment and shipment tracking operations.
+
+- Key Functionality: Tests the complete lifecycle of shipment records including creation, retrieval (by status and all), updates, and event logging. Validates HTTP response codes, data integrity, and business logic enforcement. Includes test scenarios for both success and failure cases, ensuring proper handling of prerequisite dependencies (quotes and orders). Provides helper methods for creating test data and setting up isolated test environments with memory-based repositories.
+
+- Purpose: Ensures the reliability and correctness of the shipment tracking system which is critical for Parts Unlimited's order fulfillment process. Validates that the controller properly manages shipment state transitions, maintains data consistency between related entities (orders, quotes, shipments), and handles edge cases appropriately. The tests guarantee that the shipment management functionality meets business requirements for tracking parts shipments through the supply chain, enabling effective order processing and customer service operations.
+
+#### DealerControllerTest.java
+
+- Role: Unit test class for validating the DealerController functionality in the Parts Unlimited MRP system, ensuring reliable dealer management operations within the manufacturing supply chain ecosystem.
+
+- Key Functionality: Comprehensive testing of dealer CRUD operations including adding dealers with validation (preventing null/empty IDs and duplicates), updating dealer information, retrieving individual dealers and dealer lists, and removing dealers. Tests verify proper HTTP status codes and error handling across all scenarios.
+
+- Purpose: To validate the dealer management component that supports supplier relationships and partner coordination in the manufacturing workflow. This ensures robust dealer data handling which is critical for parts procurement, order processing, and maintaining accurate supplier information throughout the MRP system's operations.
+
+#### OrderControllerTest.java
+
+- Role: This file serves as a comprehensive JUnit test suite for the OrderController class. Its primary role is to ensure the reliability, correctness, and robustness of the order management API endpoints by validating their behavior against expected outcomes in an isolated testing environment.
+
+- Key Functionality: The test suite validates the core functionalities of the order management system, including:
+    - Creating new orders from existing quotes.
+    - Retrieving individual orders by their unique ID.
+    - Filtering and retrieving orders based on dealer name.
+    - Adding tracking events to an order to record its progress.
+    - Updating an order's status through its lifecycle (e.g., Confirmed, Started, Shipped), which automatically generates audit events.
+    - Ensuring proper HTTP status codes and response headers are returned for all operations.
+
+- Purpose: The intended purpose of this test suite is to provide automated verification of the order management workflow, which is a critical component of the MRP system. By rigorously testing the OrderController, it ensures that business operations such as order creation, fulfillment tracking, and status updates are handled correctly and reliably. This builds confidence in the application's stability, prevents regressions during development, and safeguards the integrity of the order processing pipeline, which directly impacts customer satisfaction and operational efficiency.
+
+#### QuoteControllerTest.java
+
+- Role: QuoteControllerTest is a comprehensive test suite that validates the QuoteController REST API endpoints in the Parts Unlimited MRP system. It ensures the reliability and correctness of quote management operations within the order processing workflow.
+
+- Key Functionality: The test class provides thorough validation of all quote CRUD operations (Create, Read, Update, Delete) including edge cases like duplicate quote creation, null/empty ID handling, non-existent resource scenarios, and quote retrieval by customer name. It uses memory-based repositories for isolated testing and verifies both HTTP status codes and response bodies.
+
+- Purpose: This test class ensures the QuoteController operates reliably in the manufacturing order processing workflow, which is critical for generating accurate customer quotes in the supply chain management process. By validating all quote management endpoints, it guarantees that customers can receive proper price quotes, preventing errors in the order fulfillment pipeline and maintaining business integrity in the MRP system.
+
+#### CatalogControllerTest.java
+
+- Role: This file serves as a comprehensive unit test suite for the `CatalogController`. It is a quality assurance component responsible for validating the correctness, reliability, and robustness of the API endpoints that manage the parts catalog within the MRP system.
+
+- Key Functionality: The test class provides functionality to validate all Create, Read, Update, and Delete (CRUD) operations for catalog items. It includes tests for adding new items (including handling of invalid input and duplicates), upserting existing items, retrieving a single item or all items, and removing items. The suite also verifies that the controller returns appropriate HTTP status codes (e.g., 201, 200, 404, 400, 409) and correct response bodies for both success and failure scenarios. It sets up an isolated, in-memory test environment before each test to ensure test independence and repeatability.
+
+- Purpose: The primary purpose of this file is to ensure the stability and integrity of the parts catalog management feature, which is a critical component of the MRP system. By automating the verification of the controller's logic, it prevents bugs related to inventory data from reaching production, safeguarding the core data that drives manufacturing, ordering, and supply chain operations. This ensures that the system has a dependable source of truth for parts information, thereby reducing operational risks and maintaining confidence in the application's core business functions.
+
+
+### Package: `smpl.ordering.models`
+#### QuoteItemInfo.java
+
+- Role: Data Model Object representing a single line item within a sales quote.
+- Key Functionality: Encapsulates product SKU and pricing information. Provides standard JavaBean methods (getters/setters) for data access. Implements `Comparable` for sorting items by SKU and defines `equals`/`hashCode` for collection management.
+- Purpose: To provide a standardized, structured representation for quoted parts and their associated costs. This class is fundamental to the quoting and order processing workflow, ensuring that each item within a customer quote is uniquely identified by its SKU and has a defined price, which is essential for accurate inventory checks, order generation, and financial calculations within the MRP system.
+
+#### OrderStatus.java
+
+- **Role**: The `OrderStatus` enum is a core model component within the Parts Unlimited MRP system. Its role is to serve as the definitive, type-safe representation of an order's lifecycle state, providing a shared vocabulary across the order processing, web front-end, and integration services.
+
+- **Key Functionality**: This enum defines a fixed set of nine named constants—`None`, `Created`, `Confirmed`, `Started`, `Built`, `DeliveryConfirmed`, `Shipped`, `Delivered`, and `Installed`—that map to the sequential stages of an order fulfillment process. It provides a robust mechanism for tracking and managing order progression without complex logic or additional methods.
+
+- **Purpose**: The intended purpose is to enforce a clear, standardized workflow for order fulfillment within the manufacturing and supply chain domain. It enables the system to track an order from initial creation through production, shipment, and final installation. This standardization is critical for triggering business logic (e.g., notifications, billing), providing operational visibility, communicating status updates to customers, and ensuring data consistency during integration with external logistics or accounting systems.
+
+#### ShipmentEventInfo.java
+
+- Role: This class acts as a Data Transfer Object (DTO) or a simple model class within the shipment tracking subsystem of the MRP application. It is designed to encapsulate the data for a single event or milestone that occurs during the lifecycle of a shipment, such as "Departed Warehouse" or "Out for Delivery."
+
+- Key Functionality: The ShipmentEventInfo class provides a container for two key pieces of information: the `date` of the event and `comments` describing it. It follows standard JavaBean conventions with getters and setters for both fields. A critical piece of functionality is the `validate()` method, which enforces the business rule that comments must be provided for every shipment event, ensuring that each logged event has necessary contextual details.
+
+- Purpose: The primary purpose of this class is to enable granular and reliable tracking of shipments through the supply chain. By standardizing how individual shipment events are recorded and mandating that each event includes descriptive comments, it enhances visibility into the order fulfillment process. This facilitates better operational oversight, improves customer service with detailed tracking updates, and creates an auditable log for diagnosing delivery issues or delays.
+
+#### Quote.java
+
+- Role: The Quote class serves as a core domain model in the Parts Unlimited MRP system, representing the primary data structure for managing customer quotes within the order processing and quote generation modules. It acts as the central data container that integrates customer information, pricing details, and inventory items across the manufacturing resource planning workflow.
+
+- Key Functionality: The class provides comprehensive quote management capabilities including quote identification, customer and dealer information tracking, validity period management, location-based data storage, financial calculations with discount support, and a dynamic collection system for quote items. It includes data validation through JSON-formatted error reporting, proper object equality comparisons, and maintains collection integrity through lazy initialization of quote items.
+
+- Purpose: This class enables the MRP system to generate, track, and manage quotes for manufacturing parts and supplies, supporting the complete quote-to-order lifecycle. It facilitates business operations by providing a structured approach to quote generation, allowing customers to receive detailed pricing information with validity periods, while integrating with the inventory management system to ensure accurate parts availability and pricing. The class serves as a critical component in the order fulfillment pipeline, bridging customer requirements with manufacturing capabilities and supplier management processes.
+
+#### ShipmentRecord.java
+**Role**: ** ShipmentRecord is a core data model class in the MRP system that encapsulates shipment tracking information, serving as the primary data structure for monitoring and managing the movement of parts and orders through the supply chain.
+**Key Functionality**: ** - Stores comprehensive shipment details including order ID, delivery date, and delivery address - Manages contact information with primary and alternate phone numbers - Maintains a chronological timeline of shipment events through an event tracking system - Provides data validation to ensure shipment integrity before processing - Supports both creation and cloning of shipment records - Implements JavaBean pattern for data access and modification
+**Purpose**: ** This class serves as the foundational data structure for shipment tracking functionality in the Parts Unlimited MRP system, enabling the organization to monitor, validate, and coordinate the physical delivery of parts throughout the manufacturing supply chain. It maintains critical delivery and contact information needed for successful order fulfillment while providing a historical record of shipment progress to support production planning and customer communication.
+
+#### Delivery.java
+
+**File-Level Summary for Delivery.java**
+
+- **Role:** The Delivery class serves as a composite model in the Parts Unlimited MRP system, acting as a central data structure that aggregates three critical business entities: Quote, Order, and ShipmentRecord. It functions as a domain model that represents the complete lifecycle of a delivery transaction within the order processing workflow.
+
+- **Key Functionality:** The class provides encapsulation and controlled access to delivery-related data through standard JavaBean getter/setter methods. It manages the association between price quotations, customer orders, and shipment records, enabling the system to maintain a unified view of the entire delivery process from initial pricing to final shipment tracking.
+
+- **Purpose:** The Delivery class aims to streamline the order fulfillment process by providing a cohesive data structure that links quotes, orders, and shipment information. This design facilitates efficient tracking of delivery status, enables comprehensive reporting across the entire order lifecycle, and supports business operations such as order processing, shipment coordination, and customer service inquiries within the manufacturing supply chain management domain.
+
+#### CatalogItem.java
+
+- Role: CatalogItem serves as a core data model class in the Parts Unlimited MRP system, representing individual parts or products within the manufacturing and supply chain inventory catalog.
+
+- Key Functionality: Encapsulates essential product information including SKU number, description, price, inventory levels, and lead times; provides multiple construction patterns (default, parameterized, and copy constructors); implements standard JavaBean property accessors for all fields; includes built-in validation for mandatory fields (SKU and description) to ensure data integrity.
+
+- Purpose: To provide a structured, validated representation of catalog items that supports inventory management, order processing, and supply chain operations within the MRP system. This class enables tracking of product availability, pricing, and restocking timelines while maintaining data consistency across the manufacturing resource planning application.
+
+#### OrderEventInfo.java
+
+- **Role:** A foundational data model class within the ordering service, designed to represent a single, timestamped event in an order's lifecycle. It acts as a simple, structured container for logging key milestones as an order is processed.
+
+- **Key Functionality:** The class encapsulates two primary pieces of information: a `date` string and a `comments` string. It provides multiple constructors for flexibility: one to create a new event entry with the current timestamp, another to populate an object from existing data, and a default constructor. Standard getter and setter methods are included to manage access to its internal state.
+
+- **Purpose:** The purpose of this class is to enable granular tracking and historical logging of an order's progress within the MRP system. By capturing the date and a descriptive comment for each significant event (e.g., "Order Placed," "Shipment Dispatched"), it provides the essential data for creating an order history timeline, supporting audit trails, answering customer inquiries, and analyzing fulfillment processes.
+
+#### PhoneInfo.java
+
+- Role: A fundamental data model class that represents contact information within the MRP system. It serves as a reusable component for other entities like customers, suppliers, or employees, providing a standardized structure for storing phone numbers.
+- Key Functionality: Encapsulates a phone number string and its associated 'kind' or type (e.g., 'Mobile', 'Work', 'Shipping'). Provides standard getter and setter methods to manage these two properties, enabling controlled access to the contact data.
+- Purpose: The purpose of the PhoneInfo class is to provide a structured and consistent way to store contact details, which are critical for various manufacturing workflows. By distinguishing between different types of phone numbers, it helps streamline communication processes such as order confirmation, supplier negotiation, and shipment coordination, ultimately enhancing operational efficiency in the supply chain.
+
+#### Order.java
+
+- Role: This class acts as the core data model (or entity) for customer orders within the MRP system. It encapsulates all the essential information and state related to a single order, serving as the primary object that other services and components interact with to manage the order lifecycle.
+
+- Key Functionality:
+  - Manages core order attributes such as a unique `orderId`, link to a pre-sales `quoteId`, an `orderDate`, and a current `status`.
+  - Provides an immutable audit trail through an `events` list, allowing for chronological tracking of all order-related activities (e.g., creation, payment, shipment).
+  - Includes built-in data validation logic to ensure the integrity of critical fields like `quoteId` and `orderDate` before processing or persistence.
+  - Implements standard object equality and hashing based on its fields, enabling its use in hash-based collections and comparisons.
+  - Follows JavaBean conventions with getters and setters for controlled access to its internal state.
+
+- Purpose: The purpose of the `Order` class is to provide a robust and reliable representation of a manufacturing order. It serves as the central, stateful entity that enables the system to track an order's entire lifecycle—from a quote to final shipment—ensuring data integrity and providing a clear audit trail for supply chain visibility and operational control.
+
+#### DeliveryAddress.java
+
+- Role: DeliveryAddress is a fundamental data model class in the Parts Unlimited MRP system that encapsulates delivery address information for order fulfillment and shipment tracking processes. It serves as a core entity used throughout the order processing and supply chain management workflows.
+
+- Key Functionality: The class provides comprehensive address data management through standard JavaBean patterns, including storage and retrieval of street, city, state, postalCode, and special delivery instructions. It includes built-in validation logic to ensure address completeness, specifically verifying that city and postalCode fields are populated before an address is considered valid for processing. The class implements proper encapsulation with private fields and public accessor methods.
+
+- Purpose: This class standardizes delivery address representation across the MRP system, ensuring consistent data handling for customer orders, supplier shipments, and internal logistics. By providing a validated address model, it enables accurate shipment coordination, reduces delivery errors, and supports the manufacturing workflow's order fulfillment component. The special instructions field allows for handling unique delivery requirements common in manufacturing supply chains, adding flexibility to accommodate specific customer or supplier needs during parts procurement and distribution.
+
+#### DealerInfo.java
+
+## File-Level Summary for DealerInfo.java
+
+- **Role**: DealerInfo.java is a core data model class in the ordering subsystem that encapsulates dealer/supplier information within the Parts Unlimited MRP system. It serves as a foundational entity class that represents business partners in the manufacturing supply chain, enabling the system to maintain consistent dealer data across order processing, procurement, and communication workflows.
+
+- **Key Functionality**: The class provides comprehensive dealer data management with five key attributes (name, contact, address, email, phone), three constructor options for flexible object creation (default, name-initialized, and copy), built-in data validation with JSON-formatted error reporting, and standard JavaBean accessors/mutators for integration with other system components. The validation method ensures data integrity before dealer information is persisted or processed.
+
+- **Purpose**: In the manufacturing and supply chain domain, this class enables effective dealer relationship management by providing a structured way to store and validate supplier contact information. It supports critical business functions including parts procurement from dealers, order fulfillment coordination, quote generation processes, and communication channel management. The class plays a vital role in maintaining accurate dealer records that are essential for smooth MRP operations, inventory management, and supplier coordination within the Parts Unlimited manufacturing ecosystem.
+
+#### OrderUpdateInfo.java
+
+- Role: OrderUpdateInfo acts as a data model or Data Transfer Object (DTO) within the ordering system. Its primary role is to encapsulate and transport information about a specific change or update to an order's lifecycle, enabling clear communication between different components of the MRP application.
+- Key Functionality: The class holds two core pieces of data: an OrderStatus enum representing the new state of an order and an OrderEventInfo object containing contextual details like a timestamp and comments. It provides constructors to initialize this data, including one that automatically timestamps the event, along with standard getter and setter methods for accessing and modifying the status and event information.
+- Purpose: The purpose of this class is to provide a structured, auditable record of order state transitions. By capturing not just the new status but also the "when" and "why" (via comments and timestamp), it creates a reliable audit trail for each order. This is crucial for order tracking, customer service inquiries, operational analysis, and ensuring transparency throughout the order fulfillment process within the manufacturing and supply chain domain.
+
+
+### Package: `smpl.ordering.repositories`
+#### QuoteRepository.java
+
+- Role: QuoteRepository is a data access abstraction layer following the Repository pattern that defines the contract for all quote persistence operations in the MRP system, decoupling business logic from data storage mechanisms.
+
+- Key Functionality: Provides complete CRUD operations for Quote objects including creation, retrieval by ID, batch queries by customer/dealer names, update and delete operations with ETag-based optimistic concurrency control, and exception handling for invalid request scenarios.
+
+- Purpose: Serves as the central data access contract for managing customer quotes throughout their lifecycle in the manufacturing and supply chain domain, ensuring data integrity during concurrent operations and enabling quote tracking, retrieval, and modification capabilities essential for the order processing workflow.
+
+#### ShipmentRepository.java
+
+- Role: The `ShipmentRepository` serves as a data access layer component, defining the contract for all database operations related to shipment records. It decouples the application's shipment tracking business logic from the underlying data persistence mechanism (e.g., MongoDB). In the MRP system's architecture, it acts as the single source of truth for creating, reading, updating, and deleting shipment data.
+
+- Key Functionality: This interface defines the core capabilities for shipment management, including:
+    - Retrieving shipments, either by a unique ID or by their current status (e.g., SHIPPED, DELIVERED).
+    - Creating new shipment records, including initial validation.
+    - Updating existing shipment details.
+    - Adding lifecycle events to a shipment's history, which is crucial for tracking.
+    - Removing shipment records using optimistic locking to ensure data integrity.
+
+- Purpose: The primary purpose of this interface is to provide a standardized, reliable, and maintainable way to manage the entire lifecycle of a shipment within the Parts Unlimited MRP system. By defining a clear contract, it enables the core functionalities of order fulfillment and shipment coordination. It ensures that operations like tracking a package, updating its status, and managing shipment data are handled consistently, which is critical for meeting customer expectations and optimizing the supply chain. The inclusion of concurrency control (`eTag`) and event tracking directly supports the business need for accurate, real-time visibility into shipment status.
+
+#### DealersRepository.java
+
+### File Summary: DealersRepository.java
+
+- **Role**: This file defines a repository interface that abstracts the data access layer for managing dealer/partner information within the Parts Unlimited MRP system. It serves as a contract between the business logic layer and the data persistence layer, following the Repository pattern to ensure clean separation of concerns.
+
+- **Key Functionality**: 
+  - Retrieve all dealers in the system (`getDealers()`)
+  - Fetch specific dealer information by name (`getDealer()`)
+  - Create or update dealer records with optimistic concurrency control via eTag (`upsertDealer()`)
+  - Remove dealer records with concurrency protection (`removeDealer()`)
+  - Provides type-safe data access methods for DealerInfo objects
+
+- **Purpose**: The DealersRepository enables the MRP system to effectively manage supplier and distributor relationships critical to the manufacturing supply chain. It ensures reliable and concurrent-safe access to dealer information which is essential for parts procurement, order processing, quote generation, and shipment coordination. By centralizing dealer data access through this interface, the system maintains data consistency, supports scalable operations, and facilitates testing and future implementation changes to the data storage mechanism.
+
+#### CatalogItemsRepository.java
+
+- Role: This interface defines the data access contract for the central parts catalog within the MRP system. It abstracts the underlying storage mechanism, enabling the application to interact with parts inventory data without being tied to a specific database technology.
+
+- Key Functionality: It provides a full set of CRUD (Create, Read, Update, Delete) operations for managing `CatalogItem`s. This includes retrieving all items, fetching a specific item by its SKU, and performing concurrency-safe upserts (create/update) and deletions using an `eTag` to prevent data conflicts in a multi-user environment.
+
+- Purpose: The primary purpose of this interface is to enable the MRP application to reliably manage its master parts catalog. This is foundational for critical business processes such as generating quotes, processing customer orders, and planning production. By providing a stable, concurrency-safe API, it ensures the integrity of core product data, which is essential for accurate inventory management and supply chain operations.
+
+#### OrderRepository.java
+
+- Role: Acts as the data access abstraction layer for order management, defining a contract between the application's business logic (services) and the underlying persistence mechanism (e.g., MongoDB). It is the central gateway for all order-related data operations within the MRP system.
+
+- Key Functionality: Provides a full set of CRUD (Create, Read, Update, Delete) operations for `Order` entities. Includes specialized query methods to find orders by status, dealer name, or associated quote ID. It also integrates optimistic locking via ETags to ensure data integrity during concurrent updates and deletions.
+
+- Purpose: To centrally manage the entire lifecycle of customer orders within the MRP system. This interface enables core business processes such as order creation, fulfillment tracking, status updates, and retrieval, which are essential for the manufacturing and supply chain operations. Its abstraction promotes a clean, testable architecture and ensures consistent, safe (concurrency-aware) handling of all order data.
+
+#### RepositoryFactory.java
+
+- Role: RepositoryFactory serves as the central factory class in the Parts Unlimited MRP system, implementing the Factory pattern to provide appropriate repository implementations based on storage configuration. It acts as the main access point for all data repository instances in the manufacturing and supply chain management application.
+
+- Key Functionality: Provides static factory methods for obtaining repository instances for catalog items, dealers, orders, quotes, and shipments; supports both in-memory mock repositories (for testing) and MongoDB repositories (for production); implements singleton pattern with thread-safe global access; enables runtime switching between storage backends; centralizes all repository creation and dependency injection logic.
+
+- Purpose: The class abstracts the data access layer from business logic, allowing the MRP system to seamlessly operate in different environments (development/testing vs. production) without code changes. It provides a clean separation between the application's manufacturing operations and its persistence mechanism, enabling efficient management of parts inventory, orders, shipments, and supplier data while supporting the system's requirements for catalog management, order processing, quote generation, and shipment tracking.
+
+#### CatalogItemsRepositoryTest.java
+
+- Role: This is a unit test class that validates the catalog repository layer, which is a critical component in the Parts Unlimited MRP system for managing parts inventory and product information. The class ensures the reliability of data access operations that support manufacturing workflows, parts procurement, and order fulfillment processes.
+
+- Key Functionality: The test class provides comprehensive validation of catalog repository operations including retrieval of all catalog items, individual item lookups by SKU, upsert operations for adding or updating parts information, and removal of items from inventory. It tests both positive scenarios (successful operations) and edge cases (non-existent items), with specific focus on data integrity, pricing accuracy, and proper state management of the parts catalog.
+
+- Purpose: The primary purpose is to ensure the catalog management system functions correctly, which is essential for maintaining accurate parts inventory, supporting production planning, and enabling proper order processing in the manufacturing supply chain. By validating CRUD operations and business rules, this test class helps guarantee that the MRP system can reliably manage parts data critical to manufacturing operations, supplier relationships, and customer order fulfillment.
+
+#### QuoteRepositoryTest.java
+
+- Role: This file serves as a comprehensive unit test suite for the `QuoteRepository` class, validating the core data persistence logic for quote management within the Parts Unlimited MRP system.
+- Key Functionality: The key functionality includes setting up a controlled test environment with mock data and systematically testing all major repository operations. This covers verifying the retrieval of individual quotes and lists of quotes by customer, as well as testing the creation, update, and deletion of quote records. The tests also validate error handling for scenarios like duplicate creation or operations on non-existent entities.
+- Purpose: The purpose is to ensure the reliability, correctness, and robustness of the quote data management subsystem. By rigorously testing the repository's behavior, this class guarantees the integrity of quote data throughout its lifecycle, which is essential for accurate order processing, pricing, and subsequent manufacturing and supply chain operations within the MRP application.
+
+#### DealersRepositoryTest.java
+
+- Role: This is a comprehensive unit test class for the Dealers Repository component in the MRP system, serving as the primary validation layer for dealer data management functionality within the supply chain and inventory management architecture.
+
+- Key Functionality: The class provides complete CRUD (Create, Read, Update, Delete) testing for dealer repository operations including data retrieval, upsert operations (both insert and update scenarios), dealer removal by ID, and bulk dealer listing. It includes test data setup, verification of data consistency, and edge case handling for non-existent dealer records.
+
+- Purpose: The test class ensures reliable dealer information management, which is critical for the MRP system's supply chain operations. By validating dealer repository functionality, it guarantees that the manufacturing system can maintain accurate supplier/dealer contact information, support parts procurement workflows, and enable seamless integration with order processing and fulfillment systems. This testing framework ensures data integrity for dealer relationships that are essential for manufacturing operations and parts catalog management.
+
+#### OrderRepositoryTest.java
+
+- Role: Acts as the comprehensive unit test suite for the `OrderRepository` class, which is the core data access component for order entities in the MRP system.
+- Key Functionality: Provides a suite of test methods that validate the full lifecycle of order data persistence. This includes testing the creation of new orders, retrieval by ID and various business criteria (quote ID, dealer, status), updating order details and status, and handling of edge cases like duplicate creation or non-existent records.
+- Purpose: To ensure the reliability, correctness, and robustness of the `OrderRepository` data access layer. By validating all core order management operations, this test class guarantees the integrity of order data, which is fundamental for accurate order processing, fulfillment, and tracking within the Parts Unlimited MRP system.
+
+#### ShipmentRepositoryTest.java
+
+- Role: This class functions as the unit test suite for the `ShipmentRepository`, validating the core data access logic for the shipment management component within the Parts Unlimited MRP system.
+
+- Key Functionality: The class provides tests for the complete CRUD (Create, Read, Update, Delete) lifecycle of shipment records. This includes verifying the creation of new shipments (and preventing duplicates), retrieving individual shipments by ID and querying collections by order status, and updating shipments by adding tracking events. It also establishes a repeatable test environment by populating interconnected repositories with sample data.
+
+- Purpose: The primary purpose of this file is to ensure the reliability, correctness, and data integrity of the shipment management functionality. By rigorously testing the repository layer, it guarantees that critical business operations like tracking order fulfillment, managing shipment statuses, and logging delivery events are performed accurately. This provides confidence in the system's ability to support the manufacturing and supply chain processes, from order fulfillment to final delivery, ultimately safeguarding customer satisfaction and operational efficiency.
+
+
+### Package: `smpl.ordering.repositories.mock`
+#### MockOrderRepository.java
+
+- Role: MockOrderRepository serves as an in-memory, mock implementation of the OrderRepository interface within the Parts Unlimited MRP system's ordering subsystem. It acts as a testable development component that simulates database operations without requiring actual database connectivity, enabling streamlined development and testing of order management workflows.
+
+- Key Functionality: The repository provides comprehensive order management capabilities including CRUD operations (Create, Read, Update with Delete stubbed), multiple query methods (by ID, status, dealer name, and quote ID), quote-to-order conversion with validation, order lifecycle management through status updates and event tracking, and thread-safe unique ID generation. It includes filtering capabilities for orders by various criteria and maintains relationships with the QuoteRepository for cross-referencing order data.
+
+- Purpose: This class aims to provide a lightweight, dependency-free solution for managing manufacturing orders in the supply chain workflow. It supports the business process of transforming quotes into orders while maintaining data integrity, enables order tracking through the fulfillment pipeline, and facilitates dealer-specific order management. The mock implementation is particularly valuable for testing the MRP system's order processing logic, quote conversion workflows, and integration between different service components without the overhead of database setup and management.
+
+#### MockShipmentRepository.java
+
+- Role: MockShipmentRepository is an in-memory test implementation of the ShipmentRepository interface that simulates shipment data persistence for the Parts Unlimited MRP system. It serves as a test double for production shipment repositories, enabling unit testing and development without requiring database connectivity.
+
+- Key Functionality: Provides complete CRUD operations for shipment records including creation, retrieval by ID and status filtering, updates, and event tracking. The repository maintains an internal collection of ShipmentRecord objects, validates order existence through OrderRepository integration, prevents duplicate shipments, and supports adding shipment tracking events. It includes utility functions for resetting the test data state.
+
+- Purpose: Enables testing and development of shipment management functionality in the manufacturing supply chain workflow without external dependencies. This mock repository validates business rules for shipment creation, maintains data integrity during order fulfillment, and supports the tracking of shipment events that are critical for manufacturing resource planning and customer order visibility. It bridges order processing with shipment tracking, ensuring seamless integration in the MRP system's order fulfillment process.
+
+#### MockQuoteRepository.java
+
+**File-Level Summary: MockQuoteRepository.java**
+
+- **Role**: This class serves as a mock implementation of the QuoteRepository interface within the Parts Unlimited MRP system, providing an in-memory, mock data store for quote management operations. It acts as a testing/development substitute for the production database repository, enabling quote lifecycle management without requiring external database connectivity.
+
+- **Key Functionality**: 
+  - Complete CRUD operations for quotes (create, read, update, delete)
+  - Quote retrieval by ID with linear search
+  - Customer-based quote search with case-insensitive partial matching
+  - Dealer-based quote ID retrieval
+  - Automatic quote ID generation using random numbers
+  - Dealer validation and automatic creation through repository integration
+  - State reset functionality for testing scenarios
+  - Duplicate quote prevention during creation
+
+- **Purpose**: This mock repository provides essential quote management capabilities for the manufacturing order processing workflow in the MRP system. It enables price quotation generation, tracking, and management for parts and services while maintaining data integrity through dealer validation and unique ID generation. As a mock implementation, it facilitates development and testing by eliminating database dependencies while preserving the full business logic of quote operations critical to the manufacturing supply chain management process.
+
+#### MockDealersRepository.java
+
+- Role: `MockDealersRepository` serves as an in-memory, test-double implementation of the `DealersRepository` interface. It provides a simplified, non-persistent data store for `DealerInfo` objects, enabling unit and integration testing of the ordering service without requiring a live database connection. This role is critical for maintaining fast and isolated test cycles within the MRP system's development pipeline.
+
+- Key Functionality: The repository provides a full suite of CRUD (Create, Read, Update, Delete) operations for managing dealer data. Key functionalities include: retrieving a list of all dealers, fetching a specific dealer by name (case-insensitive), inserting new dealers or updating existing ones (upsert), and removing dealers by name. A distinct feature is the `reset()` method, which clears the entire in-memory collection, making it ideal for test isolation. All data retrieval methods use defensive copying to prevent external modification of the internal state.
+
+- Purpose: The primary purpose of `MockDealersRepository` is to facilitate testing and development of the MRP application's dealer-dependent functionalities. By simulating the behavior of a persistent data store, it allows developers to validate business logic related to supplier selection, order assignment, and quote generation in a controlled environment. This isolation from the production database (MongoDB) accelerates the development cycle, simplifies test setup, and ensures that the core ordering logic functions correctly before integration with the full system.
+
+#### MockCatalogItemsRepository.java
+
+- Role: This class serves as a mock, in-memory data access layer for catalog items within the Parts Unlimited MRP system. It simulates a `CatalogItemsRepository`, standing in for a persistent database implementation to support testing, development, and demonstration efforts without requiring external database connectivity.
+
+- Key Functionality: The repository provides a complete set of CRUD (Create, Read, Update, Delete) operations for managing `CatalogItem` objects. This includes retrieving all catalog items, finding a specific item by its SKU (using case-insensitive comparison), adding new items, updating existing ones (upsert operation), and removing items. It also includes a `reset` method to clear its state, and it is pre-populated with sample automotive parts data upon initialization.
+
+- Purpose: The primary purpose of this mock repository is to facilitate the development and testing of other MRP application components, such as order processing or quote generation services. By offering a fast, predictable, and self-contained data source, it allows developers to validate business logic and run automated tests in isolation, accelerating the development cycle and ensuring application features work correctly against a simulated catalog of parts.
+
+
+### Package: `smpl.ordering.repositories.mock.test`
+#### MockCatalogItemsRepositoryTest.java
+
+- Role: Test class that validates the mock implementation of the catalog items repository in the MRP system
+- Key Functionality: Inherits test methods from parent class and configures test environment to use in-memory repositories; includes tests for catalog item retrieval, upsert, and removal operations
+- Purpose: Ensures catalog items repository functionality works correctly with mock storage, providing fast and isolated testing for inventory management operations without database dependencies; validates that parts catalog management features behave as expected in the Parts Unlimited MRP system
+
+#### MockDealersRepositoryTest.java
+
+- Role: This class acts as a test configuration class that executes a standardized suite of dealer repository tests against a mock, in-memory implementation of the repository, providing test isolation and speed within the MRP application's testing framework.
+- Key Functionality: The primary functionality is to configure the test environment to use in-memory repositories via the `RepositoryFactory`. It then inherits and executes a complete set of CRUD (Create, Read, Update, Delete) tests for dealer entities from its parent class, `DealersRepositoryTest`, without adding new test logic.
+- Purpose: The purpose is to enable fast, isolated, and reliable testing of the dealers repository logic without the overhead and dependency of a live database. By running the same test suite against both the persistent and mock repositories, it ensures the mock implementation behaves consistently and serves as a valid, lightweight substitute for development and other testing scenarios.
+
+#### MockQuoteRepositoryTest.java
+
+- Role: The `MockQuoteRepositoryTest` class serves as a specialized test suite designed to validate the behavior of the quote repository when the system is configured to use a lightweight, in-memory data store. It acts as a test configuration class that inherits a standard set of repository tests from a parent class, ensuring those tests are executed against a mock implementation rather than a live database.
+- Key Functionality: The main functionality is to configure the test environment and execute inherited test cases. It configures the `RepositoryFactory` to use an in-memory "memory" repository type before each test run. It then inherits and runs a full suite of tests for CRUD (Create, Read, Update, Delete) operations on quotes, including creating a new quote, retrieving quotes (by ID and by customer name), updating an existing quote, and removing a quote.
+- Purpose: The primary purpose is to provide a reliable, fast, and isolated testing environment for the quote data access layer. By using a mock repository, the tests are decoupled from external dependencies like MongoDB, resulting in quicker execution and eliminating potential failures due to database connectivity or state issues. This ensures that the core logic for managing quotes—a critical component in the MRP order processing workflow—is fundamentally sound before integration with other system parts.
+
+#### MockShipmentRepositoryTest.java
+
+- Role: This class serves as a specialized test harness for the shipment repository functionality in the Parts Unlimited MRP system, providing mock-based testing capabilities with in-memory data storage to isolate unit tests from external dependencies.
+
+- Key Functionality: The class provides a complete test suite for shipment repository operations including retrieving shipments by ID, querying all shipments, creating new shipments, updating existing shipments, and adding shipment events. Its primary contribution is the configuration of in-memory repositories through the setUp method, which enables fast, isolated testing without requiring database connectivity.
+
+- Purpose: This test class ensures the reliability and correctness of the shipment management system's data persistence layer. By using mock repositories with in-memory storage, it enables rapid automated testing of shipment lifecycle operations critical to the manufacturing supply chain, validating that orders can be properly tracked, updated, and managed throughout the fulfillment process without the overhead of database setup and teardown.
+
+#### MockOrderRepositoryTest.java
+
+- Role: MockOrderRepositoryTest is a specialized test class that extends base order repository tests to run with in-memory storage, providing isolated and fast unit testing for the MRP system's order management data layer.
+
+- Key Functionality: Provides comprehensive testing of order repository operations including order existence checks, retrieval by various criteria (ID, quote ID, status, dealer name), order creation, and order updates. The class configures all repository operations to use memory-based storage rather than persistent database storage.
+
+- Purpose: Ensures the reliability and correctness of the order data access layer in Parts Unlimited MRP system by validating all CRUD operations and query functionality. This testing approach supports manufacturing workflows by verifying that order data can be properly managed during parts procurement, customer order processing, and shipment coordination without affecting production databases, enabling safe and efficient validation of the core ordering functionality that drives the manufacturing resource planning operations.
+
+
+### Package: `smpl.ordering.repositories.mongodb`
+#### MongoShipmentRepository.java
+
+- **Role**: MongoShipmentRepository is a critical data access component in the Parts Unlimited MRP system that serves as the primary interface for all shipment-related database operations. It implements the repository pattern to abstract MongoDB interactions and provides a clean API for shipment management within the order fulfillment workflow.
+
+- **Key Functionality**: The repository provides comprehensive CRUD operations for shipment records including retrieving shipments by status or ID, creating new shipments with validation, updating existing records, and removing shipments. It also manages shipment events to track the lifecycle of order fulfillment, integrates with the OrderRepository to ensure data consistency, and includes a reset function for testing scenarios. The implementation uses MongoDB with Spring Data's MongoOperations and includes retry mechanisms for operational resilience.
+
+- **Purpose**: This class enables the MRP system to track physical shipments from order creation through delivery, providing essential visibility into the manufacturing supply chain. It validates business rules such as preventing duplicate shipments and ensuring shipments are only created for existing orders. By maintaining a persistent record of shipment events, it supports audit trails and enables customers and internal stakeholders to monitor order progress, ultimately improving transparency and reliability in the parts fulfillment process.
+
+#### MongoOperationsWithRetry.java
+
+- Role: MongoOperationsWithRetry serves as a resilient database access wrapper in the Parts Unlimited MRP system, providing enhanced MongoDB operations with automatic retry capabilities and comprehensive monitoring through Application Insights telemetry.
+
+- Key Functionality: The class wraps Spring Data's MongoOperations interface to add retry logic specifically for socket timeout exceptions, automatic telemetry tracking for all database operations, and delegation of all standard MongoDB CRUD and aggregation operations. Key capabilities include collection management, query execution, find/modify operations, bulk updates, and map-reduce operations with built-in resilience.
+
+- Purpose: This wrapper class enhances database reliability in the manufacturing resource planning application by automatically handling transient network failures (socket timeouts) through retry logic while providing operational visibility through telemetry tracking. It ensures robust data persistence for critical manufacturing operations like parts inventory management, order processing, and shipment tracking while maintaining observability for system monitoring and performance optimization.
+
+#### MongoDealersRepository.java
+
+- Role: The MongoDealersRepository class serves as the dedicated data access layer for dealer information within the Parts Unlimited MRP system. It is the primary component responsible for all interactions with the MongoDB collection that stores dealer data, abstracting the database operations from the rest of the application.
+
+- Key Functionality: This repository provides comprehensive CRUD (Create, Read, Update, Delete) operations for dealer records. Key capabilities include retrieving all dealers or a specific dealer by name, adding new dealers, updating existing dealer information, and removing dealers. It also includes a function to reset the entire dealer collection, likely for testing purposes. A core aspect of its design is the transformation between the internal `Dealer` MongoDB entity and the public `DealerInfo` data transfer object, ensuring a clean separation between the database schema and the application's API layer.
+
+- Purpose: The purpose of this class is to provide a centralized, reliable, and persistent store for managing the business's network of dealers or customers. In the context of manufacturing and supply chain, this is critical for core operations such as order processing, customer relationship management, and shipment coordination. By managing dealer data effectively, the system can accurately identify customers, process orders, and support the entire order-to-fulfillment workflow, which is fundamental to the MRP application's business value.
+
+#### MongoQuoteRepository.java
+
+- Role: This class serves as the concrete data access layer for quote management within the Parts Unlimited MRP system. It implements the `QuoteRepository` interface, acting as the bridge between the application's business logic and the MongoDB database where quote data is persisted.
+
+- Key Functionality: The `MongoQuoteRepository` provides the full spectrum of data operations for managing quotes. This includes creating new quotes with automatic ID generation and dealer validation, retrieving quotes by ID, customer name, or dealer name, updating existing quote information, and deleting quotes. It also enforces data integrity by ensuring dealer information exists when quotes are created or updated.
+
+- Purpose: The primary purpose of this file is to provide a reliable and centralized mechanism for persisting and retrieving quote data, which is a critical component of the MRP system's sales and order fulfillment cycle. It abstracts the complexities of MongoDB interactions, enabling the rest of the application to manage quotes through a simple, programmatic interface, thereby supporting the core business process of generating and tracking price quotes for manufactured parts.
+
+#### MongoOrderRepository.java
+
+- Role: The MongoOrderRepository serves as the primary data access layer for order management in the Parts Unlimited MRP system, implementing the OrderRepository interface to bridge application business logic with MongoDB persistence.
+
+- Key Functionality: Provides comprehensive CRUD operations for orders including existence checking, retrieval by ID/status/dealer, creation from quotes, updates with version control, and removal. Features thread-safe order ID generation, quote-based order lookup, dealer-specific filtering, and database reset capabilities for testing. Integrates with QuoteRepository for maintaining quote-order relationships in the manufacturing workflow.
+
+- Purpose: Enables robust order lifecycle management in the manufacturing supply chain by providing a reliable, thread-safe persistence mechanism for tracking orders from creation through fulfillment. Supports critical business functions including order validation against quotes, status progression tracking, dealer order management, and integration with the broader MRP ecosystem for seamless manufacturing resource planning and order processing operations.
+
+#### MongoCatalogItemsRepository.java
+
+- Role: This class serves as the MongoDB implementation of the CatalogItemsRepository interface, acting as the primary data access layer for catalog items (manufacturing parts) within the Parts Unlimited MRP system's ordering module. It bridges the application's catalog management functionality with MongoDB database storage, providing persistence capabilities for parts inventory data.
+
+- Key Functionality: Provides comprehensive CRUD (Create, Read, Update, Delete) operations for catalog items including retrieving all parts, finding specific parts by SKU, upserting (update or insert) parts with SKU-based identification, removing parts from inventory, and database reset capabilities. The implementation includes retry logic through MongoOperationsWithRetry for enhanced resilience and atomic database operations to ensure data consistency.
+
+- Purpose: Enables efficient management of manufacturing parts catalog data in the supply chain system, supporting core MRP workflows like inventory management, order processing, and parts procurement. The repository ensures reliable storage and retrieval of parts information with unique SKU identification, which is essential for maintaining accurate inventory records, facilitating order fulfillment, and supporting production planning operations in the manufacturing domain.
+
+
+### Package: `smpl.ordering.repositories.mongodb.models`
+#### OrderDetails.java
+
+- Role: OrderDetails serves as a MongoDB document model class that represents order data persistence in the Parts Unlimited MRP system's repository layer, acting as the bridge between the application's domain model and the MongoDB database.
+
+- Key Functionality: The class provides comprehensive order data mapping with fields for unique identifiers (id, orderId, quoteId), temporal data (orderDate), status tracking, and event history. It offers bidirectional conversion capabilities through constructors that accept Order objects and a toOrder() method for transformation back to domain entities, along with standard JavaBean getter/setter methods for field access.
+
+- Purpose: This file enables reliable storage and retrieval of order information in the manufacturing resource planning system, maintaining complete order lifecycle through event tracking while supporting the MRP's order processing workflow. It provides structured persistence for manufacturing orders, facilitating inventory management, order fulfillment, and supply chain coordination by ensuring order data integrity throughout the production and shipment processes.
+
+#### Dealer.java
+
+- Role: The Dealer class serves as a MongoDB document model that represents dealer/distributor entities within the MRP system's data persistence layer, acting as a bridge between the application's business logic and the MongoDB database for dealer-related data storage.
+
+- Key Functionality: Provides a comprehensive data model for dealer information including identification, contact details, and address management; offers bidirectional conversion between MongoDB document format and business model (DealerInfo); supports Spring Data MongoDB integration for database operations through annotations and standard JavaBean patterns.
+
+- Purpose: Enables effective supplier and dealer relationship management within the manufacturing supply chain by providing structured storage and retrieval of dealer information critical for order processing, parts procurement, and shipment coordination in the MRP system.
+
+#### QuoteDetails.java
+
+- **Role:** The `QuoteDetails` class serves as a persistence model or entity within the MongoDB data access layer. It defines the document schema for storing quote information in the database, acting as a bridge between the application's business logic and the data store.
+
+- **Key Functionality:** The class encapsulates all the attributes of a quote, including a unique business identifier (`quoteId`), customer and dealer information, validity period, location, financial details (cost, discount), and a list of quoted parts (`quoteItems`). It provides functionality to map between this persistence model and a separate domain `Quote` object through a dedicated constructor and a `toQuote()` method, facilitating data transformation for storage and retrieval.
+
+- **Purpose:** The primary purpose of this class is to enable the durable storage and retrieval of detailed price quotes within the Parts Unlimited MRP system. By providing a structured way to persist quote data, it supports the critical business workflow of generating quotes for customers, tracking their validity, and ultimately converting them into orders. This class is essential for maintaining an audit trail of customer proposals and serves as the foundational data source for the order fulfillment process.
+
+#### ShipmentDetails.java
+
+- Role: `ShipmentDetails` serves as the primary MongoDB document model for storing and managing shipment data within the application's persistence layer. It represents the core data structure for shipment information in the database.
+
+- Key Functionality: The class encapsulates all essential shipment information, including a unique ID, a reference to the originating order (indexed for efficient lookups), delivery address, recipient contact details, and a chronological log of `ShipmentEventInfo` objects for tracking. It provides functionality to map to and from the `ShipmentRecord` business model, facilitating a clean separation between the database schema and other application layers.
+
+- Purpose: The purpose of `ShipmentDetails` is to provide a robust and structured mechanism for persisting the complete lifecycle of a shipment. This enables critical business functions such as order fulfillment by storing delivery information, real-time shipment tracking through its event log, and providing comprehensive visibility into the shipping process for both customers and internal users within the Parts Unlimited MRP system.
+
+#### CatalogItem.java
+
+- **Role**: The `CatalogItem` class serves as a MongoDB data entity, representing the persistence layer model for parts in the Parts Unlimited MRP system. It maps directly to a MongoDB document, defining the schema for storing catalog information in the database.
+
+- **Key Functionality**: The class defines the data schema for parts catalog information stored in MongoDB, including fields for SKU, description, price, inventory level, and procurement lead time. It provides constructors and methods for converting between this persistence model and the application's business model (`smpl.ordering.models.CatalogItem`), including applying business logic during the transformation.
+
+- **Purpose**: The primary purpose of this class is to facilitate the persistent storage and retrieval of parts catalog data within the MRP system. It enables the application to manage the core catalog of manufactured parts, including their pricing and inventory availability. By separating the data model from the business model, it allows the system to maintain a clean database schema while applying business logic, such as dynamic lead time calculation, during data transformation for orders and quotes.
+
+
+### Package: `smpl.ordering.repositories.mongodb.test`
+#### MongoDealersRepositoryTest.java
+
+- Role: MongoDealersRepositoryTest is a specialized JUnit test class responsible for verifying the functionality of the MongoDB implementation of the DealersRepository. It acts as the concrete test suite that runs a standardized set of repository tests against the MongoDB database, ensuring data persistence integrity for dealer information within the MRP system.
+
+- Key Functionality: The class's primary capabilities include: Configuring a clean MongoDB test environment before each test execution. Inheriting and executing a suite of common repository test cases (Get, Upsert, Remove) from its parent class, DealersRepositoryTest. Delegating all test logic to the parent, making this class an environment-specific runner for the generic tests.
+
+- Purpose: The intended purpose of this class is to validate the correctness and reliability of the MongoDB data access layer for dealer management. In the context of the MRP application, this ensures that supplier and partner data—which is critical for procurement, order fulfillment, and supply chain coordination—can be accurately created, retrieved, updated, and deleted. By providing this verification, the class helps maintain data integrity and prevents errors in core business operations that depend on dealer information.
+
+#### MongoShipmentRepositoryTest.java
+
+- Role: This class serves as a MongoDB-specific test implementation that validates the MongoDB repository backend for shipment operations in the MRP system. It extends the base shipment repository tests to ensure MongoDB integration correctly handles all shipment data operations.
+
+- Key Functionality: Inherits and executes the complete test suite for shipment repository operations including retrieval of shipments by ID, bulk shipment retrieval, shipment creation, updates, and event tracking. The class configures the repository factory to use MongoDB before running tests, ensuring all operations are validated against the MongoDB data store.
+
+- Purpose: Provides regression testing and validation for the MongoDB implementation of the shipment repository, ensuring data persistence and retrieval functions work correctly in the Parts Unlimited MRP system. This guarantees that MongoDB can reliably support the shipment tracking component of the manufacturing and supply chain operations, maintaining data integrity for order fulfillment and shipment coordination workflows.
+
+#### MongoQuoteRepositoryTest.java
+
+- Role: This is a specialized test class that validates the MongoDB implementation of the QuoteRepository within the Parts Unlimited MRP system's testing framework. It serves as a MongoDB-specific test harness that extends the generic quote repository tests.
+
+- Key Functionality: The class provides MongoDB-specific testing by configuring the RepositoryFactory to use MongoDB repositories and inheriting all standard quote repository test cases from its parent class. It tests essential quote operations including retrieval by quote ID, retrieval by customer name, quote creation, updates, and removal - all validated against MongoDB persistence.
+
+- Purpose: To ensure that the MongoDB implementation of quote management functionality works correctly and consistently with the expected business logic. This validates that critical quote operations for the manufacturing workflow function properly when using MongoDB as the data store, which is essential for reliable quote generation and management in the MRP system's order processing pipeline.
+
+#### MongoOrderRepositoryTest.java
+
+- Role: Test implementation for MongoDB-based order repository, extending the generic order repository tests to validate the MongoDB-specific implementation in the Parts Unlimited MRP system.
+
+- Key Functionality: Provides MongoDB-specific test setup configuration and delegates all order repository test execution to the parent class. The class ensures MongoDB is properly configured as the persistence layer and validates that all order management operations (create, read, update, query by various criteria) work correctly with the MongoDB implementation.
+
+- Purpose: To verify that the MongoDB order repository implementation correctly handles all order-related data operations in the manufacturing resource planning system. This ensures the order processing functionality works reliably with the chosen MongoDB persistence layer, which is critical for maintaining accurate inventory, order status tracking, and customer order fulfillment in the supply chain management workflow.
+
+#### MongoCatalogItemsRepositoryTest.java
+
+- Role: This is a JUnit test class responsible for validating the MongoDB implementation of the `CatalogItemsRepository`. It acts as a technology-specific test suite that executes a standardized set of repository tests within a MongoDB environment, ensuring the data access layer functions correctly for this specific persistence technology.
+
+- Key Functionality: The class configures the test environment to use MongoDB by resetting the `RepositoryFactory` and utilizing a `ConfigurationRule`. It then executes a suite of inherited test cases that cover the core Create, Read, Update, and Delete (CRUD) operations for catalog items: retrieving all items, retrieving a single item, upserting (creating or updating) an item, and removing an item.
+
+- Purpose: The primary purpose of this file is to ensure the reliability and correctness of the parts catalog data persistence in MongoDB. This is critical for the MRP system, as accurate and consistent parts information is foundational for downstream business functions like order processing, quote generation, and production planning. By testing the concrete MongoDB implementation against a generic test suite, it guarantees that the repository adheres to the expected functional contract.
+
+#### IntegrationTests.java
+
+- **Role:** This file defines a marker interface used to identify and categorize integration tests, specifically those for the MongoDB repository layer within the Parts Unlimited MRP application.
+- **Key Functionality:** The interface provides no methods or behavior itself. Its sole function is to serve as a programmatic tag. This allows testing frameworks and build tools to discover classes that implement it and execute them with a specific configuration suitable for integration testing, such as starting a MongoDB instance and initializing the application context.
+- **Purpose:** The purpose of this interface is to establish a clear and automated distinction between fast unit tests and slower, more resource-intensive integration tests. This separation ensures the reliability of the data persistence layer, which is critical for the integrity of manufacturing data like parts inventory and customer orders, while also improving developer workflow and build pipeline efficiency.
+
+
