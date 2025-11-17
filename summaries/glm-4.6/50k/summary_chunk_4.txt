@@ -1,0 +1,158 @@
+
+## Architectural Summary: Parts Unlimited MRP System (Frontend Web Client)
+
+### **1. Application Architecture**
+- **Framework**: Windows Store App using WinJS (Windows JavaScript Library)
+- **Pattern**: Single Page Application (SPA) with client-side navigation
+- **Architecture Style**: Component-based MVVM (Model-View-ViewModel) with data binding
+- **Platform**: Windows 8/10 Store Application
+
+### **2. Core Components**
+
+#### **Navigation System**
+- **File**: `navigator.js`
+- **Component**: `PageControlNavigator`
+- **Responsibilities**: 
+  - Manages page lifecycle and transitions
+  - Handles navigation history
+  - Implements responsive layout updates
+  - Disposes previous page controls
+
+#### **Application Shell**
+- **File**: `default.js`
+- **Responsibilities**:
+  - Application initialization and activation handling
+  - Global error handling
+  - Progress indicator management
+  - Common dialog system (confirmation, error reporting)
+
+#### **Data Binding Infrastructure**
+- **Custom Binding Mode**: `Binding.Mode.twoway` implementation
+- **Template System**: WinJS.Binding.Template for list rendering
+- **Data Sources**: WinJS.Binding.List for observable collections
+
+### **3. Business Modules (Pages)**
+
+#### **Main Dashboard**
+- **Path**: `pages/main/`
+- **Features**: Launch tiles for navigation to business modules
+- **Navigation Pattern**: Tile-based UI with click handlers
+
+#### **Dealers Management**
+- **Path**: `pages/dealers/`
+- **CRUD Operations**: Create, read, update, delete dealers
+- **Features**: Google Maps address autocomplete integration
+- **Data Fields**: Name, contact, address, email, phone
+
+#### **Quotes Management**
+- **Path**: `pages/quotes/`
+- **Features**: 
+  - Quote creation and editing
+  - Integration with extras management
+  - Navigation to orders from quotes
+- **Data Fields**: Dealer, customer, dimensions, pricing, terms
+
+#### **Orders Management**
+- **Path**: `pages/orders/`
+- **Features**:
+  - Order status tracking (Created → Installed workflow)
+  - Quote-to-order conversion
+  - Navigation to deliveries from orders
+- **Status States**: Created, Confirmed, Started, Built, DeliveryConfirmed, Shipped, Delivered, Installed
+
+#### **Deliveries Management**
+- **Path**: `pages/deliveries/`
+- **Features**:
+  - Delivery scheduling and tracking
+  - Order-to-delivery conversion
+  - Delivery event management
+- **Data Fields**: Delivery address, contact phones, delivery date
+
+#### **Product Catalog**
+- **Path**: `pages/catalog/`
+- **Features**: Product SKUs management
+- **Data Fields**: SKU number, description, unit, unit price
+
+#### **Extras Management**
+- **Path**: `pages/extras/`
+- **Features**: Additional items management for quotes/orders
+- **Pattern**: Modal popup integration from parent entities
+
+#### **Order Events**
+- **Path**: `pages/orderevents/`
+- **Features**: Event tracking for orders/deliveries
+- **Data Fields**: Date, comments
+
+### **4. Shared Services & Utilities**
+
+#### **Address Management**
+- **Component**: Google Maps Places Autocomplete integration
+- **Functions**: 
+  - `addAddressHandler()` - Initializes autocomplete
+  - `getPostCodeFromPlace()` - Extracts postal codes
+- **Dependency**: Google Maps API
+
+#### **Date Handling**
+- **Library**: DateJS (v1.0 Alpha-1)
+- **Features**: Comprehensive date parsing and formatting
+
+#### **Progress & Dialog System**
+- **Functions**: 
+  - `showProgress()`, `hideProgress()` - Loading indicators
+  - `confirm()`, `reporterror()` - Common dialogs
+  - `popup()` - Modal page rendering
+
+#### **Data Operations**
+- **Namespace**: `Data.*` (referenced but implementation not in chunk)
+- **Operations**: 
+  - `catalogGet()`, `catalogSave()`, `catalogDelete()`
+  - `dealersGet()`, `dealerSave()`, `dealerDelete()`
+  - `quotesGet()`, `quoteSave()`, `quoteDelete()`
+  - `ordersGet()`, `orderSave()`, `orderDelete()`
+  - `deliveriesGet()`, `deliverySave()`, `deliveryDelete()`
+  - Cross-entity operations: `orderCreateFromQuote()`, `deliveryCreateFromOrder()`
+
+### **5. Configuration**
+- **File**: `serverconfig.js`
+- **API Endpoint**: `http://{hostname}:8080` (configurable base address)
+- **Assumption**: RESTful API backend for data operations
+
+### **6. UI Patterns & Controls**
+- **Common Controls**: EditTools component for CRUD operations
+- **Layout**: Responsive header with navigation, section-based content
+- **List Views**: WinJS.UI.ListView with custom templates
+- **Input Patterns**: Two-way data bound forms with validation
+
+### **7. Integration Points for Microservice Decomposition**
+
+#### **Data Service APIs**
+- **Catalog Service**: Product SKU operations
+- **Dealer Service**: Dealer management
+- **Quote Service**: Quote lifecycle management
+- **Order Service**: Order processing and status tracking
+- **Delivery Service**: Delivery logistics management
+- **Event Service**: Event tracking for orders/deliveries
+
+#### **External Integrations**
+- **Google Maps API**: Address validation and autocomplete
+- **Potential Payment Gateway** (implied by pricing fields)
+
+#### **Data Relationships**
+```
+Dealer → Quote → Order → Delivery
+    ↓        ↓       ↓
+  Catalog  Extras  Events
+```
+
+### **8. Key Business Logic Flows**
+1. **Quote-to-Order Conversion**: Creates order from quote with pricing transfer
+2. **Order-to-Delivery Conversion**: Creates delivery record from completed order
+3. **Status Workflow**: Progressive status updates through order lifecycle
+4. **Address Standardization**: Google Maps API integration for consistent addresses
+5. **Extras Association**: Many-to-many relationship between quotes/orders and catalog items
+
+### **9. Deployment Considerations**
+- **Platform**: Windows Store deployment
+- **Authentication**: Not visible in this chunk (likely handled before app loads)
+- **Offline Support**: Client-side data binding suggests potential offline capability
+- **API Communication**: Base URL configurable for different environments

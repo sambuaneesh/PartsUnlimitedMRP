@@ -1,0 +1,159 @@
+
+# Architectural Summary: Parts Unlimited MRP Application
+
+## Overview
+Parts Unlimited MRP is a Java-based Manufacturing Resource Planning application built on open-source technologies, designed as a fictional outsourced MRP system. The application demonstrates a three-tier architecture with web frontend, backend services, and MongoDB database, along with comprehensive deployment automation for cloud and on-premises environments.
+
+## Core Components
+
+### 1. Backend Services
+
+#### 1.1 Order Service (`src/Backend/OrderService/`)
+- **Technology Stack**: Java 8, Spring Boot, Gradle
+- **Primary Database**: MongoDB
+- **Responsibilities**: 
+  - Order management lifecycle
+  - Quote generation and management
+  - Catalog item management
+  - Dealer information management
+  - Shipment tracking
+- **API Endpoints** (via controllers):
+  - `/catalog` - Product catalog operations
+  - `/dealers` - Dealer management
+  - `/orders` - Order CRUD operations
+  - `/quotes` - Quote operations
+  - `/shipments` - Shipment tracking
+  - `/ping` - Health check
+
+#### 1.2 Integration Service (`src/Backend/IntegrationService/`)
+- **Technology Stack**: Java 8, Gradle
+- **Responsibilities**:
+  - Integration with external Parts Unlimited Website
+  - Asynchronous order processing
+  - Product data synchronization
+  - Queue management for message handling
+- **Key Components**:
+  - `MrpConnectService`: External system connectivity
+  - `QueueService`: Message queue operations
+  - Scheduled tasks for periodic processing
+  - Models for MRP entities (Order, Quote, Shipment, etc.)
+
+### 2. Frontend (`src/Clients/`)
+- **Technology Stack**: HTML5, CSS3, JavaScript, Apache Tomcat
+- **Deployment**: WAR file deployed to Tomcat
+- **Pages/Modules**:
+  - Main dashboard
+  - Catalog browsing
+  - Order management
+  - Quote management
+  - Dealer information
+  - Delivery tracking
+  - Order events tracking
+
+### 3. Database Layer
+- **Database**: MongoDB
+- **Key Collections**:
+  - `catalog`: Product items with pricing, inventory, lead times
+  - `dealers`: Dealer contact information
+  - `quotes`: Price quotes with validity dates
+  - `orders`: Order status and details
+  - `shipments`: Delivery information and tracking
+
+## Data Models
+
+### Core Entities
+1. **CatalogItem**: Product information, pricing, inventory levels
+2. **DealerInfo**: Dealer contact details
+3. **Order**: Order details, status, associated quotes
+4. **Quote**: Price quotes with validity periods
+5. **ShipmentRecord**: Shipping information and events
+6. **DeliveryAddress**: Delivery location details
+7. **PhoneInfo**: Contact phone numbers
+
+## Communication Patterns
+
+### 1. Service Communication
+- **Frontend → Order Service**: REST API calls
+- **Order Service → MongoDB**: Direct database operations
+- **Integration Service → External Systems**: Queue-based messaging
+
+### 2. Asynchronous Processing
+- Queue-based order processing
+- Scheduled tasks for:
+  - Order creation (`CreateOrderProcessTask`)
+  - Product updates (`UpdateProductProcessTask`)
+
+## Configuration Management
+
+### Application Configuration
+- **Order Service**: `application.properties`
+- **Integration Service**: `application.properties`
+- Environment-specific configurations via properties files
+
+### Infrastructure as Code
+- **Azure Resource Manager** templates for cloud deployment
+- **Chef** cookbooks for configuration management
+- **Puppet** manifests for infrastructure provisioning
+- **Ansible** playbooks included in lab files
+
+## Deployment Architecture
+
+### Deployment Options
+1. **Traditional VM Deployment**:
+   - Ubuntu Server (14.04/16.04)
+   - Tomcat 7 on port 9080 (customized from default 8080)
+   - Java 8 JRE/JDK
+   - MongoDB
+
+2. **Docker Containerization**:
+   - Separate containers for:
+     - Frontend (Client)
+     - Database (MongoDB)
+     - Order Service
+   - Build scripts in `deploy/docker/`
+
+3. **Azure Stack Integration**:
+   - VM templates for:
+     - Chef Server/Workstation
+     - Jenkins CI/CD
+     - Puppet Enterprise
+     - MRP Application base
+
+### CI/CD Pipeline
+- **Build System**: Gradle
+- **CI**: Travis CI configuration
+- **Artifact Management**: JAR files for services, WAR for frontend
+- **Deployment Scripts**: Shell scripts for automated deployment
+
+## Security Considerations
+- Network Security Groups (NSGs) defined in Azure templates
+- SSH key-based authentication for VM access
+- HTTPS endpoints for secure communication (443, 8443)
+- Application Insights integration for monitoring
+
+## External Integrations
+- Integration with Parts Unlimited Website via Integration Service
+- Queue-based messaging for asynchronous operations
+- Support for configuration management tools (Chef, Puppet)
+
+## Business Logic Summary
+1. **Order Processing Flow**:
+   - Quote generation → Order creation → Status tracking → Shipment
+2. **Inventory Management**:
+   - Catalog item tracking with inventory levels
+   - Lead time calculations
+3. **Dealer Management**:
+   - Multiple dealers with contact information
+   - Quote generation per dealer
+4. **Delivery Tracking**:
+   - Shipment events and status updates
+   - Delivery address management
+
+## Development Frameworks
+- **Backend**: Spring Boot, Gradle
+- **Frontend**: Plain JavaScript (no framework identified)
+- **Testing**: JUnit for backend services
+- **Build**: Gradle wrapper for consistent builds
+- **Deployment**: Custom shell scripts and ARM templates
+
+This architecture represents a monolithic application with clear separation between frontend, backend services, and database, making it a good candidate for microservice decomposition by extracting the Order and Integration services as independent microservices with their own databases or bounded contexts.

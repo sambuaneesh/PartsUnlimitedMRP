@@ -1,0 +1,208 @@
+
+# Parts Unlimited MRP - Architectural Summary (Part 1)
+
+## 1. System Overview
+Parts Unlimited MRP is a Java-based Manufacturing Resource Planning application using a monolithic architecture with three primary layers:
+- **Frontend**: Static web client (HTML/CSS/JavaScript) served by Apache Tomcat
+- **Backend**: Spring Boot Java services (OrderService, IntegrationService)
+- **Database**: MongoDB with collections for catalog, dealers, quotes, orders, and shipments
+
+## 2. Core Components
+
+### Frontend (`src/Clients/`)
+- **Technology**: Static HTML5/CSS3/JavaScript
+- **Deployment**: WAR file deployed to Tomcat
+- **Key Pages**:
+  - Catalog management
+  - Order processing
+  - Quote generation
+  - Dealer management
+  - Shipment tracking
+- **API Integration**: Consumes RESTful endpoints from backend services
+
+### Backend Services (`src/Backend/`)
+
+#### OrderService (`/OrderService/`)
+- **Framework**: Spring Boot (Java)
+- **Port**: 8080
+- **Key Controllers**:
+  - `CatalogController`: `/api/catalog` - Product catalog operations
+  - `OrderController`: `/api/orders` - Order lifecycle management
+  - `QuoteController`: `/api/quotes` - Quote generation/expiry
+  - `DealerController`: `/api/dealers` - Dealer information
+  - `ShipmentController`: `/api/shipments` - Delivery tracking
+- **Data Layer**: MongoDB repositories with retry logic
+- **Business Logic**:
+  - Order status workflow (Created → DeliveryConfirmed)
+  - Quote expiry validation
+  - Inventory level checks
+  - Dealer commission calculations
+
+#### IntegrationService (`/IntegrationService/`)
+- **Framework**: Spring Boot (Java)
+- **Purpose**: External system integration (Parts Unlimited Website)
+- **Key Features**:
+  - Scheduled tasks for order processing
+  - Queue-based communication (Azure Service Bus)
+  - Message transformation (MRP ↔ Website formats)
+- **Scheduled Tasks**:
+  - `CreateOrderProcessTask`: Process incoming orders
+  - `UpdateProductProcessTask`: Sync product updates
+
+## 3. Data Models (`MongoDB Collections`)
+
+### Core Entities
+```java
+// Catalog Items
+{
+  skuNumber: "LIG-0001",
+  description: "Helogen Headlights",
+  price: 38.99,
+  inventory: 10,
+  leadTime: 3
+}
+
+// Quotes
+{
+  quoteId: "0",
+  validUntil: ISODate,
+  customerName: "Walter Harp",
+  dealerName: "Terry Adams",
+  totalCost: "51.97",
+  discount: "0.0",
+  quoteItems: [{skuNumber, amount}]
+}
+
+// Orders
+{
+  orderId: "0",
+  quoteId: "0",
+  orderDate: ISODate,
+  status: "Created|DeliveryConfirmed",
+  events: [OrderEventInfo]
+}
+
+// Shipments
+{
+  orderId: "0",
+  contactName: "Walter Harp",
+  primaryContactPhone: {phoneNumber, kind},
+  deliveryAddress: {street, city, state, postalCode},
+  events: [ShipmentEventInfo]
+}
+```
+
+## 4. API Interfaces
+
+### OrderService Endpoints
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/catalog` | Get product catalog |
+| POST | `/api/orders` | Create new order |
+| GET | `/api/orders/{id}` | Get order details |
+| POST | `/api/quotes` | Generate quote |
+| GET | `/api/dealers` | Get dealer list |
+| GET | `/api/shipments/{id}` | Track shipment |
+
+### IntegrationService Interfaces
+- **Queue Input**: Messages from Parts Unlimited Website
+- **Queue Output**: Processed orders to OrderService
+- **Scheduled Sync**: Product catalog updates
+
+## 5. Infrastructure & Deployment
+
+### Deployment Scripts
+- **Manual Deployment** (`deploy/deploy_mrp_app.sh`):
+  - Copies artifacts to `/var/lib/partsunlimited`
+  - Seeds MongoDB with `MongoRecords.js`
+  - Configures Tomcat (port 9080)
+  - Starts OrderService JAR
+
+- **Docker Support** (`deploy/docker/`):
+  - Multi-container setup:
+    ```bash
+    docker run -p 27017:27017 mypartsunlimitedmrp/db
+    docker run -p 8080:8080 --link db:mongo mypartsunlimitedmrp/order
+    docker run -p 80:8080 mypartsunlimitedmrp/web
+    ```
+
+### CI/CD Integration
+- **Travis CI** (`.travis.yml`):
+  - Builds IntegrationService (`./gradlew build`)
+  - Builds and tests OrderService (`./gradlew build test`)
+  - Builds Clients (`./gradlew build`)
+
+- **Jenkins** (`deploy/azurestack/instances/jenkins_mrp/`):
+  - Automated deployment pipeline
+  - VM provisioning via Azure templates
+
+## 6. Key Architectural Patterns
+
+### Repository Pattern
+```java
+// Example from MongoOrderRepository
+@Repository
+public class MongoOrderRepository implements OrderRepository {
+  @Autowired
+  private MongoOperationsWithRetry mongo;
+  
+  public Order getOrder(String orderId) {
+    return mongo.findOne(query(where("orderId").is(orderId)), Order.class);
+  }
+}
+```
+
+### Configuration Management
+- **Properties**: Centralized in `application.properties`
+- **Environment Variables**: Database URLs, queue connections
+- **Feature Flags**: Mock vs. MongoDB repositories
+
+### Error Handling
+- Custom exceptions (`BadRequestException`, `ConflictingRequestException`)
+- Global filters (`SimpleCORSFilter`, `AppInsightsFilter`)
+
+## 7. Business Logic Algorithms
+
+### Order Processing Workflow
+1. **Quote Generation**:
+   - Validate dealer
+   - Check inventory levels
+   - Apply discount rules
+   - Set expiry (30 days default)
+
+2. **Order Creation**:
+   - Validate quote still valid
+   - Reserve inventory
+   - Generate shipment record
+   - Update order status
+
+3. **Shipment Tracking**:
+   - Event-driven status updates
+   - Delivery confirmation logic
+   - Notification triggers
+
+## 8. Security & Observability
+- **CORS Config**: Cross-origin request handling
+- **App Insights**: Application monitoring
+- **Logging**: Structured logging with request tracking
+- **Validation**: Input sanitization in controllers
+
+## 9. Microservice Decomposition Insights
+
+### Natural Service Boundaries Identified:
+1. **Catalog Service**: Product management
+2. **Order Service**: Order lifecycle
+3. **Quote Service**: Quote generation/expiry
+4. **Dealer Service**: Dealer information
+5. **Shipment Service**: Delivery tracking
+6. **Integration Service**: External system bridge
+
+### Critical Dependencies:
+- **MongoDB**: All services currently share a single database
+- **Tomcat**: Frontend tightly coupled to OrderService
+- **Shared Models**: `integration/models` and `ordering/models` have significant overlap
+
+### Key Integration Points:
+- Queue-based messaging between services
+- RESTful APIs for synchronous calls
+- Scheduled tasks for data synchronization

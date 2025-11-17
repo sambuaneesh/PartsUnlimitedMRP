@@ -1,0 +1,152 @@
+
+## Comprehensive Architectural Summary - Part 2/6
+
+### **Core Application Components**
+1. **Manufacturing Resource Planning (MRP) Application**
+   - Fictional outsourced MRP system based on "The Phoenix Project"
+   - Technology Stack: Linux, Java, Apache, MongoDB
+   - Three-tier Architecture:
+     - Web Frontend (Port 9080)
+     - Order Service (Port 8080)
+     - Integration Service
+
+### **Deployment Infrastructure**
+#### **Azure Stack Templates**
+1. **MRP Base Deployments**:
+   - `PartsUnlimitedMRP.json`: Password-based Ubuntu 16.04 VM
+   - `PartsUnlimitedSSHMRP.json`: SSH-based Ubuntu 16.04 VM
+   - Standard Configuration:
+     - VM Size: Standard_A2
+     - Network: 10.0.0.0/16 VNET
+     - Storage: Standard_LRS
+     - Open Ports: 22 (SSH), 9080 (MRP), 8080 (Ordering Service)
+
+2. **Puppet Enterprise**:
+   - Standalone Puppet Master on Ubuntu 16.04
+   - Ports: 22 (SSH), 443 (HTTPS), 8140 (Puppet), 61613 (MCollective)
+   - Uses Custom Script Extension for installation
+
+3. **Ubuntu Server Bases**:
+   - Ubuntu 14.04-LTS and 16.04-LTS templates
+   - Docker pre-installed (1604 variant)
+   - Extensions: CustomScript, Docker, VMAccess
+
+#### **Docker Deployment**
+1. **Service Architecture**:
+   ```docker
+   Database Service (MongoDB):
+     - Port: 27017 (Internal), 28017 (HTTP UI)
+     - Data: Seeded via MongoRecords.js
+   
+   Order Service:
+     - Port: 8080
+     - Dependency: Links to Database
+   
+   Web Client:
+     - Port: 80 (external) → 8080 (internal)
+     - Base: Tomcat 7 JRE8
+   ```
+
+2. **Data Models** (MongoDB):
+   ```javascript
+   catalog: {skuNumber, description, price, inventory, leadTime}
+   dealers: {name, address, email, phone}
+   quotes: {quoteId, validUntil, customerName, dealerName, items, totalCost}
+   orders: {orderId, quoteId, orderDate, status, events}
+   shipments: {orderId, contactName, deliveryAddress, events}
+   ```
+
+### **Infrastructure Automation**
+#### **Ansible Playbooks**
+- **VM Provisioning**:
+  - `create_vm.yml`: Deploys Ubuntu VM with web server
+  - Network: 10.0.0.0/16 VNET, Standard_DS1_v2 VM
+  - Security: SSH/HTTP/HTTPS/RDP allowed
+- **Configuration Management**:
+  - `httpd.yml`: Apache deployment
+  - `nginx.yml`: Nginx deployment
+  - `automate_nginx.sh`: Scale Set automation
+
+#### **Configuration Management**
+1. **Chef Recipe** (`default.rb`):
+   - Installs OpenJDK 8, MongoDB, Tomcat 7
+   - Deploys MRP WAR file and ordering service JAR
+   - Configures Tomcat port via node attributes
+
+2. **Puppet Manifest** (`init.pp`):
+   - Modular classes: MongoDB, Java, Tomcat, WAR deployment
+   - Creates tomcat user/group
+   - Manages ordering service lifecycle
+
+### **Network Configuration**
+- **Security Groups**:
+  - Standard Rules: SSH (22), HTTP (80), HTTPS (443)
+  - MRP-Specific: 9080 (App), 8080 (Ordering)
+  - Puppet: 8140 (Puppet), 61613 (MCollective)
+- **Load Balancing**:
+  - Internal Load Balancer (ILB) for SSH distribution
+  - Backend pool configuration
+
+### **Storage & Data**
+- **MongoDB Database**:
+  - Name: `ordering`
+  - Collections: catalog, dealers, quotes, orders, shipments
+  - Initial Data: 18 product SKUs, sample quotes/orders/shipments
+- **Storage Accounts**:
+  - Azure: Standard_LRS blob storage
+  - Mount Point: `/vhds` container
+
+### **Service Dependencies & Communication**
+1. **Call Patterns**:
+   ```
+   Web Client → Order Service (Port 8080)
+   Order Service → MongoDB (Port 27017)
+   External Users → Web UI (Port 9080)
+   ```
+2. **Service Discovery**:
+   - Docker Links (e.g., `--link db:mongo`)
+   - Hardcoded localhost in startup scripts
+
+### **Deployment Scripts**
+- **Docker Lifecycle**:
+  - `BuildAndRun.sh`: Multi-stage build + sequential startup
+  - `StopAndRemove.sh`: Clean shutdown
+- **Azure Extensions**:
+  - Custom Script: Dependency installation
+  - VMAccess: User/password configuration
+
+### **Key Architectural Patterns**
+1. **Infrastructure as Code**:
+   - ARM Templates for repeatable deployments
+   - Ansible/Chef/Puppet for config management
+2. **Containerization**:
+   - 3-tier Docker deployment model
+   - Immutable infrastructure with Dockerfiles
+3. **Hybrid Cloud**:
+   - Azure Stack support for on-prem deployments
+   - Cloud-agnostic automation scripts
+
+### **Decomposition Considerations**
+1. **Natural Service Boundaries**:
+   - **Order Service**: Explicitly separate in Docker model
+   - **Catalog Service**: Isolable from MongoDB `catalog` collection
+   - **Quote/Order Service**: Transactional logic separation
+2. **Database Decomposition**:
+   - MongoDB collections map well to bounded contexts
+   - Requires data sync for cross-service relationships
+3. **Network Isolation**:
+   - Existing port mapping allows independent scaling
+   - NSG rules enforce inter-service boundaries
+
+### **Configuration Details**
+- **Standard VM Sizes**:
+  - A2 (MRP): 2 Cores, 3.5GB RAM
+  - A3 (Puppet): 4 Cores, 7GB RAM
+- **SSH Configuration**:
+  - Public Key Path: `/home/[user]/.ssh/authorized_keys`
+  - Key-based auth in SSH variants
+- **Diagnostic Storage**:
+  - Boot Diagnostics enabled
+  - Logs stored in attached blob storage
+
+This architecture reveals a monolith with emergent microservice boundaries (especially in Docker deployment), primed for decomposition into Order, Catalog, and Frontend services with MongoDB sharded by domain. The infrastructure automation provides a strong foundation for independent service scaling.

@@ -1,0 +1,162 @@
+
+## Architectural Summary for Microservice Decomposition Analysis
+
+### 1. Python CI Example (Mod03/python-ci-example-master)
+- **Purpose**: Simple Python application demonstrating CI/CD practices with Travis CI
+- **Components**:
+  - Simple Python function: `my_function(param1, param2)` that returns sum
+  - Unit tests using Python unittest framework
+  - Travis CI configuration (.travis.yml)
+- **API/Interfaces**: None (simple library function)
+- **Data Models**: None
+- **Dependencies**: 
+  - Python 3.5
+  - No external dependencies (requirements.txt is empty)
+- **Deployment**: GitHub repository with Travis CI integration
+- **Key Business Logic**: Mathematical addition operation
+- **Framework**: Standard Python, Travis CI for CI/CD
+
+### 2. Load Testing with Locust (Mod04/load_testing_locust-master)
+- **Purpose**: Flask REST API for testing types with Locust load testing
+- **Components**:
+  - Flask web application (app.py)
+  - Locust load testing scenarios (locustfile.py)
+- **API Endpoints**:
+  - `GET /tests` - Retrieve list of testing types
+  - `POST /tests` - Add new testing type
+- **Data Models**:
+  - testing_types: Dictionary containing name and description
+- **Dependencies**:
+  - Python 3.5
+  - Flask framework
+  - Locust for load testing
+- **Deployment**: Standalone Flask server on port 5000
+- **Key Business Logic**: CRUD operations for testing types
+- **Framework**: Flask REST API
+
+### 3. Chef Infrastructure as Code (DeployusingChef/final/default.rb)
+- **Purpose**: Chef recipe for deploying MRP application stack
+- **Components**:
+  - Java OpenJDK 8 installation
+  - MongoDB installation and data import
+  - Tomcat 7 server configuration
+  - MRP application deployment (mrp.war)
+  - Ordering service deployment and management
+- **Data Models**:
+  - MongoDB data import from MongoRecords.js
+- **Dependencies**:
+  - MongoDB
+  - Tomcat 7
+  - Java 8
+  - MRP application (mrp.war)
+  - Ordering service (ordering-service-0.1.0.jar)
+- **Deployment**: Chef-managed infrastructure
+- **Key Business Logic**: Infrastructure provisioning and application deployment
+- **Framework**: Chef configuration management
+
+### 4. Puppet Infrastructure as Code (Puppet/final/init.pp)
+- **Purpose**: Puppet manifests for deploying MRP application stack
+- **Components**:
+  - MongoDB configuration and data import
+  - Java 8 installation
+  - Tomcat 7 configuration
+  - MRP application deployment
+  - User and group management
+- **Data Models**:
+  - MongoDB data import from MongoRecords.js
+- **Dependencies**:
+  - MongoDB
+  - Tomcat 7
+  - Java 8
+  - MRP application (mrp.war)
+- **Deployment**: Puppet-managed infrastructure
+- **Key Business Logic**: Infrastructure provisioning and application deployment
+- **Framework**: Puppet configuration management
+
+### 5. Integration Service (Backend/IntegrationService)
+- **Purpose**: Spring Boot application for integrating website orders with MRP system
+- **Components**:
+  - Scheduled tasks for order processing and inventory updates
+  - Azure Queue Service integration
+  - MRP system REST API client
+- **API/Interfaces**:
+  - Communicates with MRP system via REST API
+  - Azure Queue integration for order and inventory messages
+- **Data Models**:
+  - OrderMessage: Website order representation
+  - ProductMessage: Inventory update message
+  - CatalogItem: MRP catalog item
+  - Quote, Order, ShipmentRecord: MRP entities
+- **Dependencies**:
+  - Spring Boot
+  - Azure Storage SDK
+  - Jackson for JSON processing
+  - Scheduled task framework
+- **Service Dependencies**:
+  - Azure Queue Service
+  - MRP System REST API
+- **Deployment**: Standalone Spring Boot JAR
+- **Key Business Logic**:
+  - Queue-based order processing
+  - Scheduled inventory synchronization
+  - Transformation between website and MRP data models
+- **Framework**: Spring Boot with scheduled tasks
+
+### 6. Order Service (Backend/OrderService)
+- **Purpose**: Spring Boot REST API for MRP order management
+- **Components**:
+  - REST controllers for catalog, dealers, quotes, orders, shipments
+  - Repository pattern implementation (memory, MongoDB, PostgreSQL)
+  - Application Insights telemetry integration
+- **API Endpoints**:
+  - `/catalog` - CRUD operations for catalog items
+  - `/dealers` - CRUD operations for dealers
+  - `/quotes` - CRUD operations for quotes
+  - `/orders` - CRUD operations for orders
+  - `/shipments` - CRUD operations for shipments
+- **Data Models**:
+  - CatalogItem: SKU, description, price, inventory, lead time
+  - Dealer: Contact information
+  - Quote: Customer quote with items and pricing
+  - Order: Order details and status
+  - ShipmentRecord: Shipping information and events
+- **Dependencies**:
+  - Spring Boot
+  - MongoDB or PostgreSQL (configurable)
+  - Application Insights for monitoring
+- **Service Dependencies**:
+  - MongoDB or PostgreSQL database
+  - Application Insights service
+- **Deployment**: Spring Boot WAR for Tomcat
+- **Key Business Logic**:
+  - Complete order lifecycle management
+  - Quote to order conversion
+  - Shipment tracking
+  - Catalog management
+- **Framework**: Spring Boot with Spring Data
+
+## Microservice Decomposition Insights
+
+### Potential Service Boundaries:
+1. **Order Management Service**: Handles quotes, orders, shipments
+2. **Catalog Service**: Manages product catalog and inventory
+3. **Dealer Management Service**: Manages dealer information
+4. **Integration Service**: Handles external system integration
+5. **Notification Service**: Handles notifications and events (implicit)
+
+### Communication Patterns:
+- **Synchronous REST**: Order Service exposes REST API
+- **Asynchronous Messaging**: Integration Service uses Azure Queues
+- **Database-per-Service**: Configurable repository pattern
+
+### Data Consistency:
+- Order Service owns order, quote, shipment data
+- Catalog Service owns product and inventory data
+- Integration Service handles transformation and synchronization
+
+### Deployment Considerations:
+- Each service can be independently deployed
+- Services use different databases (MongoDB/PostgreSQL)
+- Infrastructure as Code supports independent scaling
+
+This architecture shows clear service boundaries with the Order Service being a prime candidate for decomposition into Catalog, Order, and Dealer services, while the Integration Service is already a separate concern.

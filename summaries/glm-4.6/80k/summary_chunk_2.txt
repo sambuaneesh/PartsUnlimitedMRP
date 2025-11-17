@@ -1,0 +1,202 @@
+
+## Comprehensive Architectural Summary - OrderService (Part 2 of 3)
+
+### 1. System Overview
+This is a Spring Boot-based order management system with a WinJS web client. The system follows a repository pattern with pluggable storage backends (in-memory for testing, MongoDB for production) and implements RESTful APIs for all operations.
+
+### 2. Backend Architecture
+
+#### 2.1 Core Components
+- **Entry Point**: `OrderingConfiguration.java` - Spring Boot configuration with component scanning
+- **Configuration Management**:
+  - `OrderingServiceProperties.java`: Service-wide settings (storage type, messages)
+  - `MongoDBProperties.java`: MongoDB connection settings
+  - `PostgresqlProperties.java`: PostgreSQL settings (prepared but unused)
+- **Application Initialization**: `OrderingInitializer.java` for servlet container deployment
+
+#### 2.2 Data Models
+- **CatalogItem**: Product catalog entries with SKU, description, price, inventory, leadTime
+- **DealerInfo**: Dealer/distributor details with contact information
+- **Quote**: Sales quotes containing customer info, dealer reference, line items, pricing, delivery location
+- **Order**: Purchase orders created from quotes with status tracking and event history
+- **OrderStatus**: Enum (None, Created, Confirmed, Started, Built, DeliveryConfirmed, Shipped, Delivered, Installed)
+- **ShipmentRecord**: Shipping details with delivery address, contacts, and events
+- **Supporting Models**: DeliveryAddress, PhoneInfo, QuoteItemInfo, OrderEventInfo, ShipmentEventInfo
+
+#### 2.3 Repository Pattern
+- **Factory Pattern**: `RepositoryFactory` switches between memory/MongoDB implementations
+- **Interfaces**:
+  - `CatalogItemsRepository`: Product catalog CRUD
+  - `DealersRepository`: Dealer management
+  - `QuoteRepository`: Quote lifecycle management
+  - `OrderRepository`: Order CRUD and status updates
+  - `ShipmentRepository`: Shipment tracking
+- **Implementations**:
+  - Mock repositories (`Mock*Repository.java`) for testing
+  - MongoDB repositories (`Mongo*Repository.java`) for production
+- **Retry Mechanism**: `MongoOperationsWithRetry` with Application Insights telemetry
+
+#### 2.4 REST API Controllers
+- **CatalogController**: `/catalog` endpoints for product management
+- **DealerController**: `/dealers` endpoints for dealer management
+- **QuoteController**: `/quotes` endpoints for quote lifecycle
+- **OrderController**: `/orders` endpoints for order management and status updates
+- **ShipmentController**: `/shipments` endpoints for delivery tracking
+- **PingController**: Health check endpoint at `/ping`
+
+#### 2.5 Cross-Cutting Concerns
+- **Monitoring**: `AppInsightsFilter` captures request/response metrics
+- **CORS**: `SimpleCORSFilter` enables cross-origin requests
+- **Error Handling**: Custom exceptions (`BadRequestException`, `ConflictingRequestException`)
+- **Telemetry**: Application Insights integration throughout
+
+### 3. API Endpoints Specification
+
+#### 3.1 Catalog Management
+```
+GET    /catalog                    - List all catalog items
+GET    /catalog/{sku}              - Get specific item
+POST   /catalog                    - Create new item
+PUT    /catalog/{sku}              - Update item
+DELETE /catalog/{sku}              - Delete item
+```
+
+#### 3.2 Dealer Management
+```
+GET    /dealers                    - List all dealers
+GET    /dealers/{name}             - Get specific dealer
+POST   /dealers                    - Create dealer
+PUT    /dealers/{name}             - Update dealer
+DELETE /dealers/{name}             - Delete dealer
+```
+
+#### 3.3 Quote Management
+```
+GET    /quotes                     - List quotes (supports ?name filter)
+GET    /quotes/{quoteId}           - Get specific quote
+POST   /quotes                     - Create quote
+PUT    /quotes/{quoteId}           - Update quote
+DELETE /quotes/{quoteId}           - Delete quote
+```
+
+#### 3.4 Order Management
+```
+GET    /orders                     - List orders (supports ?dealer & ?status filters)
+GET    /orders/{orderId}           - Get specific order
+POST   /orders?fromQuote={id}     - Create order from quote
+PUT    /orders/{orderId}           - Update order
+PUT    /orders/{orderId}/status     - Update order status
+POST   /orders/{orderId}/events    - Add order event
+DELETE /orders/{orderId}           - Delete order
+```
+
+#### 3.5 Shipment Management
+```
+GET    /shipments                  - List shipments (supports ?status filter)
+GET    /shipments/{id}             - Get specific shipment
+GET    /shipments/deliveries       - Get confirmed deliveries
+POST   /shipments                  - Create shipment
+PUT    /shipments/{id}             - Update shipment
+POST   /shipments/{id}/events      - Add shipment event
+DELETE /shipments/{orderId}         - Delete shipment
+```
+
+#### 3.6 System
+```
+HEAD   /ping                       - Health check
+GET    /ping                       - Service info with build details
+```
+
+### 4. Database Schema (MongoDB)
+```javascript
+// Collections
+catalog: {
+  _id, skuNumber, description, price, inventory, leadTime
+}
+dealers: {
+  _id, name, contact, address, email, phone
+}
+quotes: {
+  _id, quoteId, validUntil, customerName, dealerName,
+  quoteItems: [{skuNumber, amount}],
+  totalCost, discount, city, postalCode, state
+}
+orders: {
+  _id, orderId, quoteId, orderDate, status,
+  events: [{date, comments}]
+}
+shipments: {
+  _id, orderId, deliveryDate, deliveryAddress,
+  contactName, primaryContactPhone, alternateContactPhone,
+  events: [{date, comments}]
+}
+```
+
+### 5. Business Logic Flow
+1. **Quote Creation**: Dealers create quotes for customers with product line items
+2. **Order Creation**: Quotes are converted to orders (one-to-one relationship)
+3. **Order Fulfillment**: Orders progress through status lifecycle
+4. **Shipment Tracking**: Shipments are created for orders with delivery details
+5. **Event Logging**: Both orders and shipments maintain event histories
+
+### 6. Web Client Architecture
+
+#### 6.1 Framework
+- **WinJS Application**: Single Page Application framework
+- **Navigation**: Custom navigator (`navigator.js`) with page history
+- **Data Binding**: WinJS.Binding for two-way data binding
+- **Templating**: WinJS.Binding.Template for UI rendering
+
+#### 6.2 Structure
+- **Shell**: `default.html` with navigation bar
+- **Pages**:
+  - Main (`main.html`): Launch dashboard
+  - Catalog (`catalog.html`): Product management
+  - Dealers (`dealers.html`): Dealer management
+  - Quotes (`quotes.html`): Quote management
+  - Orders (`orders.html`): Order management
+  - Deliveries (`deliveries.html`): Delivery tracking
+- **Controls**: Custom `edittools` control for CRUD operations
+
+#### 6.3 Data Layer
+- **REST Client**: `data.js` handles all API communication
+- **Configuration**: `serverconfig.js` for API endpoint
+- **Error Handling**: Centralized error reporting
+- **Progress Indication**: Global loading indicators
+
+### 7. Key Business Rules
+1. **Quote to Order**: Each quote can create only one order
+2. **Inventory Management**: Catalog items track inventory levels
+3. **Status Progression**: Orders follow strict status transitions
+4. **Dealer Association**: Quotes and orders link to dealers
+5. **Delivery Tracking**: Shipments record all delivery events
+
+### 8. Configuration & Deployment
+- **Storage Backend**: Configurable via `ordering.storage` property
+- **MongoDB**: Default production store
+- **Port**: 8080 for API, 8081 for management
+- **Application Insights**: Configurable instrumentation key
+- **Docker Support**: Environment variable for MongoDB port
+
+### 9. Test Coverage
+- **Unit Tests**: Complete coverage for all repositories and controllers
+- **Integration Tests**: MongoDB-specific tests
+- **Mock Tests**: In-memory repository tests
+- **Test Infrastructure**: `TestOrderingConfiguration` for test setup
+
+### 10. Microservice Decomposition Analysis
+The monolithic structure shows clear domain boundaries suitable for microservices:
+
+1. **Catalog Service**: Product management, inventory
+2. **Dealer Service**: Dealer information management
+3. **Quote Service**: Quote lifecycle, pricing
+4. **Order Service**: Order processing, status management
+5. **Shipment Service**: Delivery tracking, logistics
+6. **API Gateway**: Request routing, authentication
+
+Each domain has:
+- Isolated data models
+- Clear business rules
+- Independent repository interfaces
+- Distinct API boundaries
+- Minimal cross-domain dependencies

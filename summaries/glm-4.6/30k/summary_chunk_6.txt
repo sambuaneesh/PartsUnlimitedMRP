@@ -1,0 +1,138 @@
+
+## Architectural Summary: Frontend Client (Chunk 6)
+
+### Core Application Framework
+- **Platform**: WinJS (Windows Library for JavaScript) application targeting Windows Store/UWP
+- **Architecture**: Single-Page Application (SPA) with navigation system
+- **Entry Point**: `default.js` handles application lifecycle (activation, navigation, checkpoint)
+- **Navigation**: `navigator.js` implements `PageControlNavigator` for page transitions and history management
+- **Server Endpoint**: Base address configured in `serverconfig.js` (`http://hostname:8080`)
+
+---
+
+### UI Components & Pages
+1. **Main Dashboard** (`pages/main/`)
+   - Launch tiles for key business functions
+   - Navigation hub for other modules
+   - Company branding ("Parts Unlimited MRP system, A Fabrikam Subsidiary")
+
+2. **Functional Pages** (All follow MVVM pattern):
+   - **Catalog** (`pages/catalog/`): Product/SKU management
+   - **Dealers** (`pages/dealers/`): Supplier/partner management
+   - **Quotes** (`pages/quotes/`): Sales quotations with product specs
+   - **Orders** (`pages/orders/`): Order processing workflow
+   - **Deliveries** (`pages/deliveries/`): Logistics and delivery tracking
+   - **Extras** (`pages/extras/`): Additional product options (popup)
+   - **Order Events** (`pages/orderevents/`): Timeline tracking (popup)
+
+---
+
+### Key Architectural Patterns
+1. **Data Binding**:
+   - WinJS two-way binding (`Binding.Mode.twoway`)
+   - Dynamic template rendering for list views
+   - Observable data objects
+
+2. **Reusable Controls**:
+   - `Controls.EditTools`: Standardized CRUD toolbar
+   - Custom popup dialogs for nested editing
+   - List view templates for entity display
+
+3. **External Integrations**:
+   - **Google Maps API**: Address autocomplete/dealers
+   - **DateJS Library**: Advanced date parsing/manipulation
+
+4. **State Management**:
+   - Session state persistence in `app.sessionState`
+   - Deep linking support
+   - Navigation history tracking
+
+---
+
+### Data Models & Workflows
+1. **Core Entities**:
+   ```javascript
+   Catalog: {skuNumber, description, unit, unitPrice}
+   Dealer: {name, contact, address, email, phone}
+   Quote: {dealerName, validUntil, customerName, dimensions, purpose}
+   Order: {status, orderDate, quoteRef, events[]}
+   Delivery: {deliveryDate, address, phoneNumbers, orderRef}
+   ```
+
+2. **Business Workflows**:
+   - Quote → Order → Delivery lifecycle
+   - Product extras management
+   - Event tracking (orders/deliveries)
+   - Address validation via Google Maps
+
+---
+
+### API Communication Patterns
+- **Data Layer**: Abstracted through `Data` namespace
+- **Key Operations**:
+  ```javascript
+  Data.catalogGet()      // GET /catalog
+  Data.quoteSave(item)   // POST/PUT /quotes
+  Data.orderCreateFromQuote() // POST /orders/from-quote
+  ```
+- **Optimistic UI**: Immediate UI updates with async backend sync
+- **Error Handling**: Centralized in `reporterror()` dialog
+
+---
+
+### Cross-Cutting Concerns
+1. **User Experience**:
+   - Loading indicators (`showProgress()`)
+   - Confirmation dialogs
+   - Responsive layouts
+   - Animations via WinJS.Animation
+
+2. **Form Handling**:
+   - Multi-field text change handlers
+   - Address autocomplete binding
+   - Input validation
+
+3. **Security**:
+   - No auth tokens observed (likely session-based)
+   - HTTPS endpoints implied
+
+---
+
+### Microservice Boundary Indicators
+1. **Candidate Services**:
+   - **Product Service**: Catalog management
+   - **Dealer Service**: Partner data
+   - **Order Service**: Quote-to-order workflow
+   - **Logistics Service**: Delivery tracking
+   - **Pricing Service**: Cost calculations
+
+2. **Decomposition Points**:
+   - Address validation → Geocoding service
+   - Date calculations → Shared utility service
+   - Notifications → Event management service
+
+3. **Data Coupling**:
+   - Quote ↔ Order (1:1)
+   - Order ↔ Delivery (1:1)
+   - Catalog ↔ Extras (1:N)
+
+---
+
+### Technical Debt & Risks
+1. **Tightly Coupled Client**: Single backend endpoint (`serverconfig.js`)
+2. **Large JS Files**: `date.js` (40KB monolithic date library)
+3. **Inconsistent State**: Manual syncing between list/detail views
+4. **Missing Transitions**: Navigation animations incomplete in some flows
+
+---
+
+### Recommendations for Decomposition
+1. **Implement API Gateway**: Route requests to microservices
+2. **Separate UI Modules**: Each page as an independent component
+3. **Event-Driven Updates**: Replace manual state sync with events
+4. **Micro Frontends**: Consider page-level microservices for complex workflows
+5. **Shared Component Library**: Extract edit tools/list views as reusable widgets
+
+> **Critical Note**: This frontend assumes a monolithic backend at `:8080`. Successful microservice decomposition requires either:  
+> 1) Backend BFF (Backend-for-Frontend) pattern, or  
+> 2) Client refactoring to call multiple service endpoints directly via API gateway.

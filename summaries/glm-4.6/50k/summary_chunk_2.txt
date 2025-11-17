@@ -1,0 +1,133 @@
+
+## Architectural Summary: Azure Infrastructure & Java Backend Services (Part 2)
+
+### **I. Infrastructure as Code (IaC) Components**
+#### **1. Azure ARM Templates**
+- **File**: `ARMtemplate-newVM.json`
+- **Components**:
+  - **Virtual Network (`myVnet`)**: 
+    - Address space: `10.123.0.0/16`
+    - Subnets: `subnet1` (`10.123.1.0/24`), `subnet2` (`10.123.2.0/24`)
+  - **Network Security Group (`myNsg`)**: 
+    - Rule: Allow SSH (TCP/22) from any source
+  - **Internal Load Balancer (`mySlb`)**:
+    - Backend pool: `myBackendConfig`
+    - Load balancing rule: Forward TCP/22 to backend
+    - Probe: TCP health check on port 22
+  - **Availability Set (`myAvSet`)**:
+    - Update domains: 5, Fault domains: 2
+  - **VM (`mySecondVM`)**:
+    - CentOS 7.3, Standard_A0 size
+    - Managed disk (Standard_LRS)
+    - Admin user: `lab-user`
+
+#### **2. Ansible Automation**
+- **VM Provisioning**:
+  - `new_vm_web.yml`: Creates VM with SSH/HTTP rules, public IP, NIC
+  - `create_vm.yml`: Deploys Ubuntu VM with security groups
+- **Configuration Management**:
+  - `httpd.yml`: Installs Apache, downloads `index.html`, enables service
+  - `nginx.yml`: Installs Nginx, deploys web content
+  - `cron.yml`: Schedules recurring Ansible runs
+- **Lifecycle Management**:
+  - `delete_vm.yml`: Removes VM, storage, network interfaces
+  - `new_ARM_deployment.yml`: Deploys ARM templates via Ansible
+
+---
+
+### **II. Configuration Management**
+#### **1. Chef Recipes**
+- **File**: `DeployusingChef/final/default.rb`
+- **Stack**: 
+  - OpenJDK 8, MongoDB, Tomcat 7
+  - App: `mrp.war`, `ordering-service-0.1.0.jar`
+  - Data import: `MongoRecords.js`
+
+#### **2. Puppet Manifests**
+- **File**: `DeployusingPuppet/final/init.pp`
+- **Classes**:
+  - `configuremongodb`: Installs MongoDB, imports data
+  - `configurejava`: Sets up OpenJDK 8 via PPA
+  - `configuretomcat`: Deploys Tomcat 7, configures port 9080
+  - `deploywar`: Deploys `mrp.war`
+  - `orderingservice`: Manages ordering service JAR lifecycle
+
+---
+
+### **III. CI/CD Pipelines**
+#### **1. Python CI/CD**
+- **Stack**: Python 3.5, CircleCI/Travis CI
+- **App**: Flask REST API (`/tests` endpoint)
+- **Testing**: `unittest` framework in `app-test.py`
+- **CI Config**: `.travis.yml` triggers tests on push
+
+#### **2. Load Testing**
+- **Tool**: Locust
+- **Target**: Flask API (`/tests` GET/POST)
+- **Scenarios**: 
+  - `get_tests`: GET `/tests`
+  - `put_tests`: POST `/tests` with JSON payload
+- **Metrics**: Requests/sec, response times, failure rates
+
+---
+
+### **IV. Java Backend Services**
+#### **1. Integration Service**
+- **Purpose**: Queue-based integration between MRP and Azure
+- **Stack**: Spring Boot, Azure Storage Queues
+- **Key Classes**:
+  - `MrpConnectService`: REST client for MRP endpoints
+  - `QueueService`: Azure queue operations (add/get/delete messages)
+  - `CreateOrderProcessTask`: Scheduled task (30s intervals) to process orders
+  - `UpdateProductProcessTask`: Syncs catalog from MRP to Azure queues
+- **Data Flow**:
+  ```mermaid
+  graph LR
+    AzureQueue --> CreateOrderProcessTask --> MRP
+    MRP --> UpdateProductProcessTask --> AzureQueue
+  ```
+
+#### **2. Order Service**
+- **Framework**: Spring Boot REST API
+- **Data Models**:
+  - `CatalogItem`: SKU, description, price, inventory, lead time
+  - `DealerInfo`: Name, contact, address
+  - `Quote`: Customer/dealer data, items, costs
+  - `Order`: Quote fulfillment, status tracking
+  - `ShipmentRecord`: Delivery details, events
+- **API Endpoints**:
+  - `/catalog`: CRUD for SKUs
+  - `/dealers`: Dealer management
+  - `/quotes`: Quote lifecycle (create/update from OrderMessage)
+  - `/orders`: Order creation (from quotes), status updates
+  - `/shipments`: Shipment tracking, event logging
+- **Repositories**:
+  - Pluggable storage (MongoDB/PostgreSQL/In-memory via `RepositoryFactory`)
+- **Monitoring**: Azure App Insights telemetry
+
+---
+
+### **V. Key Architectural Patterns**
+1. **Infrastructure as Code**: ARM templates + Ansible for reproducible deployments
+2. **Queue-Based Integration**: Decoupled communication via Azure Storage Queues
+3. **Configuration Management**: Chef/Puppet for system-level setup
+4. **Scheduled Tasks**: Background processing for order/product sync
+5. **RESTful APIs**: Resource-oriented endpoints with HATEOAS links
+6. **Telemetry**: Centralized monitoring with App Insights
+
+### **VI. Deployment Dependencies**
+- **Azure Resources**: VMs, VNet, NSG, Load Balancer, Storage Accounts
+- **Middleware**: Tomcat 7 (for MRP app), Nginx/Apache (for web frontends)
+- **Runtime**: Java 8 (MRP), Python 3.5 (CI/CD tools)
+- **Databases**: MongoDB (MRP data), PostgreSQL (optional)
+
+### **VII. Microservice Boundaries Identified**
+1. **Catalog Service**: SKUs, inventory, pricing
+2. **Dealer Service**: Reseller management
+3. **Quote Service**: Quotation lifecycle
+4. **Order Service**: Order processing (core)
+5. **Shipment Service**: Delivery logistics
+6. **Integration Service**: Anti-corruption layer for MRP
+7. **Configuration Service**: IaC and deployment automation
+
+> **Note**: Strong bounded contexts exist around Quotes/Orders/Shipments, with integration patterns suggesting natural service decomposition points.

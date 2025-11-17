@@ -1,0 +1,210 @@
+
+## Architectural Summary: OrderService Test Suite (Part 5 of 6)
+
+### Core Components and Responsibilities
+
+#### 1. **Controllers (REST API Layer)**
+- **CatalogController**
+  - Manages catalog item CRUD operations
+  - Handles SKU validation and price updates
+  - Endpoints: `/catalog`, `/catalog/{skuNumber}`
+  
+- **DealerController**
+  - Dealer information management
+  - Contact details and location data
+  - Endpoints: `/dealers`, `/dealers/{name}`
+  
+- **OrderController**
+  - Order lifecycle management
+  - Event tracking and status updates
+  - Quote-to-order conversion
+  - Endpoints: `/orders`, `/orders/{id}`, `/orders/{id}/events`, `/orders/{id}/status`
+  
+- **QuoteController**
+  - Quote creation and management
+  - Customer-specific quote retrieval
+  - Endpoints: `/quotes`, `/quotes/{id}`, `/quotes?name={customerName}`
+  
+- **ShipmentController**
+  - Delivery tracking and management
+  - Event logging for shipment lifecycle
+  - Endpoints: `/shipments`, `/shipments/{id}`, `/shipments/{id}/events`
+
+#### 2. **Repository Layer**
+- **CatalogItemsRepository**
+  - In-memory and MongoDB persistence
+  - SKU-based indexing
+  - Price and inventory management
+  
+- **DealersRepository**
+  - Dealer profile storage
+  - Location and contact information
+  - Name-based lookup
+  
+- **OrderRepository**
+  - Order state management
+  - Quote-to-order relationship tracking
+  - Status-based queries
+  
+- **QuoteRepository**
+  - Quote validation and storage
+  - Customer-dealer relationship
+  - Expiration management
+  
+- **ShipmentRepository**
+  - Delivery coordination
+  - Address and contact management
+  - Status-based filtering
+
+### Data Models and Schema
+
+#### 1. **CatalogItem**
+- `skuNumber`: String (Primary Key)
+- `description`: String
+- `price`: Double
+- `leadTime`: Integer
+- `quantity`: Integer
+
+#### 2. **DealerInfo**
+- `name`: String (Primary Key)
+- `contact`: String
+- `phone`: String
+- `email`: String
+- `address`: String
+
+#### 3. **Quote**
+- `quoteId`: String (Primary Key)
+- `customerName`: String
+- `dealerName`: String
+- `validUntil`: Date
+- `quoteItems`: List<QuoteItemInfo>
+- Additional fields: `comments`, `terms`, `totalCost`, `discount`
+
+#### 4. **Order**
+- `orderId`: String (Primary Key)
+- `quoteId`: String (Foreign Key)
+- `status`: OrderStatus (Enum: Created, Confirmed, Started, Built, Shipped, Delivered)
+- `events`: List<OrderEventInfo>
+- Creation from Quote entity
+
+#### 5. **ShipmentRecord**
+- `orderId`: String (Foreign Key)
+- `deliveryDate`: String
+- `contactName`: String
+- `deliveryAddress`: DeliveryAddress
+- `events`: List<ShipmentEventInfo>
+
+### API Interfaces and Communication Patterns
+
+#### REST API Structure
+- **Content-Type**: application/json
+- **Standard HTTP Methods**: GET, POST, PUT, DELETE
+- **Status Codes**: 200 (OK), 201 (Created), 204 (No Content), 400 (Bad Request), 404 (Not Found), 409 (Conflict)
+
+#### Key Endpoints
+```
+GET    /catalog                    - List all catalog items
+POST   /catalog                    - Add new catalog item
+PUT    /catalog/{skuNumber}        - Update catalog item
+DELETE /catalog/{skuNumber}        - Remove catalog item
+
+GET    /dealers                    - List all dealers
+POST   /dealers                    - Add new dealer
+PUT    /dealers/{name}              - Update dealer
+DELETE /dealers/{name}              - Remove dealer
+
+GET    /quotes                     - List quotes (with optional customer filter)
+POST   /quotes                     - Create new quote
+PUT    /quotes/{id}                - Update quote
+DELETE /quotes/{id}                - Delete quote
+
+POST   /orders                     - Create order from quote
+GET    /orders/{id}                - Get order by ID
+PUT    /orders/{id}/status         - Update order status
+POST   /orders/{id}/events         - Add order event
+
+POST   /shipments                  - Create shipment
+GET    /shipments                  - List shipments (with status filter)
+PUT    /shipments/{id}             - Update shipment
+POST   /shipments/{id}/events      - Add shipment event
+```
+
+### Business Logic and Algorithms
+
+#### 1. **Order Workflow**
+1. Quote creation (customer-specific pricing)
+2. Order creation from quote (immutable quote data)
+3. Status progression: Created → Confirmed → Started → Built → Shipped → Delivered
+4. Event logging at each status change
+
+#### 2. **Quote Management**
+- Expiration validation
+- Customer-based grouping
+- Dealer association
+
+#### 3. **Catalog Management**
+- SKU uniqueness enforcement
+- Price updates with versioning
+- Inventory tracking
+
+#### 4. **Shipment Coordination**
+- Linkage to order ID
+- Address validation
+- Delivery scheduling
+
+### Configuration and Deployment
+
+#### 1. **Repository Configuration**
+- **Test Mode**: In-memory repositories
+- **Production Mode**: MongoDB persistence
+- Configuration via `RepositoryFactory.reset("memory"|"mongodb")`
+
+#### 2. **MongoDB Configuration**
+- Host: localhost
+- Database: orderingtest (for tests)
+- Collection-based storage per entity type
+
+#### 3. **Spring Boot Configuration**
+- Server Port: 8080
+- Management Port: 8081
+- Custom properties in `application.properties`
+
+### Architectural Patterns and Frameworks
+
+#### 1. **Layered Architecture**
+- Controllers (REST API)
+- Repositories (Data Access)
+- Models (Domain Objects)
+
+#### 2. **Repository Pattern**
+- Abstraction over data storage
+- Pluggable implementations (Memory/MongoDB)
+- Factory pattern for repository creation
+
+#### 3. **Test Architecture**
+- Unit tests with in-memory repositories
+- Integration tests with MongoDB
+- Test data factories for entity creation
+- `@Before` setup with repository reset
+
+#### 4. **Client-Side Architecture**
+- WinJS framework for SPA
+- RESTful service consumption
+- Promise-based async operations
+- MVVM-like data binding patterns
+
+### Key Dependencies and Interactions
+
+1. **Controller → Repository**: Direct dependency injection
+2. **Order → Quote**: Immutable reference at creation
+3. **Shipment → Order**: One-to-one relationship
+4. **Quote → Dealer**: Association via dealer name
+5. **Client → Backend**: REST API calls with JSON payloads
+
+### Cross-Cutting Concerns
+
+1. **Validation**: SKU uniqueness, quote expiration, order status progression
+2. **Error Handling**: Standard HTTP status codes with meaningful responses
+3. **Id Generation**: Auto-generated IDs for orders (order-{quoteId})
+4. **Date Handling**: Custom date formatting for events and scheduling
+5. **Concurrency**: Conflict detection (409 status for duplicate resources)

@@ -1,0 +1,119 @@
+
+## Architectural Summary: OrderService & Client Components (Part 3)
+
+### Core Models & Business Logic
+**Quote Management**  
+- `Quote`: Central entity with quoteId, customer/dealer names, `QuoteItemInfo` list, cost/discount, and delivery location  
+- Validation: Enforces non-null `dealerName` and `customerName`  
+- `QuoteItemInfo`: Line items with SKU and amount; supports sorting  
+- Lifecycle: Created from customer/dealer data; generates orders
+
+**Order Processing**  
+- `Order`: Linked to quotes via `quoteId`; tracks status (`Created`→`Shipped`) and events  
+- Order Updates: Supports status changes and event logging (`OrderEventInfo`)  
+- Creation Flow: Orders derive from validated quotes
+
+**Shipment Tracking**  
+- `ShipmentRecord`: One-to-one with orders; stores delivery address, contacts, and events  
+- `ShipmentEventInfo`: Timestamped comments (e.g., "Truck dispatched")  
+- Validation: Requires `orderId` and non-empty comments
+
+### Data Persistence Architecture
+**Repository Pattern**  
+- **Interfaces**: `CatalogItemsRepository`, `DealersRepository`, `OrderRepository`, `QuoteRepository`, `ShipmentRepository`  
+- **Dual Storage**:  
+  - **Mock Repositories** (`Mock*Repository.java`): In-memory storage for testing  
+  - **MongoDB Repositories** (`Mongo*Repository.java`): Production persistence with retry logic  
+- **Factory Switch**: `RepositoryFactory` dynamically selects storage type via configuration (`ordering.storage: memory/mongodb`)  
+
+**MongoDB Implementation**  
+- Spring Data MongoDB with custom `MongoOperationsWithRetry` for transient fault handling  
+- Telemetry integration for monitoring DB operations  
+- Document models (e.g., `MongoCatalogItem`) map to domain objects  
+
+### API Design
+**REST Endpoints**  
+| Resource    | Operations                         | Key Features                     |
+|-------------|-----------------------------------|----------------------------------|
+| /quotes     | CRUD, search by customer/dealer    | Quote-to-Order conversion        |
+| /orders     | CRUD, status updates, event add    | Dealer-filtered queries         |
+| /shipments  | CRUD, event logging               | Status-based retrieval           |
+| /catalog    | CRUD, SKU search                  | Inventory/price management      |
+| /dealers    | CRUD                              | Auto-dealer creation on quotes  |
+
+**Response Semantics**  
+- `201 CREATED` on successful resource creation  
+- `409 CONFLICT` for duplicate resources (e.g., duplicate orders from quotes)  
+- ETags for optimistic concurrency control  
+
+### Client Architecture (Web Frontend)
+**WinJS Application**  
+- **Navigation**: SPA with sections for Dealers, Quotes, Orders, Deliveries, Catalog, Settings  
+- **Data Layer** (`data.js`): RESTful HTTP calls to backend using WinJS.xhr  
+- **CRUD Operations**:  
+  - Binding lists for views (`WinJS.Binding.List`)  
+  - Dual-panel UI (list view + edit form)  
+  - Promises for async operations  
+
+**Edit Tools** (`edittools.js`)  
+- Reusable control for Save/Delete/Add actions  
+- WinJS-based custom buttons with SVG icons  
+
+### Configuration & Deployment
+**Backend**  
+- **Spring Boot**: Configured via `application.properties`  
+- **Database Switch**: `ordering.storage` property selects mock/MongoDB  
+- **Telemetry**: Application Insights integration  
+- **Ports**: Main (8080) + Management (8081)  
+
+**Client**  
+- **Gradle Build**: Generates `mrp.war` for Tomcat deployment  
+- **Static Assets**: WinJS framework, Google Maps API, custom CSS/JS  
+
+### Testing Strategy
+**Unit Tests**  
+- Repository test inheritance (`*RepositoryTest`) with mock/Mongo implementations  
+- `ConfigurationRule` enforces Spring context during tests  
+- Test data factories (e.g., `createDealer()`)  
+
+**Integration Tests**  
+- `@Category(IntegrationTests.class)` for MongoDB-specific tests  
+- Repository reset between tests (`TestPath.reset()`)  
+
+### Architectural Patterns
+- **Repository Pattern**: Abstraction for data access  
+- **Factory Pattern**: Dynamic storage selection  
+- **Template Method**: Base test classes with shared setup  
+- **Command Pattern**: Edit tool actions  
+- **Event-Driven**: Order status updates trigger event logging  
+
+### Key Dependencies
+- **Backend**: Spring Data MongoDB, Application Insights, JUnit  
+- **Frontend**: WinJS, Google Maps API, Gradle  
+
+### Service Interactions
+```mermaid
+graph LR
+  A[Quote] -->|Generates| B[Order]
+  B -->|Triggers| C[Shipment]
+  D[Catalog] -->|Populates| A
+  E[Dealer] -->|Validates| A
+```
+
+### Decomposition Insights
+**Microservice Candidates**:  
+1. **Quote Service**: Quote lifecycle, validation, item management  
+2. **Order Service**: Order creation, status tracking, event logging  
+3. **Shipment Service**: Delivery tracking, event management  
+4. **Catalog Service**: Product data, SKU management  
+5. **Dealer Service**: Dealer information, address validation  
+
+**Critical Couplings**:  
+- Order creation requires Quote validation  
+- Shipment creation depends on Order existence  
+- Catalog lookup needed for QuoteItemInfo validation  
+
+**Optimizations Needed**:  
+- Replace shared `RepositoryFactory` with service-specific config  
+- Implement inter-service communication (REST/events) for cross-domain operations  
+- Isolate database schemas per service in MongoDB

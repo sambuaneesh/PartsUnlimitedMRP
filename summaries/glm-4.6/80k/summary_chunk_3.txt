@@ -1,0 +1,152 @@
+
+## Architectural Summary for Microservice Decomposition
+
+### **Core Application Framework**
+- **Technology Stack**: WinJS (Windows JavaScript) with HTML/CSS front-end
+- **Architecture Pattern**: Single-Page Application (SPA) with page-based navigation
+- **Navigation Hub**: `main.html` serves as entry point with tile-based navigation to modules
+- **Common UI Components**: 
+  - EditTools control (add/save/delete operations)
+  - ListView with item templates for data display
+  - Address autocomplete integration
+  - Popup dialogs for related data management
+
+---
+
+### **Business Modules & Components**
+
+#### **1. Dealer Management Service**
+**Components**: `dealers.html/js/css`
+- **Responsibilities**: CRUD operations for dealer data
+- **Data Model**: 
+  - `name`, `contact`, `address`, `email`, `phone`
+- **APIs**: 
+  - `Data.dealersGet()`
+  - `Data.dealerSave()`
+  - `Data.dealerDelete()`
+  - `Data.dealerCreate()`
+- **UI**: ListView with single-selection + detail form
+
+#### **2. Quote Service**
+**Components**: `quotes.html/js/css`
+- **Responsibilities**: Quote creation with pricing/specifications
+- **Data Model**: 
+  - `dealerName`, `customerName`, `city`, `postalCode`
+  - Product specs: `width`, `height`, `depth`, `purpose` (Fridge/Freezer)
+  - Pricing: `totalCost`, `discount`, `terms`
+  - Ambient: `ambientAverage`, `ambientPeak`
+- **Key Features**:
+  - Manages extras via popup (`pages/extras/extras.html`)
+  - Converts quotes to orders
+- **APIs**:
+  - `Data.quotesGet()`
+  - `Data.quoteSave()`
+  - `Data.quoteDelete()`
+
+#### **3. Order Service**
+**Components**: `orders.html/js/css`
+- **Responsibilities**: Order lifecycle management
+- **Data Model**: 
+  - `orderDate`, `status` (8-state lifecycle)
+  - Embedded `__quote` data (full quote reference)
+- **Status Flow**: 
+  `Created → Confirmed → Started → Built → DeliveryConfirmed → Shipped → Delivered → Installed`
+- **Key Features**:
+  - Creates from quotes (`Data.orderCreateFromQuote()`)
+  - Manages order events via `orderevents.html`
+- **APIs**:
+  - `Data.ordersGet()`
+  - `Data.orderSave()`
+  - `Data.orderDelete()`
+
+#### **4. Delivery Service**
+**Components**: `deliveries.html/js/css`
+- **Responsibilities**: Delivery execution and tracking
+- **Data Model**:
+  - `deliveryDate`, `deliveryAddress`
+  - Contacts: `primaryContactPhone`, `alternateContactPhone`
+  - Embedded `__order` and `__quote` data
+- **Key Features**:
+  - Creates from orders (`Data.deliveryCreateFromOrder()`)
+  - Manages delivery events separately from order events
+- **APIs**:
+  - `Data.deliveriesGet()`
+  - `Data.deliverySave()`
+  - `Data.deliveryDelete()`
+
+#### **5. Catalog Service**
+**Components**: `extras.html/js/css`
+- **Responsibilities**: Manages product add-ons/extras
+- **Data Model**: 
+  - `skuNumber`, `description`, `unit`, `unitPrice`
+- **Key Features**:
+  - Popup-based management for quotes/orders
+  - SKU lookup auto-population
+- **APIs**:
+  - `Data.catalogGet()`
+  - `Data.catalogFindSku()`
+  - `Data.catalogSave()`
+
+#### **6. Event Management Service**
+**Components**: `orderevents.html/js/css`
+- **Responsibilities**: Timeline tracking for orders/deliveries
+- **Data Model**:
+  - `date`, `comments`
+- **Features**:
+  - Sorted chronologically
+  - Shared between orders and deliveries
+- **Implementation**: In-memory event list attached to parent entities
+
+---
+
+### **Data Flow & Dependencies**
+```mermaid
+graph LR
+  Dealers --> Quotes
+  Quotes --> Orders
+  Orders --> Deliveries
+  Catalog --> Quotes & Orders
+  Events --> Orders & Deliveries
+```
+
+1. **Dealer → Quote**: Many-to-one relationship
+2. **Quote → Order**: One-to-one conversion
+3. **Order → Delivery**: One-to-one conversion
+4. **Catalog Extras**: Referenced by quotes/orders
+5. **Events**: Child entities of orders/deliveries
+
+---
+
+### **Cross-Cutting Concerns**
+- **Data Layer**: Global `Data` object handling all persistence
+- **Address Integration**: 
+  - Google Places-like autocomplete
+  - `addAddressHandler()` for postal code extraction
+- **Navigation**: WinJS.Navigation module with deep-linking support
+- **State Management**: 
+  - Two-way data binding (`Binding.Mode.twoway`)
+  - WinJS.Binding.List for observable collections
+- **Dialogs**: Popup modals for related entity management
+
+---
+
+### **Microservice Boundary Candidates**
+1. **Dealer Service**: Independent entity management
+2. **Product Catalog Service**: SKU/extras management
+3. **Quote Service**: Pricing and specifications
+4. **Order Service**: Workflow orchestration
+5. **Delivery Service**: Logistics execution
+6. **Event Service**: Timeline tracking (shared)
+
+### **Key Decompression Points**
+- **Quote→Order Conversion**: Asynchronous process
+- **Order→Delivery Handoff**: State transition with event tracking
+- **Event Service**: Stateless service usable by multiple domains
+- **Address Validation**: Shared utility service
+- **Catalog Lookup**: Static data cacheable service
+
+### **Technical Debt Notes**
+- Tight coupling in embedded `__order`/`__quote` data
+- Client-side data filtering (`Data.*Get()`) needs server-side pagination
+- In-memory event management requires persistence
+- Address validation hardcoded in UI layer
