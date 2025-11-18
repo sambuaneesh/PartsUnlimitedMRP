@@ -1,0 +1,11 @@
+
+| Component Name | Responsibility | Interfaces | Depends On | Technologies |
+|---|---|---|---|---|
+| Frontend (WinJS SPA) | Provides the user interface for all business modules (Dashboard, Dealers, Quotes, Orders, etc.), handles navigation, data binding, and user interactions. | Consumes REST APIs (`/api/catalog`, `/api/dealers`, `/api/quotes`, `/api/orders`, `/api/shipments`)<br>Key JS methods: `navigator.js`, `default.js`, `addAddressHandler()` | OrderService, Google Maps API | WinJS, MVVM, Data Binding, Apache Tomcat, JavaScript |
+| Catalog Service | Manages product information including SKUs, descriptions, pricing, inventory, and lead times. | `GET/POST /api/catalog` | MongoDB, IntegrationService | Spring Boot, Repository Pattern, MongoDB |
+| Dealer Service | Manages reseller/dealer information and addresses. | `GET/POST /api/dealers` | MongoDB, Google Maps API | Spring Boot, Repository Pattern, MongoDB |
+| Quote Service | Manages the quote lifecycle: creation, validation, expiry, cost calculation. Generates orders from valid quotes. | `GET/POST /api/quotes` | MongoDB, Catalog Service, Dealer Service | Spring Boot, Repository Pattern, MongoDB |
+| Order Service | Processes orders from quotes, manages the 8-state order lifecycle, and logs order events. Prevents duplicate orders. | `GET/POST /api/orders`<br>`POST /api/orders/{id}/events` | MongoDB, Quote Service, Shipment Service | Spring Boot, Repository Pattern, Event-Driven |
+| Shipment Service | Manages delivery records, scheduling, contact details, and tracks shipment events after an order is completed. | `GET/POST /api/shipments` | MongoDB, Order Service | Spring Boot, Repository Pattern, MongoDB |
+| Integration Service | Acts as a bridge to the external Parts Unlimited Website. Processes orders and syncs catalogs via Azure queues. | `MrpConnectService` (REST client)<br>`QueueService` (Azure)<br>`CreateOrderProcessTask` (Scheduled)<br>`UpdateProductProcessTask` (Scheduled) | Azure Storage Queues, Parts Unlimited Website (MRP) | Spring Boot, Azure Storage Queues, Scheduled Tasks, REST |
+| MongoDB Database | Persistent data store for all application entities. | Collections: `catalogitems`, `dealers`, `quotes`, `orders`, `shipments`<br>`MongoOperationsWithRetry` wrapper | (None) | MongoDB, NoSQL, JSON/BSON |

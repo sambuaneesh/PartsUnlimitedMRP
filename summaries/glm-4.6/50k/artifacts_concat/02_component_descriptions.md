@@ -1,0 +1,13 @@
+
+| Component Name | Responsibility | Interfaces | Depends On | Technologies |
+|---|---|---|---|---|
+| Frontend Client (WinJS SPA) | Single Page Application for MRP operations (catalog, orders, quotes, dealers, shipments) | REST API calls to backend endpoints (catalog, dealers, quotes, orders, deliveries, events) | OrderService REST APIs, Google Maps API | WinJS, HTML5, CSS3, JavaScript, DateJS, Google Maps API |
+| OrderService | Core business logic for order lifecycle, quote generation, catalog management, dealer info, shipment tracking | GET/POST /api/catalog, /api/orders/{id}, /api/quotes, /api/dealers, /api/shipments/{id} | MongoDB, RepositoryFactory, Application Insights | Spring Boot (Java), MongoDB, Spring Data MongoDB, JUnit, Azure App Insights |
+| IntegrationService | External system integration with queue-based communication and scheduled processing | Azure Storage Queue input/output, MRP REST endpoints (/catalog, /orders) | Azure Storage Queues, OrderService REST APIs, MRP system | Spring Boot (Java), Azure Storage Queues, Scheduled Tasks (Spring) |
+| MongoDB Database | Persistent storage for all MRP entities (catalog, dealers, quotes, orders, shipments) | Document collections with retry logic | OrderService (read/write), IntegrationService (read/write) | MongoDB, MongoOperationsWithRetry |
+| Tomcat Web Server | Serves static frontend WAR file and handles web requests | HTTP requests on port 9080 | Frontend WAR (mrp.war) | Apache Tomcat 7 |
+| Repository Pattern Layer | Data access abstraction with pluggable storage implementations | Repository interfaces (CatalogItemsRepository, DealersRepository, etc.) | MongoDB or In-memory storage (configured via RepositoryFactory) | Spring Data MongoDB, Mock Implementations |
+| CI/CD Pipeline | Automated build, test, and deployment of application components | Gradle build tasks, Travis CI hooks, Jenkins pipeline | Source code repositories, Azure VMs | Travis CI, Jenkins, Gradle, Azure Templates |
+| Infrastructure as Code | Provisioning and configuration of Azure resources | ARM templates, Ansible playbooks, Chef recipes, Puppet manifests | Azure subscription, VM instances | Azure ARM, Ansible, Chef, Puppet, Docker |
+| Navigation System | Client-side page lifecycle management and navigation transitions | PageControlNavigator methods | WinJS framework, Page controls | WinJS, JavaScript |
+| Address Management | Google Maps integration for address validation and autocomplete | addAddressHandler(), getPostCodeFromPlace() | Google Maps API, frontend forms | Google Places API, JavaScript |

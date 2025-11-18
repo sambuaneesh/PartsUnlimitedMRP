@@ -1,0 +1,351 @@
+
+# Comprehensive Architectural Summary: Parts Unlimited MRP System
+
+## 1. System Overview
+Parts Unlimited MRP is a Java-based Manufacturing Resource Planning application using a monolithic architecture with three primary layers:
+- **Frontend**: Windows Store App (WinJS SPA) served by Apache Tomcat
+- **Backend**: Spring Boot services (OrderService, IntegrationService)
+- **Database**: MongoDB with collections for catalog, dealers, quotes, orders, and shipments
+- **Infrastructure**: Azure-based deployment with IaC automation
+
+---
+
+## 2. Frontend Architecture (Windows Store App)
+
+### Application Framework
+- **Technology Stack**: WinJS (Windows JavaScript Library) SPA
+- **Pattern**: MVVM (Model-View-ViewModel) with data binding
+- **Deployment**: WAR file (`mrp.war`) deployed to Tomcat (port 9080)
+- **Configuration**: `serverconfig.js` with configurable API endpoint (`http://{hostname}:8080`)
+
+### Core Components
+#### Navigation System
+- `navigator.js`: Implements `PageControlNavigator` for page lifecycle and transitions
+- Features: Navigation history management, responsive layout, page disposal
+
+#### Application Shell
+- `default.js`: Handles initialization, global errors, progress indicators, dialogs
+- Dialog Functions: `confirm()`, `reporterror()`, `popup()`, `showProgress()`, `hideProgress()`
+
+#### Data Binding
+- Custom `Binding.Mode.twoway` implementation
+- `WinJS.Binding.List` for observable collections
+- `WinJS.Binding.Template` for list rendering
+
+### Business Modules
+| Module | Path | Key Features |
+|--------|------|--------------|
+| Main Dashboard | `pages/main/` | Tile-based navigation |
+| Dealers | `pages/dealers/` | CRUD + Google Maps autocomplete |
+| Quotes | `pages/quotes/` | Quote lifecycle, extras management |
+| Orders | `pages/orders/` | Status workflow (Created→Installed) |
+| Deliveries | `pages/deliveries/` | Scheduling, event tracking |
+| Catalog | `pages/catalog/` | SKU management |
+| Extras | `pages/extras/` | Modal popup for add-on items |
+| Order Events | `pages/orderevents/` | Event logging |
+
+### Shared Services
+- **Address Management**: Google Maps Places integration (`addAddressHandler()`, `getPostCodeFromPlace()`)
+- **Date Handling**: DateJS library for parsing/formatting
+- **EditTools Component**: Reusable CRUD controls with SVG icons
+- **Data Operations**: REST calls via `WinJS.xhr` (catalogGet, dealerSave, orderDelete, etc.)
+
+### Key Business Flows
+1. **Quote-to-Order**: Creates order from validated quote
+2. **Order-to-Delivery**: Generates delivery record from completed order
+3. **Status Progression**: 8-state order lifecycle
+4. **Address Standardization**: Via Google Maps API
+
+---
+
+## 3. Backend Services
+
+### OrderService
+**Framework**: Spring Boot (Java) on port 8080 + management port 8081
+
+#### Data Models
+```java
+// CatalogItem
+String skuNumber, description;
+double price;
+int inventory;
+int leadTime;
+
+// Quote
+String quoteId;
+String customerName, dealerName;
+List<QuoteItemInfo> quoteItems;
+String totalCost, discount;
+QuoteDeliveryLocation deliveryLocation;
+
+// Order
+String orderId, quoteId;
+ISODate orderDate;
+String status; // Created→Shipped
+List<OrderEventInfo> events;
+
+// ShipmentRecord
+String orderId;
+String contactName;
+AddressInfo deliveryAddress;
+List<ShipmentEventInfo> events;
+```
+
+#### Repository Architecture
+- **Interface Pattern**: `CatalogItemsRepository`, `OrderRepository`, etc.
+- **Dual Implementation**:
+  - Mock Repositories (`Mock*Repository.java`): In-memory testing
+  - MongoDB Repositories (`Mongo*Repository.java`): Production with retry
+- **Dynamic Selection**: `RepositoryFactory` via `ordering.storage` property
+
+#### API Endpoints
+| Method | Path | Function |
+|--------|------|----------|
+| GET/POST | `/api/catalog` | Product CRUD |
+| GET/POST | `/api/dealers` | Dealer management |
+| GET/POST | `/api/quotes` | Quote lifecycle |
+| GET/POST | `/api/orders` | Order processing |
+| GET/POST | `/api/shipments` | Shipment tracking |
+| POST | `/api/orders/{id}/events` | Add order events |
+
+#### Business Logic
+- Quote validation (dealer/customer required)
+- Order creation from quotes (conflict prevention)
+- Shipment event logging (non-empty comments)
+- Inventory level checks during order creation
+
+### IntegrationService
+**Purpose**: Bridge to Parts Unlimited Website via Azure queues
+
+#### Key Components
+- `MrpConnectService`: REST client to MRP endpoints
+- `QueueService`: Azure Storage Queue operations
+- `CreateOrderProcessTask`: 30s interval order processing
+- `UpdateProductProcessTask`: Catalog synchronization
+
+#### Data Flow
+```mermaid
+graph LR
+    AzureQueue --> CreateOrderProcessTask --> MRP
+    MRP --> UpdateProductProcessTask --> AzureQueue
+```
+
+---
+
+## 4. Database Architecture
+
+### MongoDB Collections
+```javascript
+// Catalog Items
+{
+  skuNumber: "LIG-0001",
+  description: "Helogen Headlights",
+  price: 38.99,
+  inventory: 10,
+  leadTime: 3
+}
+
+// Quotes
+{
+  quoteId: "0",
+  validUntil: ISODate,
+  customerName: "Walter Harp",
+  dealerName: "Terry Adams",
+  totalCost: "51.97",
+  discount: "0.0",
+  quoteItems: [{skuNumber, amount}]
+}
+
+// Orders
+{
+  orderId: "0",
+  quoteId: "0",
+  orderDate: ISODate,
+  status: "Created|DeliveryConfirmed",
+  events: [OrderEventInfo]
+}
+
+// Shipments
+{
+  orderId: "0",
+  contactName: "Walter Harp",
+  primaryContactPhone: {phoneNumber, kind},
+  deliveryAddress: {street, city, state, postalCode},
+  events: [ShipmentEventInfo]
+}
+```
+
+### Data Access Layer
+- **Retry Logic**: Custom `MongoOperationsWithRetry`
+- **Telemetry**: App Insights integration
+- **Test Support**: `TestPath.reset()` between tests
+
+---
+
+## 5. Infrastructure & Deployment
+
+### Azure Infrastructure
+#### ARM Template Components
+- **Virtual Network**: `myVnet` (10.123.0.0/16)
+- **Subnets**: `subnet1` (10.123.1.0/24), `subnet2` (10.123.2.0/24)
+- **NSG Rules**: Allow SSH (TCP/22)
+- **Load Balancer**: Internal TCP/22 forwarding
+- **VMs**: CentOS/Ubuntu with managed disks
+
+#### Automation Tools
+- **Ansible**: 
+  - `new_vm_web.yml`: VM + HTTP rules
+  - `httpd.yml`/`nginx.yml`: Web server setup
+  - `delete_vm.yml`: Lifecycle cleanup
+- **Chef/Puppet**: OpenJDK 8, MongoDB, Tomcat deployment
+
+### CI/CD Pipelines
+#### Travis CI (`.travis.yml`)
+```yaml
+script:
+  - ./gradlew build  # IntegrationService
+  - ./gradlew build test  # OrderService
+  - ./gradlew build  # Clients
+```
+
+#### Jenkins
+- Location: `deploy/azurestack/instances/jenkins_mrp/`
+- Features: Automated deployment, Azure VM provisioning
+
+### Deployment Methods
+#### Manual (`deploy_mrp_app.sh`)
+1. Copies artifacts to `/var/lib/partsunlimited`
+2. Seeds MongoDB with `MongoRecords.js`
+3. Configures Tomcat (port 9080)
+4. Starts OrderService JAR
+
+#### Docker
+```bash
+docker run -p 27017:27017 mypartsunlimitedmrp/db
+docker run -p 8080:8080 --link db:mongo mypartsunlimitedmrp/order
+docker run -p 80:8080 mypartsunlimitedmrp/web
+```
+
+---
+
+## 6. Architectural Patterns
+
+### Design Patterns
+1. **Repository Pattern**: Abstraction for data access
+2. **Factory Pattern**: Dynamic storage selection (RepositoryFactory)
+3. **Template Method**: Base test classes (`*RepositoryTest`)
+4. **Command Pattern**: Edit tool actions
+5. **Event-Driven**: Order status updates trigger events
+
+### Integration Patterns
+1. **Queue-Based Messaging**: Azure Storage Queues for decoupling
+2. **RESTful APIs**: Resource-oriented with HATEOAS
+3. **Scheduled Tasks**: Background order/product sync
+4. **Anti-Corruption Layer**: IntegrationService formats translation
+
+### Configuration Management
+- Centralized `application.properties`
+- Environment-specific DB URLs
+- Feature flags (`ordering.storage`)
+- CORS and App Insights filters
+
+---
+
+## 7. Testing Strategy
+
+### Unit Testing
+- Repository inheritance hierarchy
+- `ConfigurationRule` for Spring context
+- Test data factories (e.g., `createDealer()`)
+
+### Integration Testing
+- `@Category(IntegrationTests.class)` for MongoDB
+- Locust load testing against Flask API
+- Endpoints tested: GET/POST `/tests`
+
+### Error Handling
+- Custom exceptions:
+  - `BadRequestException`
+  - `ConflictingRequestException` (e.g., duplicate orders)
+- Global filters: `SimpleCORSFilter`, `AppInsightsFilter`
+
+---
+
+## 8. Microservice Boundaries & Decomposition
+
+### Natural Service Candidates
+1. **Catalog Service**:
+   - SKU management, inventory, pricing
+   - API: `/api/catalog`
+   - Data: CatalogItem collection
+
+2. **Dealer Service**:
+   - Reseller information, address validation
+   - API: `/api/dealers`
+   - Integration: Google Maps API
+
+3. **Quote Service**:
+   - Quote lifecycle, expiry, validation
+   - API: `/api/quotes`
+   - Business Rules: 30-day default expiry
+
+4. **Order Service**:
+   - Order processing, status tracking
+   - API: `/api/orders`
+   - Workflow: Created → Shipped → Installed
+
+5. **Shipment Service**:
+   - Delivery logistics, event logging
+   - API: `/api/shipments`
+   - Validation: Non-empty event comments
+
+6. **Integration Service**:
+   - External system bridge
+   - Queue processing
+   - Scheduled sync tasks
+
+### Critical Dependencies
+```mermaid
+graph TB
+    A[Catalog] -->|Validates SKUs| B[Quote]
+    C[Dealer] -->|Validates dealer| B
+    B -->|Generates| D[Order]
+    D -->|Triggers| E[Shipment]
+    F[Integration] -->|Syncs| A
+    G[Google Maps] -->|Standardizes| C
+```
+
+### Decomposition Considerations
+- **Database Separation**: Isolate MongoDB collections per service
+- **Service Communication**: Replace shared repositories with REST/events
+- **Configuration**: Move service-specific settings to config services
+- **Frontend Adaptation**: Update client to call multiple service endpoints
+- **Data Consistency**: Implement saga pattern for cross-service transactions
+
+---
+
+## 9. Security & Observability
+
+### Security Features
+- CORS configuration for cross-origin requests
+- Input sanitization in controllers
+- Admin user configuration (`lab-user`)
+
+### Monitoring
+- **Application Insights**: Telemetry across services
+- **Structured Logging**: Request tracking
+- **Health Probes**: TCP checks in load balancer
+- **Performance Metrics**: Locust load testing results
+
+---
+
+## 10. Key Deployment Artifacts
+
+| Component | Artifact | Location |
+|-----------|----------|----------|
+| Frontend | `mrp.war` | Tomcat webapps |
+| OrderService | `ordering-service-0.1.0.jar` | `/var/lib/partsunlimited` |
+| DB Seed | `MongoRecords.js` | MongoDB init |
+| Config | `serverconfig.js` | Client |
+| Templates | `ARMtemplate-newVM.json` | Azure deployment |
+| Playbooks | `*.yml` | Ansible |

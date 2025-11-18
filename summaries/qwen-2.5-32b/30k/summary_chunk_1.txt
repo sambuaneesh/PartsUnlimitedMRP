@@ -1,0 +1,73 @@
+### Architectural Summary of Parts Unlimited MRP
+
+#### Overview
+The Parts Unlimited MRP (Manufacturing Resource Planning) application is a fictional application designed for training purposes. It is based on the description in chapters 31-35 of "The Phoenix Project" by Gene Kim, Kevin Behr, and George Spafford. The application is built using open-source technologies such as Linux, Java, Apache Tomcat, and MongoDB. It consists of a web frontend, an order service, and an integration service.
+
+#### Components and Responsibilities
+
+1. **Frontend Service**
+   - **Responsibilities**: Serves as the web interface for users to interact with the application. It communicates with the Order Service via RESTful APIs.
+   - **Technologies Used**: Apache Tomcat, Java Servlets, JSP.
+   - **API Endpoints**: Not explicitly defined in the given chunk but interacts with the Order Service.
+
+2. **Order Service**
+   - **Responsibilities**: Manages orders, quotes, and shipments. It handles CRUD operations for these entities and integrates with the database.
+   - **Technologies Used**: Java, Spring Boot, MongoDB.
+   - **API Endpoints**:
+     - `/catalog`: Handles catalog items.
+     - `/dealers`: Manages dealer information.
+     - `/orders`: Manages order-related operations.
+     - `/quotes`: Manages quotes.
+     - `/shipments`: Manages shipment-related operations.
+
+3. **Integration Service**
+   - **Responsibilities**: Integrates with external systems (such as Parts Unlimited Website). It processes orders, quotes, and shipments and sends notifications.
+   - **Technologies Used**: Java, Spring Boot, MongoDB.
+   - **API Endpoints**: Not explicitly defined in the given chunk but interacts with external systems.
+
+#### Database Schemas and Data Models
+
+- **MongoDB Databases**:
+  - **Database Name**: `ordering`
+  - **Collections**:
+    - **catalog**: Stores catalog items with fields like `skuNumber`, `description`, `unit`, `unitPrice`.
+    - **dealers**: Stores dealer information with fields like `name`, `address`, `email`, `phone`.
+    - **quotes**: Stores quotes with fields like `quoteId`, `validUntil`, `customerName`, `dealerName`, `city`, `totalCost`, `discount`, `state`, `postalCode`, `quoteItems`.
+    - **orders**: Stores orders with fields like `orderId`, `quoteId`, `orderDate`, `status`, `events`.
+    - **shipments**: Stores shipment information with fields like `orderId`, `contactName`, `primaryContactPhone`, `deliveryAddress`, `events`.
+
+#### Service Dependencies and Communication Patterns
+
+- **Order Service**:
+  - **Dependencies**: MongoDB.
+  - **Communication Pattern**: RESTful APIs for internal interactions, possibly messaging queues (not explicitly defined) for asynchronous processing.
+
+- **Integration Service**:
+  - **Dependencies**: MongoDB, external systems (Parts Unlimited Website).
+  - **Communication Pattern**: RESTful APIs for external system integration, possibly messaging queues (not explicitly defined) for asynchronous processing.
+
+#### Key Business Logic and Algorithms
+
+- **Order Processing**: Logic for creating, updating, and managing orders.
+- **Quote Generation**: Logic for generating quotes based on catalog items and customer requirements.
+- **Shipment Management**: Logic for tracking and managing shipments.
+
+#### Configuration and Deployment Details
+
+- **Build Tools**: Gradle.
+- **Environment Setup Scripts**: 
+  - `Install-Build-Dependencies.sh`: Installs Java, MongoDB, and other dependencies.
+  - `install_mrp_dependencies.sh`: Sets up the deployment environment and deploys the application.
+  - `deploy_mrp_app.sh`: Deploys the application to a Linux VM.
+- **CI/CD Tools**: Jenkins (used for continuous integration and deployment).
+- **Configuration Files**: `application.properties` for configuring application properties.
+
+#### Architectural Patterns and Frameworks Used
+
+- **Microservices Architecture**: Although not fully decomposed into microservices, the application is structured with separate services for different functionalities (Order Service, Integration Service).
+- **Spring Boot**: Used for developing the backend services.
+- **RESTful APIs**: Used for communication between services.
+- **Continuous Integration/Continuous Deployment (CI/CD)**: Jenkins is used for CI/CD pipelines.
+- **Configuration Management**: Uses scripts and configuration files to manage environment setups.
+
+This summary provides a comprehensive overview of the Parts Unlimited MRP application, capturing the essential architectural information necessary for microservice decomposition analysis.

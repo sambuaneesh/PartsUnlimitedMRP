@@ -1,0 +1,7 @@
+
+| Component Name | Responsibility | Interfaces (key endpoints or methods) | Depends On | Technologies |
+|---|---|---|---|---|
+| WinJS Frontend | Provides the user interface for all MRP functions (dashboard, catalog, dealer, quote, order, and shipment management) via a Single Page Application. | Pages: `main`, `catalog`, `dealers`, `quotes`, `orders`, `deliveries`, `extras`, `orderevents` | Order Service | WinJS, JavaScript, Google Maps API, DateJS |
+| Order Service (Monolith) | Handles all core business logic: catalog, dealer, quote, order, and shipment management via a set of RESTful controllers. | `/catalog`, `/dealers`, `/quotes`, `/orders`, `/shipments`, `/ping` | MongoDB Data Store | Java 8, Spring Boot, Gradle, Application Insights, Repository Pattern |
+| Integration Service | Handles asynchronous integration with external systems, manages queue processing, and performs scheduled data synchronization tasks. | `MrpConnectService`, `QueueService`, `CreateOrderProcessTask`, `UpdateProductProcessTask` | Azure Queue Service, Parts Unlimited Website API, MRP System API | Java 8, Spring Boot, Azure Storage SDK, Jackson |
+| MongoDB Data Store | Persists all application data, including catalog, dealers, quotes, orders, and shipments. | Collections: `catalog`, `dealers`, `quotes`, `orders`, `shipments` | None | MongoDB (Document Database) |
