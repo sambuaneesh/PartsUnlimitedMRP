@@ -1,0 +1,108 @@
+### Architectural Summary for Microservice Decomposition Analysis
+
+#### Overview
+This codebase represents a part of a larger application, primarily focusing on backend services related to order management and integration with an MRP (Manufacturing Resource Planning) system. The services are built using Spring Boot, Gradle, and utilize MongoDB and PostgreSQL databases. The system includes continuous integration setup using Travis CI and load testing with Locust.
+
+#### Components and Responsibilities
+
+1. **IntegrationService**
+   - **Responsibilities**: Acts as an intermediary between the website and the MRP system. It retrieves orders from an Azure queue, sends them to the MRP system, and updates the website with product inventory changes.
+   - **API Endpoints**: None directly exposed, operates internally via scheduled tasks.
+   - **Database Schema/Data Models**: 
+     - Uses Azure Storage Queues (`orders`, `product`) for message passing.
+     - Utilizes models for data serialization/deserialization (e.g., `OrderMessage`, `ProductMessage`, `CatalogItem`, `Quote`, `ShipmentRecord`).
+   - **Service Dependencies and Communication Patterns**:
+     - Communicates with the MRP system via REST API.
+     - Interacts with Azure Storage Queues for message passing.
+   - **Key Business Logic and Algorithms**:
+     - Scheduled tasks for processing orders and updating product inventories.
+     - Serialization and deserialization of messages.
+   - **Configuration and Deployment Details**:
+     - Configured via `application.properties` for Azure storage connection strings, MRP endpoint, and queue configurations.
+     - Built using Gradle.
+   - **Architectural Patterns/Frameworks**:
+     - Spring Boot for scheduling and REST communication.
+     - Azure Storage SDK for queue operations.
+
+2. **OrderService**
+   - **Responsibilities**: Manages order-related data, including catalog items, dealers, quotes, orders, and shipments.
+   - **API Endpoints**:
+     - `/catalog`: Manage catalog items (GET, POST, PUT, DELETE).
+     - `/dealers`: Manage dealers (GET, POST).
+     - `/quotes`: Manage quotes (GET, POST, PUT, DELETE).
+     - `/orders`: Manage orders (GET, POST).
+     - `/shipments`: Manage shipments (GET, POST, PUT).
+   - **Database Schema/Data Models**:
+     - MongoDB collections for storing catalog items, dealers, quotes, orders, and shipments.
+     - PostgreSQL tables for the same entities.
+     - Data models include `CatalogItem`, `Dealer`, `Quote`, `Order`, `ShipmentRecord`, `ShipmentEventInfo`, etc.
+   - **Service Dependencies and Communication Patterns**:
+     - Uses MongoDB and PostgreSQL for data storage.
+     - Provides RESTful API for external interactions.
+   - **Key Business Logic and Algorithms**:
+     - CRUD operations for catalog items, dealers, quotes, orders, and shipments.
+     - Validation and error handling.
+   - **Configuration and Deployment Details**:
+     - Configured via `application.properties` for database connections, CORS settings, and telemetry.
+     - Built using Gradle.
+     - Can be run as a standalone application or deployed in a Tomcat container.
+   - **Architectural Patterns/Frameworks**:
+     - Spring Boot for RESTful API and data access.
+     - Spring Data for MongoDB and PostgreSQL repositories.
+     - Application Insights for telemetry.
+
+3. **Flask REST API**
+   - **Responsibilities**: Provides a simple RESTful API for managing software testing types.
+   - **API Endpoints**:
+     - `/tests`: Retrieve and add software testing types (GET, POST).
+   - **Database Schema/Data Models**:
+     - In-memory list `testing_types` for storing testing types.
+   - **Service Dependencies and Communication Patterns**:
+     - No external dependencies, operates independently.
+   - **Key Business Logic and Algorithms**:
+     - Basic CRUD operations for testing types.
+   - **Configuration and Deployment Details**:
+     - Configured via Flask app settings.
+     - Run using Flask's built-in server.
+   - **Architectural Patterns/Frameworks**:
+     - Flask for RESTful API.
+
+4. **Load Testing with Locust**
+   - **Responsibilities**: Simulates user load on the Flask REST API to evaluate performance.
+   - **API Endpoints**: None, operates via Locust test scripts.
+   - **Database Schema/Data Models**: None, interacts with the Flask API.
+   - **Service Dependencies and Communication Patterns**:
+     - Communicates with the Flask API using HTTP requests.
+   - **Key Business Logic and Algorithms**:
+     - Defines test tasks for GET and POST requests.
+     - Tracks performance metrics like response time and throughput.
+   - **Configuration and Deployment Details**:
+     - Configured via `locustfile.py`.
+     - Run using Locust command-line tool.
+   - **Architectural Patterns/Frameworks**:
+     - Locust for load testing.
+
+5. **Continuous Integration with Travis CI**
+   - **Responsibilities**: Automates the build and testing process for the Python project.
+   - **API Endpoints**: None, operates via Travis CI configuration.
+   - **Database Schema/Data Models**: None, interacts with the Python project.
+   - **Service Dependencies and Communication Patterns**:
+     - Integrates with GitHub for version control.
+     - Triggers builds and tests on code commits.
+   - **Key Business Logic and Algorithms**:
+     - Installs dependencies.
+     - Executes unit tests.
+   - **Configuration and Deployment Details**:
+     - Configured via `.travis.yml`.
+     - Integrated with GitHub and Travis CI.
+   - **Architectural Patterns/Frameworks**:
+     - Travis CI for CI/CD.
+
+#### Summary of Key Points for Microservice Decomposition
+- **IntegrationService**: Focuses on integration between the website and MRP system. Suitable for microservice decomposition as it handles a distinct domain (integration).
+- **OrderService**: Manages order-related data. Can be decomposed into smaller services based on functionality (e.g., CatalogService, DealerService, QuoteService, OrderService, ShipmentService).
+- **Flask REST API**: Simple API for managing testing types. Can be decomposed further if more functionalities are added.
+- **Load Testing with Locust**: Separate from core services, used for performance evaluation.
+- **Continuous Integration with Travis CI**: External to core services, used for CI/CD processes.
+
+This summary provides a comprehensive overview of the components, their responsibilities, and their interactions, facilitating accurate microservice decomposition analysis.

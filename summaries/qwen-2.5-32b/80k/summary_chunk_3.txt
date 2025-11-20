@@ -1,0 +1,114 @@
+### Architectural Summary for Microservice Decomposition Analysis
+
+#### Overview
+This chunk of the codebase represents the client-side web application for managing various entities such as Dealers, Deliveries, Quotes, Orders, and Extras within a Parts Unlimited MRP system. The application uses WinJS for UI components and data binding. The primary focus is on the HTML, CSS, and JavaScript files that define the pages and their interactions.
+
+#### Components and Responsibilities
+
+1. **Main Page (`main.html`, `main.js`)**
+   - **Responsibility**: Acts as the landing page and provides navigation to other modules (Dealers, Quotes, Orders, Deliveries, Catalog).
+   - **API Endpoints/Interfaces**: None directly; interacts with other pages via navigation.
+   - **Service Dependencies**: None explicitly shown; depends on the `Data` object for data operations.
+   - **Key Business Logic/Algorithms**: Navigation handling for different modules.
+   - **Configuration and Deployment Details**: No specific configuration details provided. Deployment would involve serving the static files through a web server.
+   - **Architectural Patterns/Frameworks**: Uses WinJS for UI controls and data binding.
+
+2. **Dealers Page (`dealers.html`, `dealers.js`)**
+   - **Responsibility**: Displays and manages a list of dealers, including functionalities to add, edit, and delete dealers.
+   - **API Endpoints/Interfaces**: 
+     - `Data.dealersGet()` - Fetches list of dealers.
+     - `Data.dealerSave(item)` - Saves a dealer.
+     - `Data.dealerDelete(item)` - Deletes a dealer.
+     - `Data.dealerCreate()` - Creates a new dealer.
+   - **Service Dependencies**: Depends on the `Data` object for CRUD operations.
+   - **Key Business Logic/Algorithms**: Handles CRUD operations for dealers and updates the UI accordingly.
+   - **Configuration and Deployment Details**: No specific configuration details provided. Deployment involves serving the static files through a web server.
+   - **Architectural Patterns/Frameworks**: Uses WinJS for UI controls and data binding.
+
+3. **Deliveries Page (`deliveries.html`, `deliveries.js`)**
+   - **Responsibility**: Displays and manages a list of deliveries, including functionalities to add, edit, and delete deliveries. Also allows navigation to manage extras and events.
+   - **API Endpoints/Interfaces**:
+     - `Data.deliveriesGet()` - Fetches list of deliveries.
+     - `Data.deliverySave(currentItem, originalItem)` - Saves a delivery.
+     - `Data.deliveryDelete(item)` - Deletes a delivery.
+     - `Data.deliveryCreateFromOrder(order)` - Creates a delivery from an order.
+     - `Data.orderGetById(id)` - Fetches an order by ID.
+   - **Service Dependencies**: Depends on the `Data` object for CRUD operations and fetching related orders.
+   - **Key Business Logic/Algorithms**: Handles CRUD operations for deliveries and updates the UI accordingly. Manages navigation to extras and events.
+   - **Configuration and Deployment Details**: No specific configuration details provided. Deployment involves serving the static files through a web server.
+   - **Architectural Patterns/Frameworks**: Uses WinJS for UI controls and data binding.
+
+4. **Extras Page (`extras.html`, `extras.js`)**
+   - **Responsibility**: Displays and manages a list of extras associated with orders or quotes, including functionalities to add, edit, and delete extras.
+   - **API Endpoints/Interfaces**:
+     - `Data.catalogGet()` - Fetches catalog entries.
+     - `Data.catalogSave(item)` - Saves a catalog entry.
+   - **Service Dependencies**: Depends on the `Data` object for fetching and saving catalog entries.
+   - **Key Business Logic/Algorithms**: Handles CRUD operations for extras and updates the UI accordingly. Populates details based on SKU number.
+   - **Configuration and Deployment Details**: No specific configuration details provided. Deployment involves serving the static files through a web server.
+   - **Architectural Patterns/Frameworks**: Uses WinJS for UI controls and data binding.
+
+5. **Order Events Page (`orderevents.html`, `orderevents.js`)**
+   - **Responsibility**: Displays and manages a list of events related to orders, including functionalities to add, edit, and delete events.
+   - **API Endpoints/Interfaces**:
+     - `Data.catalogGet()` - Fetches catalog entries.
+   - **Service Dependencies**: Depends on the `Data` object for fetching catalog entries.
+   - **Key Business Logic/Algorithms**: Handles CRUD operations for order events and updates the UI accordingly. Sorts events by date.
+   - **Configuration and Deployment Details**: No specific configuration details provided. Deployment involves serving the static files through a web server.
+   - **Architectural Patterns/Frameworks**: Uses WinJS for UI controls and data binding.
+
+6. **Orders Page (`orders.html`, `orders.js`)**
+   - **Responsibility**: Displays and manages a list of orders, including functionalities to add, edit, and delete orders. Also allows navigation to manage extras and events.
+   - **API Endpoints/Interfaces**:
+     - `Data.ordersGet(filter)` - Fetches list of orders.
+     - `Data.orderSave(currentItem, originalItem)` - Saves an order.
+     - `Data.orderDelete(item)` - Deletes an order.
+     - `Data.orderCreateFromQuote(quote)` - Creates an order from a quote.
+     - `Data.quoteGetById(id)` - Fetches a quote by ID.
+   - **Service Dependencies**: Depends on the `Data` object for CRUD operations and fetching related quotes.
+   - **Key Business Logic/Algorithms**: Handles CRUD operations for orders and updates the UI accordingly. Manages navigation to extras and events.
+   - **Configuration and Deployment Details**: No specific configuration details provided. Deployment involves serving the static files through a web server.
+   - **Architectural Patterns/Frameworks**: Uses WinJS for UI controls and data binding.
+
+7. **Quotes Page (`quotes.html`, `quotes.js`)**
+   - **Responsibility**: Displays and manages a list of quotes, including functionalities to add, edit, and delete quotes. Also allows navigation to manage extras and orders.
+   - **API Endpoints/Interfaces**:
+     - `Data.quotesGet(filter)` - Fetches list of quotes.
+     - `Data.quoteSave(item)` - Saves a quote.
+     - `Data.quoteDelete(item)` - Deletes a quote.
+     - `Data.quoteCreate()` - Creates a new quote.
+   - **Service Dependencies**: Depends on the `Data` object for CRUD operations.
+   - **Key Business Logic/Algorithms**: Handles CRUD operations for quotes and updates the UI accordingly. Manages navigation to extras and orders.
+   - **Configuration and Deployment Details**: No specific configuration details provided. Deployment involves serving the static files through a web server.
+   - **Architectural Patterns/Frameworks**: Uses WinJS for UI controls and data binding.
+
+#### Database Schemas and Data Models
+- **Dealers**: Not explicitly defined but inferred from fields like `name`, `contact`, `address`, `email`, `phone`.
+- **Deliveries**: Includes fields like `deliveryDate`, `deliveryAddress`, `primaryContactPhone`, `alternateContactPhone`. Also references `__order` and `__quote`.
+- **Extras**: Includes fields like `skuNumber`, `description`, `unit`, `unitPrice`.
+- **Order Events**: Includes fields like `date`, `comments`.
+- **Orders**: Includes fields like `orderDate`, `status`. Also references `__quote`.
+- **Quotes**: Includes fields like `dealerName`, `validUntil`, `customerName`, `city`, `postalCode`, `comments`, `purpose`, `width`, `height`, `depth`, `ambientAverage`, `ambientPeak`, `terms`, `totalCost`, `discount`.
+
+#### Service Dependencies and Communication Patterns
+- **Communication Pattern**: The application communicates with backend services through the `Data` object, which abstracts CRUD operations.
+- **Dependencies**: 
+  - `Data` object for all CRUD operations.
+  - Backend services for data persistence and retrieval (not explicitly defined in this chunk).
+
+#### Key Business Logic and Algorithms
+- **CRUD Operations**: Centralized in the `Data` object for each entity (Dealers, Deliveries, Quotes, Orders, Extras).
+- **Sorting**: Implementations for sorting deliveries and order events by date.
+- **Navigation**: Handling navigation between different pages using the `WinJS.Navigation` object.
+
+#### Configuration and Deployment Details
+- **Configuration**: No explicit configuration details provided. The application relies on the `Data` object for data operations, which might be configured elsewhere.
+- **Deployment**: Static files need to be served through a web server. No specific deployment configurations are mentioned.
+
+#### Architectural Patterns and Frameworks Used
+- **WinJS**: Used for defining UI pages, handling data binding, and managing UI controls.
+- **MVVM (Model-View-ViewModel)**: Implied through the use of data binding and separation of concerns between UI and data operations.
+- **Single Page Application (SPA)**: The application appears to be a single-page application with navigation handled through JavaScript.
+
+### Conclusion
+The codebase chunk primarily consists of the client-side components responsible for managing various entities within the Parts Unlimited MRP system. Each page has its own set of responsibilities and interacts with the backend through the `Data` object. The application leverages WinJS for UI and data management, adhering to SPA principles and MVVM pattern. For accurate microservice decomposition, further understanding of the backend services and the `Data` object is required.

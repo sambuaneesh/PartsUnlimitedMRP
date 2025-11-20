@@ -1,0 +1,181 @@
+### Architectural Summary of Codebase Chunk 2
+
+#### Overview
+This codebase chunk primarily deals with infrastructure provisioning and configuration for Azure Virtual Machines, as well as some backend services and models related to order processing and integration. It includes ARM templates for Azure resources, Ansible playbooks for automation, and a Java-based backend service with REST APIs.
+
+#### Components and Responsibilities
+
+1. **ARM Templates**
+   - **ARMtemplate-newVM.json**: Defines the infrastructure for deploying a new virtual machine in Azure, including availability sets, network security groups, network interfaces, virtual networks, and internal load balancers.
+   - **Purpose**: Provisioning Azure VMs with necessary networking and security configurations.
+
+2. **Ansible Playbooks**
+   - **delete_vm.yml**: Deletes a specified virtual machine and associated resources (network interfaces, virtual storage, public IPs) from an Azure resource group.
+   - **httpd.yml**: Installs and configures the Apache HTTP Server on a specified virtual machine, downloads an HTML file, and ensures the server is running.
+   - **new_ARM_deployment.yml**: Deploys an ARM template to create resources in Azure.
+   - **new_vm_web.yml**: Creates a virtual machine with a public IP, network security group, and installs Apache HTTP Server.
+   - **Purpose**: Automating the deployment, configuration, and cleanup of Azure VMs and web servers.
+
+3. **Shell Scripts**
+   - **automate_nginx.sh**: Installs Nginx on a Linux VM and configures it with a simple "Hello World" page.
+   - **Purpose**: Automating web server setup for load testing.
+
+4. **REST API Backend Service (OrderService)**
+   - **Controllers**:
+     - **CatalogController**: Manages catalog items (CRUD operations).
+     - **DealerController**: Manages dealer information (CRUD operations).
+     - **OrderController**: Manages orders (CRUD operations, event addition).
+     - **PingController**: Provides health check endpoints.
+     - **QuoteController**: Manages quotes (CRUD operations).
+     - **ShipmentController**: Manages shipment records (CRUD operations, event addition).
+   - **Models**:
+     - **CatalogItem**: Represents catalog items.
+     - **DealerInfo**: Represents dealer information.
+     - **Delivery**: Aggregates quote, order, and shipment information.
+     - **DeliveryAddress**: Represents delivery addresses.
+     - **Order**: Represents orders.
+     - **OrderEventInfo**: Represents order-related events.
+     - **OrderStatus**: Enumerates possible order statuses.
+     - **OrderUpdateInfo**: Represents order updates.
+     - **PhoneInfo**: Represents phone information.
+     - **Quote**: Represents quotes.
+     - **QuoteAdditionalItemRecord**: Represents additional items in quotes.
+     - **QuoteItemInfo**: Represents items in quotes.
+     - **ShipmentEventInfo**: Represents shipment-related events.
+     - **ShipmentRecord**: Represents shipment records.
+   - **Repositories**: Manages data persistence for various entities (CatalogItemsRepository, DealersRepository, OrderRepository, QuoteRepository, ShipmentRepository).
+   - **Services**:
+     - **AppInsightsFilter**: Tracks request and exception telemetry.
+     - **BadRequestException**: Custom exception for bad requests.
+     - **ConflictingRequestException**: Custom exception for conflicting requests.
+     - **MongoDBProperties**: Holds MongoDB connection properties.
+     - **OrderingConfiguration**: Configures the application context, MongoDB, and telemetry.
+     - **OrderingInitializer**: Initializes the application when deployed in a servlet container.
+     - **OrderingServiceProperties**: Holds general service configuration properties.
+     - **PostgresqlProperties**: Holds PostgreSQL connection properties.
+     - **PropertyHelper**: Loads properties from application.properties.
+     - **SimpleCORSFilter**: Enables Cross-Origin Resource Sharing (CORS).
+     - **TestPath**: Interface for unit test hooks.
+     - **Utility**: Contains utility functions.
+   - **Purpose**: Providing RESTful APIs for order management and integration with other systems.
+
+5. **Integration Service**
+   - **Main.java**: Entry point for the Integration Service, which runs scheduled tasks.
+   - **Scheduled Tasks**:
+     - **CreateOrderProcessTask**: Retrieves orders from an Azure queue and integrates them into the MRP system.
+     - **UpdateProductProcessTask**: Queries the MRP system for catalog items and sends updates to the website.
+   - **Services**:
+     - **MrpConnectService**: Communicates with the MRP system to create quotes, orders, and shipments.
+     - **QueueFactory**: Manages Azure queues in a thread-safe manner.
+     - **QueueService**: Handles interactions with Azure queues, including message retrieval, deletion, and addition.
+   - **Models**:
+     - **QueueResponse**: Wraps responses from the queue service.
+     - **CatalogItem**: Represents catalog items from the MRP system.
+     - **DeliveryAddress**: Represents delivery addresses.
+     - **Order**: Represents orders from the MRP system.
+     - **PhoneInfo**: Represents phone information.
+     - **Quote**: Represents quotes from the MRP system.
+     - **QuoteItemInfo**: Represents items in quotes.
+     - **ShipmentEventInfo**: Represents shipment-related events.
+     - **ShipmentRecord**: Represents shipment records.
+   - **Purpose**: Integrating with the MRP system to handle order creation and product updates.
+
+#### API Endpoints and Interfaces
+
+- **OrderService API Endpoints**:
+  - `/catalog`: GET (list catalog items), POST (add catalog item), PUT/{sku} (update catalog item), DELETE/{sku} (remove catalog item).
+  - `/dealers`: GET (list dealers), POST (add dealer), PUT/{name} (update dealer), DELETE/{name} (remove dealer).
+  - `/quotes/{quoteId}`: GET (get quote by ID), PUT (update quote).
+  - `/quotes`: GET (get quotes by customer name), POST (create quote).
+  - `/orders/{orderId}`: GET (get order by ID), PUT (update order), PUT/{orderId}/status (update order status), DELETE (remove order).
+  - `/orders`: GET (get orders by dealer name and status), POST (create order from quote).
+  - `/shipments/{id}`: GET (get shipment by order ID), PUT (update shipment), POST/{id}/events (add shipment event).
+  - `/shipments`: GET (list shipments by status), POST (create shipment).
+  - `/ping`: HEAD (health check), GET (status).
+
+- **Integration Service**:
+  - Runs scheduled tasks to integrate orders and product updates with the MRP system.
+
+#### Database Schemas and Data Models
+
+- **OrderService Database Schema**:
+  - **CatalogItems**: Stores catalog item descriptions.
+  - **Dealers**: Stores dealer contact information.
+  - **Quotes**: Stores customer quotes.
+  - **QuoteAdditionalItemRecord**: Stores additional items in quotes.
+  - **Orders**: Stores agreed-upon orders.
+  - **OrderEvents**: Stores order-related events.
+  - **PhoneInfo**: Stores phone information.
+  - **DeliveryAddress**: Stores delivery addresses.
+  - **ShipmentRecords**: Stores shipment records.
+  - **ShipmentEventInfo**: Stores shipment-related events.
+
+- **Integration Service Models**:
+  - **QueueResponse**: Wraps responses from the queue service.
+  - **CatalogItem**: Represents catalog items from the MRP system.
+  - **DeliveryAddress**: Represents delivery addresses.
+  - **Order**: Represents orders from the MRP system.
+  - **PhoneInfo**: Represents phone information.
+  - **Quote**: Represents quotes from the MRP system.
+  - **QuoteItemInfo**: Represents items in quotes.
+  - **ShipmentEventInfo**: Represents shipment-related events.
+  - **ShipmentRecord**: Represents shipment records.
+
+#### Service Dependencies and Communication Patterns
+
+- **OrderService**:
+  - Depends on MongoDB or PostgreSQL for data persistence.
+  - Communicates with external systems via REST APIs.
+  - Uses filters for CORS and telemetry tracking.
+
+- **Integration Service**:
+  - Communicates with the OrderService via REST APIs.
+  - Interacts with Azure queues for order processing and product updates.
+  - Uses scheduled tasks to periodically retrieve and send messages.
+
+#### Key Business Logic and Algorithms
+
+- **OrderService**:
+  - Validation of input data for catalog items, dealers, orders, quotes, and shipment records.
+  - Handling of CRUD operations for various entities.
+  - Tracking of request and exception telemetry for monitoring and debugging.
+
+- **Integration Service**:
+  - Retrieval of orders from an Azure queue and integration into the MRP system.
+  - Querying the MRP system for catalog items and sending updates to the website.
+
+#### Configuration and Deployment Details
+
+- **OrderService**:
+  - Configured via `application.properties` for MongoDB and PostgreSQL connections, Azure storage, and MRP endpoint.
+  - Built using Gradle, producing a WAR file (`ordering-service-0.1.0.jar`).
+  - Deployed in a servlet container (Tomcat).
+
+- **Integration Service**:
+  - Configured via `application.properties` for Azure storage and MRP endpoint.
+  - Built using Gradle.
+  - Deployed as a standalone Java application.
+
+- **Ansible Playbooks**:
+  - Configured via command-line arguments for resource group name, location, VM name, etc.
+  - Deploys Azure resources using ARM templates and manages VM configurations.
+
+- **Shell Scripts**:
+  - Configured via hardcoded values or environment variables.
+  - Automates the installation and configuration of web servers.
+
+#### Architectural Patterns and Frameworks Used
+
+- **Spring Boot**: Used for developing the REST API backend service (OrderService).
+- **Gradle**: Used as the build automation tool for both OrderService and IntegrationService.
+- **Azure Resource Manager (ARM)**: Used for defining and deploying Azure infrastructure.
+- **Ansible**: Used for automating the deployment and configuration of Azure VMs and web servers.
+- **Scheduled Tasks**: Used in the Integration Service for periodic order processing and product updates.
+- **Singleton Pattern**: Used in `ConfigurationHelpers` for accessing application properties.
+- **Thread Safety**: Used in `QueueFactory` for managing Azure queues in a concurrent environment.
+- **CORS Filter**: Used in OrderService to enable cross-origin resource sharing.
+- **Telemetry Filtering**: Used in OrderService to track request and exception telemetry.
+- **Data Validation**: Used in OrderService to ensure input data integrity.
+- **Repository Pattern**: Used in OrderService for abstracting data access logic.
+
+This summary provides a detailed overview of the components, their responsibilities, API endpoints, database schemas, dependencies, business logic, and configuration details of the codebase chunk, enabling accurate microservice decomposition analysis.

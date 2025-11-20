@@ -1,0 +1,119 @@
+### Architectural Summary of OrderService Chunk
+
+#### Component Names and Responsibilities
+
+1. **OrderService**
+   - **Responsibility**: Manages the lifecycle of orders, quotes, dealers, catalog items, and shipments.
+   - **Sub-components**:
+     - **Controllers**: Handle HTTP requests and responses for various entities.
+     - **Models**: Define the structure and validation logic for entities.
+     - **Repositories**: Provide data access layer functionality for interacting with different storage backends (memory, MongoDB).
+     - **Filters**: Implement cross-cutting concerns such as CORS and telemetry.
+     - **Configuration**: Manage application settings and properties.
+
+#### API Endpoints and Interfaces
+
+- **CatalogController**
+  - `/catalog` (GET): Retrieve list of catalog items.
+  - `/catalog/{sku}` (GET): Retrieve specific catalog item by SKU.
+  - `/catalog` (POST): Add or update a catalog item.
+  - `/catalog/{sku}` (PUT): Add or update a specific catalog item by SKU.
+  - `/catalog/{sku}` (DELETE): Remove a catalog item by SKU.
+
+- **DealerController**
+  - `/dealers` (GET): Retrieve list of dealers.
+  - `/dealers/{name}` (GET): Retrieve specific dealer by name.
+  - `/dealers` (POST): Add a dealer.
+  - `/dealers/{name}` (PUT): Update a specific dealer by name.
+  - `/dealers/{name}` (DELETE): Remove a dealer by name.
+
+- **OrderController**
+  - `/orders/{orderId}` (GET): Retrieve order by ID.
+  - `/orders` (GET): Retrieve orders by dealer name and/or status.
+  - `/orders` (POST): Create a new order from a quote.
+  - `/orders/{orderId}/events` (POST): Add an event to an order.
+  - `/orders/{orderId}` (PUT): Update an order.
+  - `/orders/{orderId}/status` (PUT): Update the status of an order.
+  - `/orders/{orderId}` (DELETE): Delete an order.
+
+- **QuoteController**
+  - `/quotes/{quoteId}` (GET): Retrieve quote by ID.
+  - `/quotes` (GET): Retrieve quotes by customer name.
+  - `/quotes/{quoteId}` (PUT): Update a quote.
+  - `/quotes` (POST): Create a new quote.
+  - `/quotes/{quoteId}` (DELETE): Delete a quote.
+
+- **ShipmentController**
+  - `/shipments` (GET): Retrieve list of shipments by status.
+  - `/shipments/deliveries` (GET): Retrieve list of confirmed deliveries.
+  - `/shipments/{id}` (GET): Retrieve specific shipment by order ID.
+  - `/shipments` (POST): Create a shipment record.
+  - `/shipments/{id}` (PUT): Update a shipment record.
+  - `/shipments/{id}/events` (POST): Add an event to a shipment.
+  - `/shipments/{orderId}` (DELETE): Delete a shipment.
+
+- **PingController**
+  - `/ping` (HEAD): Check service availability.
+  - `/ping` (GET): Retrieve detailed service status.
+
+#### Database Schemas and Data Models
+
+- **PostgreSQL Schema (`schema.psql`)**:
+  - `CatalogItems`: Stores catalog items.
+  - `Dealers`: Stores dealer information.
+  - `Quotes`: Stores quotes.
+  - `QuoteAdditionalItemRecord`: Stores additional items for quotes.
+  - `Orders`: Stores orders.
+  - `OrderEvents`: Stores order events.
+  - `PhoneInfo`: Stores phone information.
+  - `DeliveryAddress`: Stores delivery addresses.
+  - `ShipmentRecords`: Stores shipment records.
+  - `ShipmentEventInfo`: Stores shipment events.
+
+- **MongoDB Models**:
+  - `CatalogItem`: Represents a catalog item in MongoDB.
+  - `Dealer`: Represents a dealer in MongoDB.
+  - `OrderDetails`: Represents an order in MongoDB.
+  - `QuoteDetails`: Represents a quote in MongoDB.
+  - `ShipmentDetails`: Represents a shipment in MongoDB.
+
+#### Service Dependencies and Communication Patterns
+
+- **Dependencies**:
+  - **MongoDB**: Used for persistent storage of catalog items, dealers, quotes, orders, and shipments.
+  - **ApplicationInsights**: Used for monitoring and logging application performance and exceptions.
+  
+- **Communication Patterns**:
+  - **RESTful API**: Uses HTTP methods (GET, POST, PUT, DELETE) to interact with clients.
+  - **Repository Pattern**: Abstracts data access layer, allowing easy switching between memory and MongoDB storage.
+
+#### Key Business Logic and Algorithms
+
+- **Order Creation**: Creates an order from a quote, ensuring the quote exists and hasn't been used to create an order before.
+- **Order Update**: Updates order status and adds events, validating input data.
+- **Quote Management**: Creates, updates, and deletes quotes, validating dealer and customer names.
+- **Catalog Management**: Adds, updates, retrieves, and deletes catalog items, validating SKU and other fields.
+- **Dealer Management**: Adds, updates, retrieves, and deletes dealer information, validating dealer names.
+- **Shipment Management**: Creates, updates, and deletes shipment records, adding events to shipments.
+
+#### Configuration and Deployment Details
+
+- **Configuration Files**:
+  - **application.properties**: Contains configuration for service port, management port, storage type, and MongoDB connection details.
+  - **buildinfo.properties**: Contains build number and timestamp.
+
+- **Deployment Scripts**:
+  - **setup.sh**: Initializes the database with sample data.
+  - **setupdocker.sh**: Initializes the database within a Docker container.
+  - **removeBuild.bat**: Cleans up build directories.
+  - **gradlew** and **gradlew.bat**: Gradle wrapper scripts for building the project on Unix and Windows systems.
+
+#### Architectural Patterns and Frameworks Used
+
+- **Spring Boot**: Provides a framework for building standalone, production-grade applications.
+- **Spring Data MongoDB**: Facilitates interaction with MongoDB.
+- **Repository Pattern**: Abstracts data access layer.
+- **RESTful Architecture**: Implements RESTful APIs for client-server communication.
+- **Application Insights**: Monitors application performance and logs exceptions.
+- **Mock Repositories**: Used for unit testing to simulate data storage without connecting to a real database.
+- **Gradle Wrapper**: Ensures consistent build environments across different systems.

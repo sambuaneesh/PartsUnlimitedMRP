@@ -1,0 +1,142 @@
+### Architectural Summary for Microservice Decomposition Analysis
+
+#### Overview
+The Parts Unlimited MRP (Manufacturing Resource Planning) application is a fictional training tool based on the description in "The Phoenix Project." It uses open-source technologies like Linux, Java, Apache Tomcat, and MongoDB. The application consists of a web frontend, an order service, and an integration service. Additionally, the codebase includes deployment scripts for Azure, Chef, Puppet, Jenkins, and Docker.
+
+#### Components and Responsibilities
+
+1. **Web Frontend**
+   - **Responsibility**: Provides a user interface for interacting with the order and integration services.
+   - **Technology Stack**: Apache Tomcat, Java, JSP, HTML, CSS, JavaScript.
+   - **API Communication**: Communicates with the Order Service via HTTP requests.
+   - **Deployment**: Deployed as a WAR file to Tomcat.
+   - **Directory**: `src/Clients/Web/`
+
+2. **Order Service**
+   - **Responsibility**: Manages quotes, catalog items, dealers, orders, and shipments.
+   - **Technology Stack**: Java, Spring Boot, MongoDB.
+   - **API Endpoints**:
+     - `/catalog`: GET, POST
+     - `/dealers`: GET, POST
+     - `/quotes`: GET, POST, DELETE, PUT
+     - `/orders`: GET, POST
+     - `/shipments`: GET, POST, PUT
+     - `/shipments/{orderId}/events`: POST
+   - **Data Models**:
+     - `CatalogItem`: Represents items in the catalog.
+     - `DealerInfo`: Represents dealer information.
+     - `Delivery`, `DeliveryAddress`: Represents delivery details.
+     - `Order`, `OrderEventInfo`, `OrderStatus`, `OrderUpdateInfo`: Represents order details.
+     - `PhoneInfo`: Represents contact phone information.
+     - `Quote`, `QuoteItemInfo`: Represents quote details.
+     - `ShipmentEventInfo`, `ShipmentRecord`: Represents shipment details.
+   - **Repositories**:
+     - `CatalogItemsRepository`, `DealersRepository`, `OrderRepository`, `QuoteRepository`, `ShipmentRepository`: Interfaces for accessing data.
+     - `MongoCatalogItemsRepository`, `MongoDealersRepository`, `MongoOrderRepository`, `MongoQuoteRepository`, `MongoShipmentRepository`: Implementations using MongoDB.
+   - **Deployment**: Deployed as a JAR file.
+   - **Directory**: `src/Backend/OrderService/`
+
+3. **Integration Service**
+   - **Responsibility**: Integrates the Order Service with the Parts Unlimited Website by processing orders and updating product information.
+   - **Technology Stack**: Java, Spring Boot, Azure Storage Queues, MongoDB.
+   - **API Endpoints**: Communicates with the Order Service via HTTP requests.
+   - **Key Business Logic**:
+     - `CreateOrderProcessTask`: Retrieves orders from Azure Storage Queues and integrates them into the MRP system.
+     - `UpdateProductProcessTask`: Queries the MRP system for catalog items and sends an update to the website.
+   - **Data Models**:
+     - `QueueResponse`: Wraps responses from the queue service.
+     - `OrderMessage`, `ProductMessage`: Models for messages received from and sent to the website.
+     - `CatalogItem`, `DeliveryAddress`, `Order`, `PhoneInfo`, `Quote`, `QuoteItemInfo`, `ShipmentEventInfo`, `ShipmentRecord`: Models for data exchanged with the Order Service.
+   - **Services**:
+     - `MrpConnectService`: Communicates with the MRP system.
+     - `QueueService`: Manages interactions with Azure Storage Queues.
+   - **Deployment**: Deployed as a JAR file.
+   - **Directory**: `src/Backend/IntegrationService/`
+
+#### Database Schemas and Data Models
+
+- **MongoDB**
+  - **Database**: `ordering`
+  - **Collections**:
+    - `catalog`: Stores catalog items.
+    - `dealers`: Stores dealer information.
+    - `quotes`: Stores quotes.
+    - `orders`: Stores orders.
+    - `shipments`: Stores shipment records.
+
+#### Service Dependencies and Communication Patterns
+
+- **Web Frontend**:
+  - **Dependency**: Order Service.
+  - **Communication Pattern**: HTTP REST API.
+
+- **Order Service**:
+  - **Dependency**: MongoDB.
+  - **Communication Pattern**: CRUD operations via MongoDB drivers.
+
+- **Integration Service**:
+  - **Dependencies**: Order Service, Azure Storage Queues, MongoDB.
+  - **Communication Patterns**: 
+    - Polling Azure Storage Queues for new orders and product updates.
+    - HTTP REST API to communicate with the Order Service.
+    - MongoDB drivers for storing and retrieving data.
+
+#### Key Business Logic and Algorithms
+
+- **Order Service**:
+  - **Business Logic**:
+    - Manage quotes, catalog items, dealers, orders, and shipments.
+    - Validate and process incoming requests.
+    - Store and retrieve data from MongoDB.
+    - Handle concurrent requests efficiently.
+
+- **Integration Service**:
+  - **Business Logic**:
+    - Poll Azure Storage Queues for new orders and product updates.
+    - Convert website-specific models to MRP-specific models.
+    - Communicate with the Order Service via HTTP REST API.
+    - Store and retrieve data from MongoDB.
+
+#### Configuration and Deployment Details
+
+- **Local Deployment**:
+  - **Prerequisites**: Java 8 SDK, JRE8, MongoDB, Apache Tomcat.
+  - **Build Process**: Use Gradle (`gradlew`) to build the WAR and JAR files.
+  - **Deployment Process**: Deploy WAR file to Tomcat and run the JAR file for the Order Service.
+
+- **Docker Deployment**:
+  - **Docker Images**: Separate images for the database, order service, and web frontend.
+  - **Build Script**: `deploy/docker/BuildAndRun.sh`.
+  - **Stop Script**: `deploy/docker/StopAndRemove.sh`.
+
+- **Azure Deployment**:
+  - **Virtual Machines**: Deployed on Azure using ARM templates.
+  - **Custom Scripts**: For setting up dependencies, configuring services, and importing data.
+  - **Instances**:
+    - Chef Node/Standalone
+    - Jenkins Node/Standalone
+    - Puppet Node/Standalone
+    - Parts Unlimited MRP Base
+    - Ubuntu Server 14.04/16.04 Base
+
+- **Chef/Puppet Deployment**:
+  - **Purpose**: Automate the deployment and configuration of virtual machines.
+  - **Roles**:
+    - Chef Server/Node: Manages configuration using Chef.
+    - Puppet Master/Node: Manages configuration using Puppet.
+
+- **Jenkins Deployment**:
+  - **Purpose**: Continuous Integration and Continuous Deployment (CI/CD) pipeline.
+  - **Configuration**: Automated deployment scripts for building and deploying the application.
+
+#### Architectural Patterns and Frameworks Used
+
+- **Microservices Architecture**: Separation of concerns between web frontend, order service, and integration service.
+- **Spring Boot**: Used for building the RESTful APIs for the Order and Integration services.
+- **MongoDB**: NoSQL database used for storing order, quote, catalog, dealer, and shipment data.
+- **Gradle**: Build automation tool used for compiling and packaging the Java services.
+- **Chef/Puppet**: Configuration management tools for automating the deployment of virtual machines.
+- **Jenkins**: CI/CD tool for automating the build and deployment processes.
+- **Docker**: Containerization platform for isolating and deploying application components.
+
+This summary provides a comprehensive overview of the Parts Unlimited MRP application, capturing essential architectural details for microservice decomposition analysis.

@@ -1,73 +1,84 @@
-### Architectural Summary of Parts Unlimited MRP
+### Architectural Summary of Parts Unlimited MRP (Part 1)
 
 #### Overview
-The Parts Unlimited MRP (Manufacturing Resource Planning) application is a fictional application designed for training purposes. It is based on the description in chapters 31-35 of "The Phoenix Project" by Gene Kim, Kevin Behr, and George Spafford. The application is built using open-source technologies such as Linux, Java, Apache Tomcat, and MongoDB. It consists of a web frontend, an order service, and an integration service.
+The Parts Unlimited MRP (Manufacturing Resource Planning) application is a training tool based on the "Project Unicorn" from "The Phoenix Project" book. It demonstrates DevOps principles using open-source technologies such as Linux, Java, Apache, and MongoDB. The application consists of a web frontend, an order service, and an integration service.
 
 #### Components and Responsibilities
 
 1. **Frontend Service**
-   - **Responsibilities**: Serves as the web interface for users to interact with the application. It communicates with the Order Service via RESTful APIs.
-   - **Technologies Used**: Apache Tomcat, Java Servlets, JSP.
-   - **API Endpoints**: Not explicitly defined in the given chunk but interacts with the Order Service.
+   - **Responsibility**: Runs Apache Tomcat and communicates with the Order Service.
+   - **Technology**: Java, Apache Tomcat.
+   - **API Endpoints**: Not explicitly defined in the provided codebase chunk but interacts with the Order Service via HTTP.
 
 2. **Order Service**
-   - **Responsibilities**: Manages orders, quotes, and shipments. It handles CRUD operations for these entities and integrates with the database.
-   - **Technologies Used**: Java, Spring Boot, MongoDB.
-   - **API Endpoints**:
-     - `/catalog`: Handles catalog items.
-     - `/dealers`: Manages dealer information.
-     - `/orders`: Manages order-related operations.
-     - `/quotes`: Manages quotes.
-     - `/shipments`: Manages shipment-related operations.
+   - **Responsibility**: Manages order-related operations (creating, updating, deleting orders).
+   - **Technology**: Java, MongoDB.
+   - **API Endpoints**: RESTful API endpoints for order operations.
+     - `/catalog`: Catalog items.
+     - `/dealer`: Dealer information.
+     - `/order`: Order management.
+     - `/ping`: Health check endpoint.
+     - `/quote`: Quote management.
+     - `/shipment`: Shipment tracking.
+   - **Database Schema**: MongoDB collections.
+     - `catalog`: Stores catalog items.
+     - `dealers`: Stores dealer information.
+     - `orders`: Stores order details.
+     - `quotes`: Stores quote details.
+     - `shipments`: Stores shipment details.
+   - **Key Business Logic**: Order processing, quote generation, and shipment tracking.
+   - **Dependencies**: MongoDB for data storage.
 
 3. **Integration Service**
-   - **Responsibilities**: Integrates with external systems (such as Parts Unlimited Website). It processes orders, quotes, and shipments and sends notifications.
-   - **Technologies Used**: Java, Spring Boot, MongoDB.
-   - **API Endpoints**: Not explicitly defined in the given chunk but interacts with external systems.
-
-#### Database Schemas and Data Models
-
-- **MongoDB Databases**:
-  - **Database Name**: `ordering`
-  - **Collections**:
-    - **catalog**: Stores catalog items with fields like `skuNumber`, `description`, `unit`, `unitPrice`.
-    - **dealers**: Stores dealer information with fields like `name`, `address`, `email`, `phone`.
-    - **quotes**: Stores quotes with fields like `quoteId`, `validUntil`, `customerName`, `dealerName`, `city`, `totalCost`, `discount`, `state`, `postalCode`, `quoteItems`.
-    - **orders**: Stores orders with fields like `orderId`, `quoteId`, `orderDate`, `status`, `events`.
-    - **shipments**: Stores shipment information with fields like `orderId`, `contactName`, `primaryContactPhone`, `deliveryAddress`, `events`.
+   - **Responsibility**: Integrates with the Parts Unlimited Website.
+   - **Technology**: Java.
+   - **Key Business Logic**: Scheduling tasks for order creation and product updates.
+   - **Dependencies**: MongoDB for data storage.
 
 #### Service Dependencies and Communication Patterns
 
-- **Order Service**:
-  - **Dependencies**: MongoDB.
-  - **Communication Pattern**: RESTful APIs for internal interactions, possibly messaging queues (not explicitly defined) for asynchronous processing.
-
-- **Integration Service**:
-  - **Dependencies**: MongoDB, external systems (Parts Unlimited Website).
-  - **Communication Pattern**: RESTful APIs for external system integration, possibly messaging queues (not explicitly defined) for asynchronous processing.
+- **Order Service ↔ Frontend Service**: HTTP REST API calls.
+- **Integration Service ↔ Order Service**: Direct Java method calls or possibly messaging queues (details not fully provided).
+- **Order Service ↔ MongoDB**: CRUD operations via MongoDB driver.
+- **Integration Service ↔ MongoDB**: CRUD operations via MongoDB driver.
 
 #### Key Business Logic and Algorithms
 
-- **Order Processing**: Logic for creating, updating, and managing orders.
-- **Quote Generation**: Logic for generating quotes based on catalog items and customer requirements.
-- **Shipment Management**: Logic for tracking and managing shipments.
+- **Order Service**: Order creation, updating, deletion, quote generation, and shipment tracking.
+- **Integration Service**: Scheduled tasks for order creation (`CreateOrderProcessTask`) and product updates (`UpdateProductProcessTask`).
 
 #### Configuration and Deployment Details
 
-- **Build Tools**: Gradle.
-- **Environment Setup Scripts**: 
-  - `Install-Build-Dependencies.sh`: Installs Java, MongoDB, and other dependencies.
-  - `install_mrp_dependencies.sh`: Sets up the deployment environment and deploys the application.
-  - `deploy_mrp_app.sh`: Deploys the application to a Linux VM.
-- **CI/CD Tools**: Jenkins (used for continuous integration and deployment).
-- **Configuration Files**: `application.properties` for configuring application properties.
+- **Build Tools**: Gradle for building Java projects.
+- **Environment Setup**: Scripts to install dependencies and configure environments (e.g., `install_mrp_dependencies.sh`, `deploy_mrp_app.sh`).
+- **Deployment**: Manual deployment scripts and Azure Resource Manager (ARM) templates for automated deployments.
+- **Continuous Integration**: Jenkins for CI/CD pipelines.
 
 #### Architectural Patterns and Frameworks Used
 
-- **Microservices Architecture**: Although not fully decomposed into microservices, the application is structured with separate services for different functionalities (Order Service, Integration Service).
-- **Spring Boot**: Used for developing the backend services.
-- **RESTful APIs**: Used for communication between services.
-- **Continuous Integration/Continuous Deployment (CI/CD)**: Jenkins is used for CI/CD pipelines.
-- **Configuration Management**: Uses scripts and configuration files to manage environment setups.
+- **Microservices Architecture**: Separation of concerns between Order Service and Integration Service.
+- **RESTful API**: For communication between services.
+- **Scheduled Tasks**: Using Java's scheduling capabilities for periodic tasks.
+- **CI/CD Pipeline**: Jenkins for continuous integration and deployment.
 
-This summary provides a comprehensive overview of the Parts Unlimited MRP application, capturing the essential architectural information necessary for microservice decomposition analysis.
+#### Deployment Artifacts
+
+- **JAR Files**: Order Service and Integration Service.
+- **WAR File**: Frontend Service.
+- **MongoDB Scripts**: For initializing database schema and sample data.
+
+#### Deployment Scripts
+
+- **`deploy_mrp_app.sh`**: Deploys MRP application to a Linux server.
+- **`install_mrp_dependencies.sh`**: Installs necessary dependencies and configures the environment.
+- **ARM Templates**: For deploying resources on Azure (e.g., Jenkins, Chef, Puppet, MRP VMs).
+
+#### Security Considerations
+
+- **Access Control**: Secure SSH access to VMs.
+- **Firewall Rules**: Configured in network security groups to allow necessary ports (SSH, HTTP, HTTPS, Jenkins, MRP, Ordering Service).
+- **Authentication**: Password-based authentication for VMs.
+
+#### Conclusion
+
+This chunk of the codebase provides a foundational overview of the Parts Unlimited MRP application, focusing on its microservices architecture, deployment processes, and configuration details. This summary captures the essential information needed for further microservice decomposition and analysis.

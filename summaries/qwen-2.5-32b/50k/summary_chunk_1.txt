@@ -1,0 +1,143 @@
+### Architectural Summary of Parts Unlimited MRP Codebase Chunk 1
+
+#### Overview
+The Parts Unlimited MRP application is a fictional, open-source Manufacturing Resource Planning (MRP) system. It is designed for training purposes and leverages technologies such as Linux, Java, Apache Tomcat, and MongoDB. The application consists of three primary components: a frontend web service, an order service, and an integration service. This summary captures the essential architectural information needed for microservice decomposition.
+
+#### Components and Responsibilities
+
+1. **Frontend Web Service**
+   - **Responsibility**: Serves as the web interface for users to interact with the MRP application. It communicates with the Order Service to handle orders and other operations.
+   - **Technology Stack**: Apache Tomcat, Java, HTML, CSS, JavaScript.
+   - **API Endpoints**: Interacts with the Order Service via RESTful APIs.
+   - **Deployment**: Built into a WAR file and deployed to Apache Tomcat.
+
+2. **Order Service**
+   - **Responsibility**: Manages order-related operations, including creating orders, managing quotes, handling shipments, and storing order-related data in MongoDB.
+   - **Technology Stack**: Java, MongoDB.
+   - **API Endpoints**:
+     - `/catalog`: Manage catalog items.
+     - `/dealers`: Manage dealer information.
+     - `/orders`: Manage orders.
+     - `/ping`: Health check endpoint.
+     - `/quote`: Manage quotes.
+     - `/shipment`: Manage shipment events.
+   - **Data Models**:
+     - `CatalogItem`: Represents catalog items.
+     - `DealerInfo`: Represents dealer information.
+     - `Delivery`: Represents delivery information.
+     - `Order`: Represents order information.
+     - `Quote`: Represents quote information.
+     - `ShipmentRecord`: Represents shipment event information.
+   - **Database Schema**: MongoDB collections (`catalog`, `dealers`, `orders`, `quotes`, `shipments`).
+   - **Business Logic**: Order creation, quote management, shipment tracking, and scheduled tasks for updating product information.
+   - **Deployment**: Built into a JAR file and runs as a standalone Java application.
+
+3. **Integration Service**
+   - **Responsibility**: Integrates with the Parts Unlimited Website to synchronize data and handle external interactions.
+   - **Technology Stack**: Java, MongoDB.
+   - **API Endpoints**: Not explicitly defined, but likely includes endpoints for data synchronization with the Parts Unlimited Website.
+   - **Data Models**:
+     - `CatalogItem`: Represents catalog items.
+     - `DeliveryAddress`: Represents delivery addresses.
+     - `Order`: Represents order information.
+     - `PhoneInfo`: Represents phone information.
+     - `Quote`: Represents quote information.
+     - `QuoteItemInfo`: Represents quote item information.
+     - `ShipmentEventInfo`: Represents shipment event information.
+     - `ShipmentRecord`: Represents shipment record information.
+     - `OrderItem`: Represents order items (website-specific).
+     - `OrderMessage`: Represents order messages (website-specific).
+     - `ProductItem`: Represents product items (website-specific).
+     - `ProductMessage`: Represents product messages (website-specific).
+   - **Database Schema**: MongoDB collections (`catalog`, `deliveryAddress`, `orders`, `phoneInfo`, `quotes`, `shipmentEventInfo`, `shipmentRecord`).
+   - **Business Logic**: Data synchronization with the Parts Unlimited Website.
+   - **Deployment**: Built into a JAR file and runs as a standalone Java application.
+
+#### Service Dependencies and Communication Patterns
+
+- **Frontend Web Service**:
+  - **Dependency**: Order Service (RESTful API).
+  - **Communication Pattern**: HTTP requests to Order Service endpoints.
+
+- **Order Service**:
+  - **Dependency**: MongoDB (data storage).
+  - **Communication Pattern**: Direct database access to MongoDB collections.
+
+- **Integration Service**:
+  - **Dependency**: MongoDB (data storage).
+  - **Communication Pattern**: Direct database access to MongoDB collections. Likely includes external API calls to Parts Unlimited Website.
+
+#### Key Business Logic and Algorithms
+
+- **Order Service**:
+  - Order creation and management.
+  - Quote generation and management.
+  - Shipment tracking and event management.
+  - Scheduled tasks for updating product information.
+
+- **Integration Service**:
+  - Data synchronization with the Parts Unlimited Website.
+  - Handling external interactions and API calls to the Parts Unlimited Website.
+
+#### Configuration and Deployment Details
+
+- **Environment Setup**:
+  - **Java**: Oracle JDK 8 or OpenJDK 8.
+  - **MongoDB**: MongoDB server.
+  - **Tomcat**: Apache Tomcat server for hosting the frontend web service.
+
+- **Deployment Scripts**:
+  - `deploy_mrp_app.sh`: Deploys the MRP application to a Linux VM, setting up MongoDB, Tomcat, and the Order Service.
+  - `install_mrp_dependencies.sh`: Installs necessary dependencies and sets up the environment for the MRP application.
+  - `BuildAndRun.sh`: Builds and runs Docker containers for the frontend, order service, and database.
+  - `StopAndRemove.sh`: Stops and removes Docker containers and images.
+
+- **Docker Configuration**:
+  - **Frontend Web Service**: Built from `deploy/docker/Clients/Dockerfile`.
+  - **Order Service**: Built from `deploy/docker/Order/Dockerfile`.
+  - **Database**: Built from `deploy/docker/Database/Dockerfile`.
+
+- **Azure Deployment Templates**:
+  - **Chef Node**: `deploy/azurestack/instances/chef_node/AddChefNode.json`.
+  - **Chef Standalone**: `deploy/azurestack/instances/chef_standalone/Chef.ChefServer/DeploymentTemplates/ChefDeploy.json`.
+  - **Jenkins with MRP**: `deploy/azurestack/instances/jenkins_mrp/PartsUnlimitedMRP.MRPwithJenkins/DeploymentTemplates/MRPwithJenkinsDeploy.json`.
+  - **Standalone Jenkins**: `deploy/azurestack/instances/jenkins_standalone/TheJenkinsProject.Jenkins/DeploymentTemplates/JenkinsDeploy.json`.
+  - **Parts Unlimited MRP Base**: `deploy/azurestack/instances/parts_unlimited_mrp_base/PartsUnlimited.Ubuntu1604/DeploymentTemplates/PartsUnlimitedMRP.json`.
+  - **Parts Unlimited MRP with SSH**: `deploy/azurestack/instances/parts_unlimited_SSH_mrp_base/PartsUnlimitedSSH.Ubuntu1604/DeploymentTemplates/PartsUnlimitedSSHMRP.json`.
+  - **Puppet Node**: `deploy/azurestack/instances/puppet_node/AddPuppetNode.json`.
+  - **Standalone Puppet**: `deploy/azurestack/instances/puppet_standalone/Puppet.PuppetEnterprise/DeploymentTemplates/PuppetDeploy.json`.
+  - **Ubuntu Server 14.04 Base**: `deploy/azurestack/instances/ubuntu_server_1404_base/Canonical.Ubuntu1404/DeploymentTemplates/UbuntuServer1404.json`.
+  - **Ubuntu Server 16.04 Base**: `deploy/azurestack/instances/ubuntu_server_1604_base/Canonical.UbuntuServer.1.0.0/DeploymentTemplates/UbuntuServer1604.json`.
+
+#### Database Schemas and Data Models
+
+- **MongoDB Collections**:
+  - `catalog`: Stores catalog items.
+  - `dealers`: Stores dealer information.
+  - `orders`: Stores order information.
+  - `quotes`: Stores quote information.
+  - `shipments`: Stores shipment event information.
+
+- **Data Models**:
+  - Defined in `src/Backend/OrderService/src/main/java/smpl/ordering/models/`.
+  - Includes classes like `CatalogItem`, `DealerInfo`, `Order`, `Quote`, `ShipmentRecord`, etc.
+
+#### Architectural Patterns and Frameworks Used
+
+- **Microservices Architecture**: The application is divided into distinct services (frontend, order service, integration service) that communicate over APIs.
+- **DevOps Practices**: Utilizes CI/CD pipelines with Jenkins and configuration management tools like Chef and Puppet.
+- **Containerization**: Uses Docker for containerizing the frontend, order service, and database.
+- **CI/CD Tools**:
+  - **Jenkins**: For continuous integration and deployment.
+  - **Chef**: For configuration management.
+  - **Puppet**: For configuration management.
+- **CI/CD Scripts**: `deploy/azurestack/customscripts/jenkins/install_jenkins_1604.sh`, `deploy/azurestack/customscripts/chef/install_chef.sh`, `deploy/azurestack/customscripts/puppet/install_puppet_1604.sh`.
+
+#### Additional Information
+
+- **Build System**: Gradle for building Java projects.
+- **Testing**: Unit tests and integration tests written in Java.
+- **Documentation**: Extensive documentation available in the `README.md`, `CONTRIBUTING.md`, and `SECURITY.md` files.
+- **License**: MIT License.
+
+This summary provides a comprehensive overview of the essential architectural elements of the Parts Unlimited MRP application, facilitating accurate microservice decomposition analysis.
