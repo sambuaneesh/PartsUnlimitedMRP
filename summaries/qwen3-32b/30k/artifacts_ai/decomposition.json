@@ -1,0 +1,178 @@
+{
+  "tool": {
+    "decomposition": {
+      "Order Management Service": [
+        {
+          "id": "OrderController"
+        },
+        {
+          "id": "OrderRepository"
+        },
+        {
+          "id": "Order"
+        },
+        {
+          "id": "OrderStatus"
+        },
+        {
+          "id": "OrderEventInfo"
+        },
+        {
+          "id": "OrderUpdateInfo"
+        },
+        {
+          "id": "CatalogItemsRepository"
+        },
+        {
+          "id": "CatalogItemsRepositoryTest"
+        },
+        {
+          "id": "CatalogItem"
+        },
+        {
+          "id": "Quote"
+        },
+        {
+          "id": "QuoteItemInfo"
+        }
+      ],
+      "Dealer Information Service": [
+        {
+          "id": "DealerController"
+        },
+        {
+          "id": "DealersRepository"
+        },
+        {
+          "id": "DealerInfo"
+        },
+        {
+          "id": "DealersRepositoryTest"
+        },
+        {
+          "id": "MongoDealersRepository"
+        }
+      ],
+      "Quote Validation Service": [
+        {
+          "id": "QuoteController"
+        },
+        {
+          "id": "QuoteRepository"
+        },
+        {
+          "id": "QuoteRepositoryTest"
+        },
+        {
+          "id": "MongoQuoteRepository"
+        },
+        {
+          "id": "MockQuoteRepository"
+        },
+        {
+          "id": "createQuote(java.lang.String)"
+        }
+      ],
+      "Shipment Tracking Service": [
+        {
+          "id": "ShipmentsController"
+        },
+        {
+          "id": "ShipmentRepository"
+        },
+        {
+          "id": "ShipmentRecord"
+        },
+        {
+          "id": "MongoShipmentRepository"
+        },
+        {
+          "id": "MockShipmentRepository"
+        },
+        {
+          "id": "IntegrationTests"
+        }
+      ],
+      "Shared Infrastructure Service": [
+        {
+          "id": "RepositoryFactory"
+        },
+        {
+          "id": "ConfigurationManager"
+        },
+        {
+          "id": "MongoDBProperties"
+        },
+        {
+          "id": "OrderingServiceProperties"
+        },
+        {
+          "id": "PropertyHelper"
+        },
+        {
+          "id": "Utility"
+        },
+        {
+          "id": "ConfigurationRule"
+        },
+        {
+          "id": "ErrorHandling"
+        },
+        {
+          "id": "TelemetryClient"
+        }
+      ],
+      "Web Application (Frontend)": [
+        {
+          "id": "WebClient"
+        },
+        {
+          "id": "WinJSMain"
+        },
+        {
+          "id": "DataBinding"
+        },
+        {
+          "id": "PaginationHandler"
+        },
+        {
+          "id": "OrderTrackingUI"
+        },
+        {
+          "id": "DealerSearchUI"
+        }
+      ],
+      "Deployment Management Service": [
+        {
+          "id": "DeploymentManager"
+        },
+        {
+          "id": "ARMTemplateHandler"
+        },
+        {
+          "id": "DockerSetup"
+        },
+        {
+          "id": "InfrastructureProvisioner"
+        }
+      ],
+      "Configuration Management Service": [
+        {
+          "id": "ConfigurationService"
+        },
+        {
+          "id": "SecretsManager"
+        },
+        {
+          "id": "AnsibleHandler"
+        },
+        {
+          "id": "PuppetIntegration"
+        },
+        {
+          "id": "EnvironmentValidator"
+        }
+      ]
+    }
+  }
+}

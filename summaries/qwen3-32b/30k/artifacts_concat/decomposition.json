@@ -1,0 +1,240 @@
+{
+  "tool": {
+    "decomposition": {
+      "Order Management Service": [
+        {
+          "id": "OrderController"
+        },
+        {
+          "id": "OrderRepository"
+        },
+        {
+          "id": "Order"
+        },
+        {
+          "id": "OrderEventInfo"
+        },
+        {
+          "id": "OrderStatus"
+        },
+        {
+          "id": "OrderUpdateInfo"
+        },
+        {
+          "id": "MongoOrderRepository"
+        },
+        {
+          "id": "MockOrderRepository"
+        },
+        {
+          "id": "CatalogItemsRepositoryTest"
+        },
+        {
+          "id": "ShipmentsRepositoryTest"
+        },
+        {
+          "id": "DealersRepositoryTest"
+        },
+        {
+          "id": "QuoteRepositoryTest"
+        }
+      ],
+      "Quote Generation Service": [
+        {
+          "id": "QuoteController"
+        },
+        {
+          "id": "QuoteRepository"
+        },
+        {
+          "id": "Quote"
+        },
+        {
+          "id": "QuoteItemInfo"
+        },
+        {
+          "id": "MongoQuoteRepository"
+        },
+        {
+          "id": "MockQuoteRepository"
+        },
+        {
+          "id": "OrderRepositoryTest"
+        },
+        {
+          "id": "DealersRepositoryTest"
+        },
+        {
+          "id": "CatalogItemsRepositoryTest"
+        },
+        {
+          "id": "Application Insights Filter"
+        },
+        {
+          "id": "Utility"
+        }
+      ],
+      "Dealer Management Service": [
+        {
+          "id": "DealerController"
+        },
+        {
+          "id": "DealersRepository"
+        },
+        {
+          "id": "DealerInfo"
+        },
+        {
+          "id": "MongoDealersRepository"
+        },
+        {
+          "id": "MockDealersRepository"
+        },
+        {
+          "id": "DeliveryAddress"
+        },
+        {
+          "id": "PhoneInfo"
+        },
+        {
+          "id": "AddressValidation"
+        },
+        {
+          "id": "Application Insights Filter"
+        },
+        {
+          "id": "Utility"
+        }
+      ],
+      "Catalog Management Service": [
+        {
+          "id": "CatalogController"
+        },
+        {
+          "id": "CatalogItemsRepository"
+        },
+        {
+          "id": "CatalogItem"
+        },
+        {
+          "id": "MongoCatalogItemsRepository"
+        },
+        {
+          "id": "MockCatalogItemsRepository"
+        },
+        {
+          "id": "IntegrationTask"
+        },
+        {
+          "id": "OrderControllerTest"
+        },
+        {
+          "id": "QuoteControllerTest"
+        },
+        {
+          "id": "Application Insights Filter"
+        },
+        {
+          "id": "Utility"
+        }
+      ],
+      "Shipment Tracking Service": [
+        {
+          "id": "ShipmentController"
+        },
+        {
+          "id": "ShipmentsRepository"
+        },
+        {
+          "id": "ShipmentRecord"
+        },
+        {
+          "id": "ShipmentEventInfo"
+        },
+        {
+          "id": "MongoShipmentRepository"
+        },
+        {
+          "id": "MockShipmentRepository"
+        },
+        {
+          "id": "IntegrationTask"
+        },
+        {
+          "id": "Application Insights Filter"
+        },
+        {
+          "id": "Utility"
+        }
+      ],
+      "MRP Integration Service": [
+        {
+          "id": "MRP Connect Service"
+        },
+        {
+          "id": "QueueService"
+        },
+        {
+          "id": "QueueFactory"
+        },
+        {
+          "id": "ScheduledQueueManager"
+        },
+        {
+          "id": "MRPOfferProcessor"
+        },
+        {
+          "id": "QuoteGenerationLogic"
+        },
+        {
+          "id": "AzureQueueManager"
+        },
+        {
+          "id": "AzureQueueResponse"
+        }
+      ],
+      "Infrastructure Service": [
+        {
+          "id": "ConfigurationManager"
+        },
+        {
+          "id": "ConfigurationHelpers"
+        },
+        {
+          "id": "DockerInfrastructure"
+        },
+        {
+          "id": "MongoDBProperties"
+        },
+        {
+          "id": "PostgreSQLProperties"
+        },
+        {
+          "id": "RepositoryFactory"
+        }
+      ],
+      "Monitoring Service": [
+        {
+          "id": "AppInsightsFilter"
+        },
+        {
+          "id": "ApplicationInsightsConfig"
+        }
+      ],
+      "Shared Utilities Service": [
+        {
+          "id": "Utility"
+        },
+        {
+          "id": "DateUtil"
+        },
+        {
+          "id": "TestOrderingConfiguration"
+        },
+        {
+          "id": "HealthCheck"
+        }
+      ]
+    }
+  }
+}

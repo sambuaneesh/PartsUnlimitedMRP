@@ -1,0 +1,167 @@
+{
+  "tool": {
+    "decomposition": {
+      "Order Service": [
+        {
+          "id": "OrderController"
+        },
+        {
+          "id": "OrderRepository"
+        },
+        {
+          "id": "MockOrderRepository"
+        },
+        {
+          "id": "MongoOrderRepository"
+        },
+        {
+          "id": "OrderDetails"
+        },
+        {
+          "id": "OrderEventInfo"
+        },
+        {
+          "id": "OrderStatus"
+        }
+      ],
+      "Quote Service": [
+        {
+          "id": "QuoteController"
+        },
+        {
+          "id": "QuoteRepository"
+        },
+        {
+          "id": "MockQuoteRepository"
+        },
+        {
+          "id": "MongoQuoteRepository"
+        },
+        {
+          "id": "QuoteDetails"
+        },
+        {
+          "id": "QuoteItemInfo"
+        }
+      ],
+      "Dealer Service": [
+        {
+          "id": "DealersRepository"
+        },
+        {
+          "id": "MockDealersRepository"
+        },
+        {
+          "id": "MongoDealersRepository"
+        },
+        {
+          "id": "DealerInfo"
+        },
+        {
+          "id": "DeliveryAddress"
+        },
+        {
+          "id": "PhoneInfo"
+        }
+      ],
+      "Inventory Service": [
+        {
+          "id": "CatalogController"
+        },
+        {
+          "id": "CatalogItemsRepository"
+        },
+        {
+          "id": "MockCatalogItemsRepository"
+        },
+        {
+          "id": "MongoCatalogItemsRepository"
+        },
+        {
+          "id": "CatalogItem"
+        },
+        {
+          "id": "ProductItem"
+        }
+      ],
+      "Shipment Service": [
+        {
+          "id": "ShipmentsController"
+        },
+        {
+          "id": "ShipmentRepository"
+        },
+        {
+          "id": "MockShipmentRepository"
+        },
+        {
+          "id": "MongoShipmentRepository"
+        },
+        {
+          "id": "ShipmentDetails"
+        },
+        {
+          "id": "ShipmentEventInfo"
+        },
+        {
+          "id": "OrderEventInfo"
+        },
+        {
+          "id": "DeliveryStatus"
+        },
+        {
+          "id": "DeliveryAddress"
+        }
+      ],
+      "Monitoring Service": [
+        {
+          "id": "AppInsightsFilter"
+        },
+        {
+          "id": "TelemetryClient"
+        },
+        {
+          "id": "ConfigurationManager"
+        },
+        {
+          "id": "ConfigurationHelpers"
+        },
+        {
+          "id": "PropertyHelper"
+        }
+      ],
+      "Common Resources Service": [
+        {
+          "id": "MongoOperationsWithRetry"
+        },
+        {
+          "id": "RepositoryFactory"
+        },
+        {
+          "id": "OrderingConfiguration"
+        },
+        {
+          "id": "TestOrderingConfiguration"
+        },
+        {
+          "id": "Utility"
+        },
+        {
+          "id": "SimpleCORSFilter"
+        },
+        {
+          "id": "BadRequestException"
+        },
+        {
+          "id": "ConflictingRequestException"
+        },
+        {
+          "id": "ConfigurationRule"
+        },
+        {
+          "id": "TestPath"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "tool": {
+    "decomposition": {
+      "Business Logic Service": [
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerService"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerServiceTest"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.Visit.VisitService"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.Pet.PetService"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.SpecialtiesRepository"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.Pet.Speciality.Speciality"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.Pet.Speciality.SpecialityServiceTest"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.Pet.Speciality.SpecialityService"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.Pet.Pet"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.Owner"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerControllerTest"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerControllerAdviceTest"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerControllerAdvice"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerController"
+        }
+      ],
+      "User Interface Service": [
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerControllerTest"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerControllerAdviceTest"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerControllerAdvice"
+        }
+      ],
+      "Data Access Service": [
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerRepository"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerRepositoryTest"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerRepositoryImpl"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.Visit.VisitRepository"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.Pet.PetRepository"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.Pet.Speciality.SpecialitiesRepository"
+        }
+      ],
+      "Shared Infrastructure Service": [
+        {
+          "id": "com.packt.Spring5Aop.CallMe"
+        },
+        {
+          "id": "com.packt.Spring5Aop.DemoDAO"
+        },
+        {
+          "id": "com.packt.Spring5Aop.ProxyClassWithInterface"
+        }
+      ],
+      "AOP Configuration Service": [
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerControllerAdviceTest"
+        },
+        {
+          "id": "com.packt.Spring5Aop.Owner.OwnerControllerAdvice"
+        }
+      ]
+    }
+  }
+}
